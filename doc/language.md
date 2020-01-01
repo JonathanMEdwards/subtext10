@@ -31,11 +31,12 @@ This section summarizes the notable programming language features of Subtext whi
 * Functions are not abstract entities. Instead the formula computing any field can be “called” and supplied with alternate subject and argument values to use. As a result all code is always executing on concrete input values. Code can be edited live, immediately seeing the execution results, as in a spreadsheet.
 * Calling a function is essentially inlining a copy of it. Lexical closures fall out of the way that relative paths within a subtree are mapped through copies.
 * A function argument has access to the static type of the parameter definition. For example this avoids the redundancy of `insertRow(new Row(...))` instead of just `insertRow(do{:=...})`. A function argument also has access to the default value of the parameter, which the function can compute dynamically based on the value of the subject and prior arguments.
-* Functions can have multiple return values, which are accessed via reflection on the function’s execution, avoiding the need to package them with the main return value.
+* Functions can have extra return values, which do not need to be explicitly captured at the call site as in other approaches.
 * Hidden types: Subtext is statically typed, but types are not mentioned in the language nor error messages. Concrete values serve as witnesses of types.
 * Parametric polymorphism (generics) are provided without exposing the concept of a type parameter.  Generics fall out almost for free from the ability to have dynamically defaulted parameters described above.
-* There is one form of dynamic list structure: the _table_, which auto-generates unique IDs.
-* Tables support _selectors_ which can chose one or more rows from a specific table. Selectors can serve as foreign keys. They also replace the conventional use of pointers/references, allowing reads and writes to a dynamically chosen location. This opens the Pandora’s Box of aliasing and side-effects, but only within the statically-known backing table of a selector. Future research will look at exploiting this constraint for precise side-effect analysis.
+* There is one form of sequential data structure: the _list_, which when containing records serve as _tables_.
+* Lists can be tracked by automatically assigning hidden unique IDs to their items. Tracked ists support _selectors_ which can chose one or more rows from a specific table. Selectors can serve as foreign keys. They also replace the conventional use of pointers/references, allowing reads and writes to a dynamically chosen location. This opens the Pandora’s Box of aliasing and side-effects, but only within the statically-known backing table of a selector. Future research will look at exploiting this constraint for precise side-effect analysis.
+* Tracked lists allow precise document versioning and mergeing.
 
 ### Intentionally excluded features
 
@@ -50,23 +51,23 @@ This section summarizes the notable programming language features of Subtext whi
 The artifact that Subtext mediates is called a _document_. It is somewhat like a spreadsheet (e.g. Excel) in that it presents both data and formulas in a visual metaphor that is easy to learn. It is somewhat like a notebook (e.g. Jupyter) in that it offers the full power of a programming language. These artifacts are characterized by their geometry: notebooks are a linear list of cells; spreadsheets are a 2-dimensional grid of cells; Subtext documents are a tree of cells.
 
 - Subtext documents are built out of two things: data and formulas. There are a predefined set of base types of data like numbers, strings, and times. Formulas are built from a predefined set of _operations_ and _functions_ which process data.
-- Documents are built up in two ways: _blocks_ and _tables_.
+- Documents are built up in two ways: _blocks_ and _lists_.
 - A block is a fixed group of _fields_ holding data and formulas. Fields can be named. There are different kinds of blocks. A _record_ block gathers a set of fields to be handled as a group, similarly to _structs_ and _objects_ in other languages. The entire _document_ is a top-level block. A _choice_ block gathers a set of fields out of which exactly one must be chosen,  similarly to _variants_ ,  _sums types_, and\_discriminated unions\_  in other languages. There are several kinds of _code_ blocks similar to traditional PL control structures, with their fields corresponding to statements.
-- Tables contain contain zero or more _rows_, each of which is automatically assigned  a permanent _serial number_ when it is created. The rows of a table all have the same type of data.
-- In analogy with spreadsheets, the “cells” of a Subtext document are the fields and the rows. A tree structure is built up by nesting blocks and tables. A Subtext document is a whole tree.
+- Lists contain contain zero or more _items_ of the same type. When a list contains records it is called a _table_, and the items are called _rows_. 
+- In analogy with spreadsheets, the “cells” of a Subtext document are the fields and the items. A tree structure is built up by nesting blocks and lists. A Subtext document is a whole tree.
 
 The tree structure of Subtext documents strike a nice balance: they are more flexible and dynamic than the grid of a spreadsheet, yet simpler and more visualizable than the graph-structured data of imperative programming languages.
 
-Subtext is statically typed, which conventionally means that the code and the types of values are fixed at _compile time_ and do not vary at _run time_. But there is no such thing as compile time in Subtext documents, which are always running and fully editable with persistent state. Subtext distinguishes between two kinds of changes: modifying data and editing code or definitions. It is possible to lock a document so that only data modifications are allowed. Data modifications are highly constrained: data types are fixed (a number can’t be changed to a string), and changes are limited to data updates, choices, table insertions and deletions. Only certain kinds of errors can occur during data modification. In contrast, code editing can change anything, and can lead to various sorts of inconsistencies called _static errors_, corresponding to the errors a traditional compiler might report. Static errors are reported to the programmer as problems in the document to be resolved, but unlike compiled languages, the document continues to function outside the affected parts.
+Subtext is statically typed, which conventionally means that the code and the types of values are fixed at _compile time_ and do not vary at _run time_. But there is no such thing as compile time in Subtext documents, which are always running and fully editable with persistent state. Subtext distinguishes between two kinds of changes: modifying data and editing code or definitions. It is possible to lock a document so that only data modifications are allowed. Data modifications are highly constrained: data types are fixed (a number can’t be changed to a string), and changes are limited to data updates, choices, list insertions and deletions. Only certain kinds of errors can occur during data modification. In contrast, code editing can change anything, and can lead to various sorts of inconsistencies called _static errors_, corresponding to the errors a traditional compiler might report. Static errors are reported to the programmer as problems in the document to be resolved, but unlike compiled languages, the document continues to function outside the affected parts.
 
 Although Subtext is statically typed in the above sense, there is no mention of types in the language syntax or error messages, because concrete values serve as witnesses of their types (see _Types_).
 
-Nesting blocks and tables leads to a tree structure somewhat like those of statically typed FP languages, except that:
+Nesting blocks and lists leads to a tree structure somewhat like those of statically typed FP languages, except that:
 - They are mutable.
 - The same structures are used to represent data and code (as in LISP), but they also represent the execution of code. We call this _reified execution_.
 - Some parts of the tree can be dynamically computed from other parts via cross-references.
-- A _selector_ can dynamically select one or more rows from a specific target table. Selectors are like foreign keys in a DB. Selectors are like pointers in that you can “write through” them into the target table.
-- Cross-references within the tree are static. Selectors can dynamically change which rows they select, but the table out of which they select is known statically, which limits the damage they can do.
+- A _selector_ can dynamically select one or more items from a specific target list. Selectors are like foreign keys in a DB. Selectors are also like pointers in that you can “write through” them into the target list, but in a way compatible with pure functional semantics. See _Synchronized selectors_.
+- Cross-references within the tree are static. Selectors can dynamically change which items they select, but the list out of which they select is known statically, which limits the damage they can do.
 
 ## Base values
 Subtext provides a set of base values out of which documents can be built. The base values are:
@@ -74,7 +75,6 @@ Subtext provides a set of base values out of which documents can be built. The b
 - string: a JavaScript string literal using single quotes: `'hello'`
 - number: double float using JavaScript syntax, and the special value `_number_` not equal to any other number.
 - `nil`, the unit value, useful in enumerations (see _Choices_)
-- Row IDs in tables. The only literal is `_template_`, the ID of the template row.
 - TODO: date-times
 - TODO: media (MIME-typed blobs)
 
@@ -82,7 +82,7 @@ Subtext provides a set of base values out of which documents can be built. The b
 
 ## Blocks and fields
 
-One way Subtext documents are constructed is with _blocks_ (the other is _tables_) . Blocks contain a fixed sequence of _fields_, which can be given names. Blocks are defined with curly brackets preceded by a keyword indicating the kind of block. The most basic kind of  block is a _record_. Records are like structs or objects in other languages, and rows in relational databases. For example:
+One way Subtext documents are constructed is with _blocks_ (the other is _listss_) . Blocks contain a fixed sequence of _fields_, which can be given names. Blocks are defined with curly brackets preceded by a keyword indicating the kind of block. The most basic kind of  block is a _record_. Records are like structs or objects in other languages, and rows in relational databases. For example:
 ```
 b: record {
   x: 0
@@ -269,7 +269,7 @@ ternary-function = function{
 }
 x = 1 ternary-function(2, arg2 := 3)
 ```
-The rule is that the first defined argument is anonymous in the call. Note that named arguments use the same notation `:=` as a set operation. That is because they actually are set operations, overriding the data fields of the function. The first argument implicitly uses a set operation too: `arg1 := 2`. Because arguments use set operations, we get defaul argument inputs. Thus for example `1 plus(+ 1)` will increment the default value of the argument (from 1 to 2), with a final result of 3. This is a contrived example, but we will see more useful cases later with choices and tables.
+The rule is that the first defined argument is anonymous in the call. Note that named arguments use the same notation `:=` as a set operation. That is because they actually are set operations, overriding the data fields of the function. The first argument implicitly uses a set operation too: `arg1 := 2`. Because arguments use set operations, we get defaul argument inputs. Thus for example `1 plus(+ 1)` will increment the default value of the argument (from 1 to 2), with a final result of 3. This is a contrived example, but we will see more useful cases later with choices and lists.
 
 There is one big difference between functions in Subtext and other languages: they are expressions, not values. Look at this function:
 ```
@@ -643,208 +643,186 @@ eval-expr = function {
 ## Repeating
 See # Frames
 
-## Tables
+## Lists and tables
 
-Tables contain a sequence of zero or more _rows_ containing the same type of value.  For example:
+A _list_ contains a sequence of zero or more _items_ containing the same fixed type of value.  A _table_ is a list containing records. The items of a table are called _rows_ , and the fields of the record are called _columns_. Every list defines a value, called it’s _template_, which sets the default value for newly created items. For example:
 ```
-numbers: table 0
+numbers: list {0}
 customers: table {
   name: ''
   address: ''
 }
 ```
-The table `numbers` contain numbers, defaulting to 0. Tables often contain records, the fields of which are called _columns_. The table definition `customers: table {...}` is equivalent to `customers: table record {...}`, which will contain columns `name` and `address` defaulting to the empty string.
+The list `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: list {record {...}}`. The table contain columns `name` and `address` defaulting to the empty string. 
 
-The definition of a table defines the default value for new rows. This default value is called the _template_ of the table, and is considered to be a special row of the table apart from the actual data rows.
+All lists are initially created as empty. A string is a list of characters with the space character as the template, so `'' =? list{space}`
 
-The `&` function (pronounced “and”) is used to create rows in a table. For example:
+The `&` function (pronounced “and”) is used to create items in a list. For example:
 ```
 n = numbers & 1 & 2 & 3
 c = customers & with{name:= 'Joe', address:= 'Pleasantown, USA'}
 ```
-The `&` operator takes a table as it’s input and a row as its argument, and results in a table equal to the input plus a newly created row. The default value of the argument to `&` is the template row , which provides default values, so it is convenient to use a with-block as above to set some of the fields. We modify a table similarly:
+The `&` operator takes a list as it’s input and an item value as its argument, and results in a list equal to the input plus a new item. The default value of the argument to `&` is the template item, which provides a default value, so `&()` will create an item with the default value. In tables it is convenient to use a with-block as above to set some of the fields and let the others default.
+
+The `&&` function concatenates lists: `list1 && list2` is a copy of `list1` with all the items from `list2` added to its end. The two lists must have the same type template.
+
+The items in a list are numbered starting at 1 for the first item. This number is called the item’s _index_. The number of items (not counting the template) is called the list’s _length_, available with the `list length()` function. 
+
+An item in a list can be accessed via its index using square brackets, as in:
 ```
-numbers := & 1 & 2 & 3
-customers := & with{name:= 'Joe', address:= 'Pleasanton, USA'}
+n = numbers & 1 & 2
+n[1] =? 1
+n[2] =? 2
+n length() =? 2
 ```
 
-When the rows are a record, the first field of the record is considered to be the _title_ of the row, and will be used in various places to identify the row. Unlike database keys, titles can be edited and need not be unique. If the rows are not records, the value of the row is its title
-
-When a row is created it is permanently assigned an_ID_ unique within the table. The `&` function returns the new ID in the `~id` extra result. All template rows have the ID _template_.  An ID can be used to lookup a row in a table with an _indexed path_, for example `table[id]`. Note that the row does not contain it’s ID, but it can be accessed by a formula within the row with the special reference `@id`. IDs can be compared for equality with `=?` and `not=?`, and compared for creation order with `<?` and `>?`.
-
-The order of rows in a table can change, either automatically sorted based on their content or by being manually rearranged. The default case is that the rows are kept in the order they were created, from first to last. We discuss the other ways to order tables in Sorting and Arranging.
-
-Two tables are equal when:
-1. their templates are equal,
-2. they have the same number of rows, with equal values and equal IDs in the same order,
-3. the same total number of rows have been created in the table, not counting deletions.
-Two tables being equal guarantees that any function applied to both will have equal results.
-
-> Tables are not arrays, the traditional variable-sized datatype of programming languages. Arrays lack permanent IDs that can identify elements even if they change or move, and thus can’t support precise merging or stable relationships. Strings are by far the main use case for arrays in Subtext. Therefore we will initially support strings as the only array-like datatype, treating them as atomic values, and defer general purpose arrays until their need arises.
-
-We can scan a table by ID:
+The template of a list is accessed with `list[]`. The expression `list[i]` will crash if `i` is fractional or non-positive or larger than the length of the list. You can test if an index is valid with:
 ```
-first = customers first?()
-last = customers last?()
-second = first next-in? customers
-second previous-in? customers =? first
+list contains? index 
 ```
-The function `first?` provides the ID of the first row, and `last?` the ID of the last row, rejecting if the table is empty. The `next-on?` and `previous-in?` functions take as input an ID and produce the ID of the row adjacent in the indicated direction. If the input is _template_, they produce the first or last ID respectively. They reject when they hit the end or beginning of the table. They crash if the input ID does not exist in the table (_we may loosen this to allow deleted serial numbers by retaining their position in the table_).
+You can conditionalize list indexing with:
+```
+list[contains? index]
+```
+which works because the default value inside the brackets is the list itself, which becomes the input to the `contains?` function, which if successful results in the valid index. 
 
-We can also use numbers to access a table. The number 0 refers to the template, and the data rows are numbered starting at 1:
+Items in a list can be updated individually by index:
 ```
-template = customers number 0
-first = customers number 1
-last = customers number(customers count())
+n = numbers & 1 & 2
+test {
+  .n[1] := 3
+  .n[1] =? 3
+  .n[2] =? 2
+}
 ```
+Individual fields in a row can be updated similarly:
+```
+test {
+  .customers[1].name := 'Joe Jr'
+}
 
-> `count()`, `first?()`, `last?()` and other unary functions on tables could become pseudo-fields like `.count`, `.first?`, `.last?`. But perhaps we should use pseudo fields for projecting a column `table.field` instead of the longer but more descirptive `table.columns.field`. The unary functions could instead be mounted as metadata `^count` etc.
-
-We can search in a table:
 ```
-first-joe = customers find?{.name =? 'Joe'}
-last-joe = customers find-last?{.name =? 'Joe'}
-only-joe = customers find-only?{.name =? 'Joe'}
+or equivalently using a with-block:
 ```
-The `find?` block is evaluated repeatedly with a row as its input value, starting with the first row and continuing until it does not reject. The result is the ID of that row. If all the rows are rejected, the entire operation rejects. The `find-last?` block does the same thing except it scans the table backwards. The `find-only?` block produces the ID of the only match, and rejects if there are none or more than one.
-
-The find blocks above are called _queries_. Queries are do-blocks, and allow anything allowed in a do-block. Inside the block, the special reference `@id` will evaluate to the ID of the current row.
-
-We test whether an ID exists in a table with:
-```
-customers contains? first-joe
+test {
+  .customers[1] := with{name := 'Joe Jr.'}
+}
 ```
 
-We can delete a row in a table with the `delete` function, which results in a table lacking that row (and crashing if there is no such row):
+We can delete an item in a list with the `delete` function, which results in a list with that item removed (crashing if there is no such row):
 ```
-customers := delete first-joe
-```
-The default value of the argument to `delete` is the table itself, so we can write:
-```
-customers := delete find?{.name =? 'Joe'}
+list delete i
 ```
 
-We can delete all rows from a table with the `clear` function.
+We can delete all items from a list with the `clear` function.
 ```
-customers clear() count() =? 0
+list clear() length() =? 0
 ```
-Clearing a table also resets the number of allocated rows to 0, so that all tables of the same type are equal after being cleared.
 
-We can access a row in a table from its ID by _indexing_ with square brackets:
+Normally, new items are added to the end of a list. But a list can be defined as _sorted_, which means the items will be automatically kept in order of increasing value, or _reverse sorted_, which keeps then in order of decreasing value. Tables, whose items are records, use lexicographical ordering, where the first column is the most significant. Thus
 ```
-joe = customers[first-joe]
-joe.address =? 'Pleasanton, USA'
+customers: sorted table {
+  name: ''
+  address: ''
+}
 ```
-Inside the square brackets is an expression producing an ID. If that ID does not currently exist in the table, the expression will crash. The default value for the expression inside the square brackets is the table itself, so we could write:
+will order the rows alphabetically by name, and duplicate names by address.
+
+When a list is not sorted, new items can be inserted anywhere into the list using:
+```
+list insert(item, at: i)
+```
+where `i` must be \>=1 and \<= length + 1. The new item will then have the index `i`. An item already in the list can be moved using:
+```
+list move(i, at: j)
+```
+where `j` must be \>=1 and \<= length + 1.
+
+Two lists are considered equal by the `=?` function when they have the same number of items with equal values in the same order. The `=?` function can only be used to compare lists with templates of the same type and the same kind of sorting (it is a static error otherwise). Lists can be converted between different sortings with the functions `sorted()` `reverse-sorted()` `unsorted()`. By requiring sorting compatibility for equality, we preserve the property that calling a function with equal inputs and arguments produces equal results, specifically the `&` function creating new items.
+
+## Searching
+A find-block searches in a list:
+```
+joe-index = customers find?{.name =? 'Joe'}
+```
+The `find?` block is evaluated repeatedly with an item as its input value, starting with the first item and continuing until it does not reject. The result is the index of that item. If all the items are rejected, the entire operation rejects. The `find-last?` block does the same thing except it scans the table backwards. The `find-only?` block produces the index of the only match, and rejects if there are none or more than one. Inside a find-block, the special reference `@index` will evaluate to the index of the current item.
+
+It can be convenient to use a find-block as an index expression, which works because the default value of the index is the list itself
 ```
 joe = customers[find?{.name =? 'Joe'}]
 ```
-and we can conditionalize indexing with:
-```
-joe = customers[contains? first-joe]
-```
 
-Indexing can also be used on the left hand side of a set command to modify a row:
-```
-customers[first-joe].name := 'Joe Jr.'
-customers[first-joe].address := 'Springville'
-```
-or we could have used a with-block:
-```
-customers[first-joe] := with{name := 'Joe Jr.', address := 'Springville'}
-```
-
+A useful special case is `list only?()`, resulting in the single item of the list, rejecting if the list has 0 or multiple items.
 
 ### Replacing and combining
 
-A _for-each_ block will evaluate a do-block on each row, resulting in a table with each row replaced with the result of the code block. The replaced rows keep the same order and IDs. If the block rejects a row, it is left out of the result. The `for-all?` block is like `for-each` except it rejects if the code block rejects on any row, otherwise resulting in the replaced table. The `for-none?` block does the opposite, rejecting if the code block accepts any row, otherwise resulting in a cleared table. For example:
+A _for-each_ block will evaluate a do-block on each item, resulting in an unsorted list with each row replaced with the result of the code block in the same order as the input. If an item is rejected, it is left out of the result. The `for-all?` block is like `for-each` except it rejects if the code block rejects on any item, otherwise resulting in the replaced table. The `for-none?` block does the opposite, rejecting if the code block accepts any item, otherwise resulting in the input list. For example:
 
 ```
 test {
-  l = table 0 & 1 & 2 & 3
+  l = list{0} & 1 & 2 & 3
   
-  // replace each row with result of block on it (like functional map)
+  // replace each item with result of block on it (like functional map)
   l for-each {+ 1} =? (clear() & 2 & 3 & 4)
   
-  // delete rows when block rejects (like functional filter)
-  // &ghost() creates and deletes a row to recapitulate ID assignment
-  l for-each {not=? 2} =? (clear() & 1 &ghost() & 3)
+  // delete items on rejects (like functional filter)
+  l for-each {not=? 2} =? (clear() & & 3)
   
   // replace and delete together
-  l for-each {not=? 2, + 1} =? (clear() & 1 &ghost() & 3)
+  l for-each {not=? 2, + 1} =? (clear() & 1 & 3)
 
-  // check every row satisfies condition
+  // check every item satisfies a condition
   l for-all? {>? 0}
   
-  // check no row satisfies condition
+  // check no item satisfies a condition
   l for-none? {<? 0}
 }
-
-
-t = table {v: 0} & with{v:= 1} & with{v:= 2}
-// [{v: 1}, {v: 2}]
-
-// replace each row with result of evlauting block on it (like functional map)
-t for-each {with{v:= + 1}} 
-// [{v: 2}, {v: 3}]
-
-// delete rows when block rejects (like functional filter)
-t for-each {.v not=? 1} 
-// [{v: 2}]
-
-// replace and delete together
-t for-each {with{v:= not=? 1 + 1} =? 
-// [{v: 3}]
 ```
 
-A _combine_ block is used to calculate a single result from scanning a table.
+A _combine_ block is used to calculate a single result from scanning a list.
 ```
-l = table 0 & 1 & 2 & 3
+l = list{0} & 1 & 2 & 3
 l combine {
-  row:
+  item:
   sum: 0
-  + row
+  sum + item
 }
 =? 6
 ```
-A combine block is called a _fold_ in functional programming. It is a function with an input and one argument. The function wil be called for each row of the input table, passing that row as the input. The input in this example is called `row` (which is defined as the row value by default). On the second and subsequent calls, the argument `sum` will be set to the result of the previous call. The argument defaults on the first call - that is the “seed” of the fold, but more clearly presented as the default value of the accumulator argument. If the function rejects a row then it will be skipped and the accumulator argument will be passed on to the next call.
+A combine-block must be a function with an input and one argument. The function wil be called repeatedly with inputs from the items of the input list. The function input in this example is called `item` (which is defined as an item of the list by default). The argument `sum` to the function acts as an accumulator. On the first call it defaults to the defined value 0. On the second and subsequent calls, `sum` is set to the result of the previous call. This example is equivalent to the built-in `sum()` function that sums a numeric list. If the function rejects an item then it will be skipped and the accumulator argument will be passed on to the next call. A combine-block is similar to a “fold” in functional languages. 
 
-### Sorting and arranging
-
-The order of rows in a table can be controlled in several ways. The default is that rows are kept in the order they are created. The order can be reversed by defining the table to be `backwards`:
+A combining function like `sum` expects to be given a lst of numbers. If we want to sum a numeric column in a table, we can extract that column as a list as it it were a field of the table:
 ```
-backwards table ''
-```
-
-A table can be sorted based on the value of its first field (called the title):
-```
-sorted table {
+table {
   name: ''
-  address: ''
+  amount: 0
 }
+table.balance sum()
 ```
-This table will be kept sorted alphabetically on the `name` field. If there are two rows with the same name they will be shown in the order they were created in. The sort order can be reversed by declaring the table to be backwards.
 
-The order of rows can be modified by the user or code in an `arranged` table. Newly created rows go to the end (or beginning for a backwards arranged table). There are a set of functions that move a row to come before or after another row based on their IDs:
-```
-table move-before(from: _template_, to: _template_)
-table move-after(from: _template_, to: _template_)
-```
-The `to` argument defaults to `_template_`, which moves the row to the beginning or end respectively.
+## Tracked lists
 
-The result of a for-each block is a table with the same order as the input table. When the input is a sorted table the output becomes an arranged table to preserve the order of the input rows even if the output rows have a different sort order changes. The following functions can be used to change the order of a table: `sorted()`, `reversed()`, `arranged()`, `creation-ordered()`
+A list can be defined to be _tracked_. Tracked lists automatically assign a unique ID to each item when it is created. This ID is used to precisely track changes to the item. Tracking allows two important features:
 
+1. Relationships between tracked lists can be maintained, similar to relational databases, but without requiring that every item contain a unique and immutable key.
+2. Tracked lists can be versioned and merged, similar to version control systems like git, except much more precisely. 
+
+Two tracked lists are equal if their items are not only equal but also were created in the same relative order, including all items that were deleted. Tracked equality means that the lists not only have the same current state but also effectively the same history of changes.
+
+> Tracked lists could offer sorting by creation time, and creation-time could be used to order duplicates in a list sorted by value.
+
+> The IDs in tracked lists are implemented as monotonically increasing serial numbers within the list, as in an “auto-increment” field in a relational database. We are not exposing this because merging can renumber items (along with their selections).
 
 ### Selectors
 
-Selectors are used to store references to rows from data outside the table. A common scenario is what relational databases call “foreign keys”, where rows in one table reference rows in another:
+Selectors are used to store references to items from outside the list. A common scenario is what relational databases call “foreign keys”, where rows in one table reference rows in another:
 
 ```
-customers: table {
+customers: tracked table {
   name: ''
   address: ''
 }
-orders: table {
+orders: tracked table {
   item: ''
   customer: one in customers
 }
@@ -858,36 +836,33 @@ some in customers        // 1 or more rows
 maybe some in customers  // 0 or more rows
 ```
 
-> error state when wrong number of selections
-A selector records a subset of the IDs in its target table. A selector is edited in the UI with something like a pick list of the rows in the target table. Selectors can be modified with several functions that produce modified selections
+A selector records a subset of the IDs in its target list. A selector is edited in the UI with something like a pick list of the items in the target list. Selectors can be modified with several functions that produce modified selections
 ```
-selector := select id               // add to selection
-selector := deselect id             // remove from selection
-selector := set table               // set all IDs from another table
-selector := clear()                 // remove all from selection
-```
-
-Selectors provide access to the selected rows in several ways:
-```
-selector target()       // a copy of the entire target table
-selector id?()          // the single selected ID, rejects if none or multiple
-selector row?()         // the single selected row, rejects if none or multiple
+selector := select i              // select item with index i in target
+selector := deselect i            // deselect item with index i in target
+selector := clear()               // deselect everything
+selector := select-all list       // select all IDs in another list or selector
+selector := deselect-all list     // deselect all IDs in another list or selector
+selector := copy list             // clear and select-all
 ```
 
-All the functions operating on tables will also operate on selectors as if they were a table containing just the selected rows. Selectors can also be indexed like tables by ID with `[...]`. 
+Selectors act in some ways as if they were a list containing the selected rows in their order in the target list, for example they can be indexed with `[...]` and searched with `find?{...}`. But note the indexes used in those examples are the index within the selections, not the index in the target list. We can access the underlying target list with:
 
-### Nested selectors 
-TODO: selectors can range over nested tables, selecting a path of IDs.
-
-### Reflecting selectors
-When a selector is used inside a row of a table, it is often useful to have a _reflecting_ selector in each row of the target table that is its inverse. When a row in the source selects a row in the target, the target’s selector will also select the source’s row and vice-versa. In data modelling this is called a _bidirectional relationship_. For example:
 ```
-customers: table {
+selector target()        // copy of the target list
+selector target-index i  // converts index within selector to index in target
+selector selects? i      // rejects if target index i is not selected
+```
+
+### Reflected selectors
+When a selector is used inside a row of a table, it is often useful to have a _reflected_ selector in each row of the target table that is its inverse. When a row in the source selects a row in the target, the target’s selector will also select the source’s row and vice-versa. In data modelling this is called a _bidirectional relationship_. For example:
+```
+customers: tracked table {
   name: ''
   address: ''
   orders: maybe some in orders reflecting customer
 }
-orders: table {
+orders: tracked table {
   item: ''
   customer: one in customers reflecting orders
 }
@@ -906,11 +881,11 @@ customers: table {
 ```
 
 ### Synchronized selectors
-When selectors are defined inside functions they are, like all the other values in a function, immutable, along with the value of the table they are targeting. However, if a selector and its target table are both defined as data in the same structure, then they will be kept in sync through changes to that data structure. For example:
+When selectors are defined inside functions they are, like all the other values in a function, immutable, along with the value of the list they are targeting. However, if a selector and its target list are both defined as data in the same structure, then they will be kept in sync through changes to that data structure. For example:
 
 ```
 database: record {
-  customers: table {
+  customers: tracked table {
     name: ''
     address: ''
   }
@@ -918,7 +893,9 @@ database: record {
 } 
 database do {
   .customers := & with{name := 'joe'} & with{name := 'jane'}
-  joe = customers first()
+
+  // Joe is a special customer
+  joe = customers first?()
   .special-customers := select joe
 
   // write through selector
@@ -927,7 +904,7 @@ database do {
 
   // cascading delete
   .customers delete joe
-  .special-customers count() =? 0
+  .special-customers length() =? 0
 
   // insert into table via selector
   .special-customers & with{name := 'john'}
@@ -945,14 +922,33 @@ Updating the table through a selector is only allowed when the table and selecto
 
 Using a selector is better than using an ID in several ways. The most important is that selectors are kept consistent with changes to the target table. A selector can only select rows from the target table, and if a selected row is deleted it will be automatically removed from the selector. A selector provides direct access to read and modify selected rows without explicitly mentioning the target table. In this sense, selectors are like pointers or references in traditional PLs, except that they are constrained to only point into a (statically known) target table. 
 
-### TODO: Merging tables
-Documents can be shared and copied. When a document is copied, it often happens that both the original and copy are changed. Merging allows such changes to be recombined. Changes in the copy can be merged back into the original, and changes to the original can be merged into the copy. If changes are merged in both directions the two documents become equal again. Merging sometimes encounters ambiguous situations such as when the same field is modified to different values. Such situations will require human resolution, either immediately in the UI when performing the merge, or later by reifying such conflicts into the document itself (as source version control does with conflicts).
+> We think this is a novel solution to reconciling imperative and functional semantics. We plan to generalize this approach to support triggers and bidirectional formulas.
 
-Merging is a document-level operation, and is not available to code within the document. Merging may change row IDs, but that is done transparently and consistently across the entire document in all related tables and selectors. To permit this, ID values are not allowed to be stored as data in the document — they may only be used transiently within code. However selectors in the document are kept
+### TODO: invalid selectors
+Selectors can have the wrong number of selections through several causes:
+1. The user edits the selector in the UI
+2. Code computes a selector
+3. Deleting an item in the target list deletes all selections of it
+4. Creating a new item containing a selector, which defaults to no selections
+The basic idea is to distinguish data and formula contexts. Invalid selectors in a formula will crash. Invalid selectors in a data field are considered a constraint violation, which prevents committing them to the document state until they are corrected manually.
 
+### TODO: Nested selectors 
+Selectors can range over nested lists, selecting a path of IDs. Reflecting selectors can cross multiple layers of containing lists. Cardinality constraints are specified seperately for each level of nesting. 
+
+### Merging
+
+Copies happen. Documents get shared as email attachments. Documents get imported into other documents. Inevitably, both the copy and the original change. Tracking allows such changes to be later sent to the other version without wiping out all the changes that have happened to it in the meantime. This is called _merging_. 
+
+Two copies of a tracked list can be compared to see exactly how they have diverged. The IDs in tracked lists allow changes made to an item to be tracked despite any changes made to its value or location. Deletions and creations are also known exactly. Tracking provides more precise information than text-based version control systems like git. 
+
+Changes made to one copy can be merged into the other. If changes are merged in both directions the two copies become equal again. Sometimes changes made to both copies are such that merging must lose some information, for example if the same field in the same item is changed to be two different numbers. Merging can be done using an automatic policy to resolve such conflicts, or human intervention can be requested, either immediately in the UI when performing the merge, or later by reifying such conflicts into the document itself (but without breaking the document as textual version-control does).
+
+Merging can be done across copies of entire documents. Merging can also apply to documents included inside another document (see _include_ and _variant_). Merging applies to all tracked lists and selectors within a document. Non-tracked lists are treated as atomic values, like strings, that change as a whole.
+
+TODO: details.
 
 ## Missing values
-Nulls are a perennial controversy in PL and DB design. The idea is to add a special value Null to all types of values in order to represent a “missing” or “unknown” value. Unfortunately Null adds complexity and more ways for code to break, or more language features to avoid breaking. FP languages avoid Null values by using Option wrappers (like Subtext choices), but at the cost of continually wrapping and unwrapping values.  NULL in SQL is a well-known disaster. We want to avoid this whole mess if possible.
+Nulls are a perennial controversy in PL and DB design. The idea is to add a special value Null to all types of values in order to represent a “missing” or “unknown” value. Unfortunately Null adds complexity and more ways for code to break, or more language features to avoid breaking. FP languages avoid Null values by using Option wrappers (like Subtext choices), but at the cost of continually wrapping and unwrapping values.  NULL in SQL is an acknowledged disaster. We want to avoid this whole mess if possible.
 
 We propose a simple solution for missing values that visualizes naturally in the UI:
 
@@ -960,9 +956,8 @@ We propose a simple solution for missing values that visualizes naturally in the
 2. The empty string represents a missing string.
 3. There are predefined missing values for each media type that serve as placeholders.
 4. The missing value for a record is when all its data fields are missing.
-5. The missing value for a table is when it is empty.
-6. The missing value for a row ID is `_template_`, the ID of the template row.
-7. There is no predefined missing value for choices. However as their first option is the default, it can be defined to be something like `NA?: nil` to serve as a missing value if desired. Also see maybe-blocks below.
+5. The missing value for a list is when it is empty.
+6. There is no predefined missing value for choices. However as their first option is the default, it can be defined to be something like `NA?: nil` to serve as a missing value if desired. Also see maybe-blocks below.
 
 The `required` constraint (see _Constraints_) checks that a data field does not contain one of the above missing values.
 
