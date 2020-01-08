@@ -430,7 +430,7 @@ not {a?}
 ```
 
 The `not{}` block evaluates its contents, rejecting if they succeed, and succeeding if they reject (in which case the input value of the block is passed on).
-Note that `not?{}` is a block, as is `try`. Only blocks catch rejections.
+Note that `not{}` is a block, as is `try`. Only blocks catch rejections.
 
 > But it might be convenient to allow `not` and `assert` statements, like `check`, except they capture rejects in the following expression without the need for brackets.
 
@@ -572,18 +572,19 @@ An item in a list can be accessed via its index using square brackets, as in:
 n = numbers & 1 & 2
 check n[1] =? 1
 check n[2] =? 2
-check n length() =? 2
+```
+
+When an item is accessed, the `~index` extra result is set to the index value:
+```
+x = n[i]
+check x~index =? i
 ```
 
 The template of a list is accessed with `list[]`. The expression `list[i]` will crash if `i` is fractional or non-positive or larger than the length of the list. You can test if an index is valid with:
 ```
-list contains? index 
+list at? i 
 ```
-You can conditionalize list indexing with:
-```
-list[contains? index]
-```
-which works because the default value inside the brackets is the list itself, which becomes the input to the `contains?` function, which if successful results in the valid index. 
+which returns the item if the index is valid (and the index in `~index`), or rejects otherwise. Functions `first?()` and `last?()` will return the first and last item repectively, rejecting if the list is empty. 
 
 Items in a list can be updated individually by index:
 ```
@@ -655,30 +656,24 @@ When a list is not sorted, new items can be inserted anywhere into the list usin
 ```
 list insert(item, at: i)
 ```
-where `i` must be \>=1 and \<= length + 1. The new item will then have the index `i`. An item already in the list can be moved using:
+where 1 ≤ `i`  ≤ length + 1. The new item will then have the index `i`. An item already in the list can be moved using:
 ```
 list move(i, at: j)
 ```
-where `j` must be \>=1 and \<= length + 1.
+where 1 ≤ `j` ≤ length + 1.
 
 Two lists are considered equal by the `=?` function when they have the same number of items with equal values in the same order. The `=?` function can only be used to compare lists with templates of the same type and the same kind of sorting (it is a static error otherwise). Lists can be converted between different sortings with the functions `sorted()` `reverse-sorted()` `unsorted()`. By requiring sorting compatibility for equality, we preserve the property that calling a function with equal inputs and arguments produces equal results, specifically the `&` function creating new items.
 
 ## Searching
 A find-block searches in a list:
 ```
-joe-index = customers find?{check .name =? 'Joe'}
+joe = customers find?{check .name =? 'Joe'}
 ```
-The `find?` block is evaluated repeatedly with an item as its input value, starting with the first item and continuing until it does not reject. The result is the index of that item. If all the items are rejected, the entire operation rejects. The `find-last?` block does the same thing except it scans the table backwards. The `find-only?` block produces the index of the only match, and rejects if there are none or more than one. Inside a find-block, the special reference `@index` will evaluate to the index of the current item.
-
-It can be convenient to use a find-block as an index expression, which works because the default value of the index is the list itself
-```
-joe = customers[find?{check .name =? 'Joe'}]
-```
+The `find?` block is evaluated repeatedly with an item as its input value, starting with the first item and continuing until it does not reject. The result is that item, with `~index` set to the index. If all the items are rejected, the entire operation rejects. The `find-last?` block does the same thing except it scans the table backwards. The `find-only?` block suceeds if there is only match, and rejects if there are none or more than one. 
 
 A useful special case is `list only?()`, resulting in the single item of the list, rejecting if the list has 0 or multiple items.
 
-> recast to return items, with `~index` extra result
-> return results - except predicates change default result unless wrapped in check
+> Can a find block can also change the value of the item returned, as in a map?
 > `find-unique?` that returns result of block, so long as all matches return same value  
 > 
 ### Replacing and combining
@@ -756,7 +751,7 @@ maybe some in customers  // 0 or more rows
 
 A link records a subset of the IDs in its target list. A link is edited in the UI with something like a pick list of the items in the target list. Links can be modified with several functions that produce modified links:
 ```
-l link i              // link item with index i in target
+l link i              // add link to item with index i in target
 l unlink i            // unlink item with index i in target
 l links? i            // rejects if target index i is not linked
 l clear()             // unlink everything
@@ -825,7 +820,7 @@ database do {
 
   // insert into target table via link
   .special-customers & with{.name := 'john'}
-  check .customers[last?()].name =? 'john'
+  check .customers last?() .name =? 'john'
 }
 
 ```
