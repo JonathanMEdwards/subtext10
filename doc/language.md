@@ -841,56 +841,93 @@ Merging can be done across copies of entire documents. Merging can also apply to
 
 TODO: details.
 
-## Selections and matching
+## Parsing
 
-> Parsing begs for a specialized list datatype: a _selection_, which is a list with a selected interval of items. We can define a selection to be a list plus two indices `i` and `j` where `1 ≤ i ≤ j ≤ length+1`. We can equivalently define a selection to be a triple of lists`before`, `selected`, `after`. The UI displays a string selection with the selected part highlighted as in a text region selection. If the selection is empty, the UI displays it like a text cursor at that location. When a string selection is edited, cahnges to the cursor/selection state are saved.
-> 
-> Matching functions will accept a selection as input, and operate by matching against the `after` part (i.e. following the cursor). If a normal string is input the selection is set to its beginnig, that is the whole string will be the after part. A successful matching function will result in selecting the matched region. Parsing with selections makes the execution visualization much more informative. Selections also make string substitution easy — just replace the selected part after a match.
+It is common to need to find and operate on patterns in strings. The traditional solutions involve specialized languages with radically different syntax and semantics, such as _regular expressions_ or _parser generators_. Subtext provides these capabilities without the need to learn a specialized sub-language.
 
-
-Parsing is similar to pattern matching: it finds patterns in strings and constructs values from them. Parsing functions work by taking a string input, matching a portion of the front of the string, and returning the remaining string. If the front of the string is not acceptable then the function rejects. Note that while we typically parse strings, strings are just a list of characters, so all of the following parsing functions work equally well on other kinds of lists.
-
-The most basic parsing function is `match?`, which takes a string argument and matches that against the front of the input string, returning the remainder if it is present, or rejecting otherwise. For example, the following function matches either `'foo'` or `'bar'`:
-
+A _selection_ is a list that has been divided into three parts, called _before_, _selected_, and _after_. Any of these parts can be empty. We can define a selection to be a list plus two indices `begin` and `end` where `1 ≤ begin ≤ end ≤ length + 1`. A selection is created from a list with
 ```
-foobar? = function {
-  string: ''
-  try {
-    match? 'foo'
-  } else {
-    match? 'bar'
-  } else reject
+list selection(begin:= i, end:= j)
+```
+where the begin and end indexes default to 1.
 
-test {
-  'foo123' foobar?() =? '123'
-  'bar123' foobar?() =? '123'
-  not?{'123' foobar?()}
+Two selections are equal if they are equal as lists and have equal begin and end indexes. A selection is equal to a list if its begin and end indexes are both 1 and the after part is equal to the list. The UI displays a string selection with the selected part highlighted as in a text region selection. If the selection is empty, the UI displays it as a text cursor between two characters, or at the beginning or end. When a string selection is edited, changes to the cursor/selection state are saved.
+
+selections are useful when attempting to recognize various patterns in a string (or any kind of list, but we focus on strings in the following). This process is called _matching_. The most basic matching function is `match?`, which will check that the front of the input string equals the argument string, rejecting otherwise. So:
+```
+'foobar' match? 'foo'
+not{'foobar' match? 'bar'}
+```
+All matching functions result in selecting the matched portion of the input, so:
+```
+'foobar' match? 'foo'
+check selected() =? 'foo'
+check after() =? 'bar'
+```
+The input to a matching function can be a string or a selection in a string — if it is a selection then matching is done against the **after** part. In that way a sequence of matches will look for a sequence of patterns:
+```
+'foobar' match? 'foo'
+check selected() =? 'foo'
+match? 'bar'
+check selected() =? 'bar'
+```
+Sometimes when matching sequential patterns like this we want to combine the entire matched region into the resulting selection, like this:
+```
+'foobar' select {
+  match? 'foo'
+  check selected() =? 'foo'
+  match? 'bar'
+  check selected() =? 'bar'
 }
+check selected() =? 'foobar'
 ```
 
-Parsing alternative patterns as in this example is sometimes called _backtracking_, because the position in the input string much be backed-up, and any intermediate side-effects must be discarded. Subtext doesn’t neeed to do anything special for backtracking, because the try-block simply discards the modified string value and starts the next clause with the original input string. 
-
-Another useful parsing function is `match-number?` which matches a numeric string and returns its numeric value as an extra result `number`. For example:
+Another useful matching function is `match-number?` which matches a numeric string and returns its numeric value as an extra result `number`. For example:
 ```Txt
-test {
-  x? = '123foo' match-number?()
-  x? =? 'foo'
-  x?~number =? 123
-}
+'123foo' match-number?()
+check after() =? 'foo'
+check ~number =? 123
 ```
 
-Because parsing functions reject when they fail, it is easy to match a sequential pattern just by executing matchs in order. Here is an example of parsing a simple syntax for adding numbers:
+When a matching function does not see the expected pattern in the input, it rejects. This means it is easy to use try-blocks to test for alternative patterns. Here is a classic example of matching a little languge of addition expressions:
+
 ```
-match-expr? = '1+1' try {
+match-expr? = '' try {
   match-number?()
 } else {
+  match '('
   match-expr?()
   match? '+'
   match-expr?()
 } else reject
+
+'1' match-expr?()
+'(1+2)' match-expr?()
+'(1+(2+3))' match-expr?()
+not{'1+2' match-expr?()}
+```
+Note how in this example, if one clause of the try-block rejects then the next one is evaluated using the original input selection, which is sometimes called _backtracking_.
+
+### ASTs
+
+The above example will match simple expression adding numbers, but how would we perform the indicated addition? The simplest way is to mimick the way that the `match-number?` function produces the extra result `~number`, as follows:
+
+```
+match-expr? = '' try {
+  match-number?()
+  extra{~value = ~number}
+} else {
+  match '('
+  left = match-expr?()
+  match? '+'
+  right = match-expr?()
+  extra{~value = left~value + right~value}
+} else reject
+
+'(2+2)' match-expr?() ~value =? 4
 ```
 
-This works to match a sequence of repeated additions of numbers. But how would be perform the indicated addition? We already showed an example that does just that: `eval-expr`. But it expects as input a recursive choice defined in the example `expr`, both of which are reproduced here:
+Commonly a more general solution is used: producing an AST (Abstract Syntax Tree) during the match, and then interpreting it later in various ways. We have already seen an example of an AST for these expressions — it is the `eval-expr` example of recursive choices, recalled here:
 ```Txt
 expr: choice {
   literal?: 0
@@ -908,16 +945,16 @@ eval-expr = function {
 }
 ```
 
-We can produce an `expr` as an extra result of `match-expr?` called `AST` by adding two lines of code:
+We can produce an `expr` as an extra result of `match-expr?` called `~AST` by adding two lines of code:
 ```
 match-expr? = '1+1' try {
   match-number?()
-  extra{AST = expr |= literal ~number}
+  extra{~AST = expr |= literal ~number}
 } else {
   left-expr = match-expr?()
   match? '+'
   right-expr = match-expr?()
-  extra{AST = expr |= plus with{left: left-expr~AST, right: right-expr~AST}}
+  extra{~AST = expr |= plus with{left: left-expr~AST, right: right-expr~AST}}
 } else reject
 
 `2+2` match-expr?() ~AST eval-expr() =? 4
@@ -925,11 +962,11 @@ match-expr? = '1+1' try {
 
 The first extra block
 ```
-  extra{AST = expr |= literal ~number}
+  extra{~AST = expr |= literal ~number}
 ```
 set the extra result `AST` to be an `expr` choice choosing the `literal` option with the value from the `number` extra result of the prior `match-number?` call. The second extra block
 ```
-  extra{AST = expr |= plus with{left: left~AST, right: right~AST}}
+  extra{~AST = expr |= plus with{left: left~AST, right: right~AST}}
 ```
 is more complicated. It chooses the `plus` option, and sets the `left` and `right` fields of its record value to be the corresponding `AST` results from the recursive parses of the syntax to the left and right of the plus sign. The last line
 ```
@@ -937,17 +974,17 @@ is more complicated. It chooses the `plus` option, and sets the `left` and `righ
 ```
 matches the string `2+2`, pulls out the AST result and inputs it to `eval-expr` to get the final result 4.
 
-We can simplify the above solution by eliminating the definition of `expr`,  instead defining it implicitly inside `match-expr?` and then redefining `eval-expr` to take it as input. We use the ability for the extra blocks inside try-clauses to asemble a choice rather than definings it separately.
+We can simplify the above solution by eliminating the definition of `expr`,  instead defining it implicitly inside `match-expr?` and then redefining `eval-expr` to take it as input. We use the ability for the extra blocks inside try-clauses to asemble a choice rather than using one defined previoously.
 
 ```
 match-expr? = '1+1' try {
   match-number?()
-  extra{AST |= literal ~number}
+  extra{~AST |= literal ~number}
 } else {
   left-expr = match-expr?()
   match? '+'
   right-expr = match-expr?()
-  extra{AST |= plus record{left: left-expr~AST, right: right-expr~AST}}
+  extra{~AST |= plus record{left: left-expr~AST, right: right-expr~AST}}
 } else reject
 
 eval-expr = function {
@@ -962,8 +999,8 @@ eval-expr = function {
 ```
 
 
-### Repeated parsing
-Often we want to parse a repeating pattern, and produce an extra result which is a list. Subtext uses recursion to do unbounded looping. Here is an example that parses a CSV string into a list of numbers:
+### Repeated matching
+Often we want to match a repeating pattern, and produce an extra result which is a list. Subtext uses recursion to do unbounded looping. Here is an example that matches a CSV string into a list of numbers:
 
 ```
 csv? = function {
@@ -971,10 +1008,10 @@ csv? = function {
   numbers: list {0}
   try {
     string =? ''
-    extra(numbers)
+    extra(~numbers = numbers)
   } else {
     string match-number?()
-    optionally {match? ','}
+    match? ','
     csv?(numbers & ~number)
   } else reject
 }
@@ -993,16 +1030,29 @@ repeat?(& ~number)
 ```
 A `repeat` can be used inside a function or any do-block (`repeat?` if the block is conditional). It will make a recursive call to the containing do-block or function, but with all the arguments defaulting to their value in the current call, not their defined values as in a normal call. Thus in this example the `numbers` argument becomes just `& ~number` to append to the list that was passed in.
 
-### Skipping
+### Scanning
 
-A skip-block can be used to search for a pattern in a string. For example:
+A scan-block can be used to search for a pattern in a string. For example:
 ```
 string = 'foo123'
-string skip?{match-number?()}
+string scan {match-number?()}
+check selected() =? '123'
 check ~number =? 123
-check ~skipped =? 'foo'
 ```
-A skip-block will repeatedly execute the enclosed block until it succeeds. The block is executed at first with the string input to the skip. If it rejects, then it is executed with the string minus the first character. Another character is skipped each time until the match succeeds or the end of the string is hit (in which case the whole skip-block rejects). The initial part of the string that was skipped is returned as the extra result `~skipped`.
+A scan-block will repeatedly execute the enclosed block until it succeeds. At first the input string or selection is passed to the code in the block, and if it succeeds nothing further is done. But if it fails the block is reexecuted with a selection that skips one character (or item) in the input. This is done by moving the selected part to the before part, and then moving the first item of the after part to the before part. One character at a time is skipped this way until the match succeeds or the end of the string is hit (which results in selecting the end of the string).
+
+### Replacing
+
+You can replace matched portions of strings as follows:
+```
+'Some Millenials attacking other Millenials' scan {
+  match? 'Millenial'
+  replace-selection 'snake-people'
+  repeat()
+} 
+combined() =? 'Some snake-people attacking other snake-people'
+```
+The `replace-selection` replaces the selected part of the input with the argument string. Note that replacing the selection does not affect subsequent matches, which work on the after-part, so replacement can be done “on the fly”. The `combined()` function at the end converts the final selection back into a plain string by concatenating the before, selected, and after parts.
 
 ## Missing values
 Nulls are a perennial controversy in PL and DB design. The idea is to add a special value Null to all types of values in order to represent a “missing” or “unknown” value. Unfortunately Null adds complexity and more ways for code to break, or more language features to avoid breaking. FP languages avoid Null values by using Option wrappers (like Subtext choices), but at the cost of continually wrapping and unwrapping values.  NULL in SQL is an acknowledged disaster. We want to avoid this whole mess if possible.
