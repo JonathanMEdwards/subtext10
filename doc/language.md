@@ -341,19 +341,36 @@ When an expression is evaluated, one of the following things will happen:
 
 An expression that might reject is called _conditional_. The name of a conditional formula has a question mark appended to it. For example, the equality function `=?` tests whether two values are equal, rejecting if they aren’t. It is called like this: `x =? y`. You can tell that an expression is conditional by the presence of a `?` inside it, which indicates a place where it may reject.
 
+By convention, comparison functions like `=?` and `<?` that succeed will result in their argument value,  so that they can be chained, as in `x <? y <? z`. But often conditionals are executed only to test whether they reject, and their result is not otherwise used. The special syntax `check` will discard the result of an expression, passing on the value of the previous field instead:
+```
+do {
+  check x >? 0
+  check x even?()
+  x + 1
+}
+```
+Discarding a value without using `check` is reported as a static error:
+```
+do {
+  x >? 0    // discarded value
+  x even?() // discarded value
+  x + 1
+}
+```
+
 Only formulas can be conditional, not data fields. See _Missing values_ for alternative techniques.
 
 When a formula rejects, what happens depends on the kind of block it is inside. Inside a do-block or a function-block, rejection halts further evaluation of the block, and makes the whole block reject. What happens next depends on the kind of block containing that block — if it is also a do-block or function-block the rejection continues to propagates into the containing block. This proceeds until the rejection reaches one of several kinds of block that handle rejections, for exampe the _try-block_.  In this way rejection is like exception catching in conventional languages, except that it is the only kind of exception supported.
 
-A try-block allows you to respond to a rejection by doing something else — it fills the role of the ubiquitous _if_ statement in conventional languages. Here is an example:
+A try-block allows you to respond to a rejection by doing something else — it fills the role of the ubiquitous _IF_ statement in conventional languages. Here is an example:
 ```Txt
 polarity = function {
   n: 0
   try {
-    n <? 0
+    check n <? 0
     'negative'
   } else {
-    n =? 0
+    check n =? 0
     'zero'
   } else {
     'positive'
@@ -399,29 +416,24 @@ Subtext does not use Boolean values like conventional languages do for making de
 ```Txt
 // a? OR b?
 try {
-  a?
+  check a?
 } else {
-  b?
+  check b?
 } else reject
 
 // a? AND b?
-a?
-b?
+check a?
+check b?
 
 // not a?
-not? {a?}
+not {a?}
 ```
 
-The `not?{}` block evaluates its contents, rejecting if they succeed, and succeeding if they reject (in which case the input value of the block is passed on).
+The `not{}` block evaluates its contents, rejecting if they succeed, and succeeding if they reject (in which case the input value of the block is passed on).
+Note that `not?{}` is a block, as is `try`. Only blocks catch rejections.
 
-By convention, comparison functions like `=?` and `<?` that succeed will result in their input value,  so that they can be inserted anywhere in a formula without changing the computation. To guarantee this behavior, any expression can be passed to the `check` function, which will result in its input if the expression succeeds, so these are equivalent: 
-```Txt
-x >? 0 even?() + 1
-x check(>? 0) check(even?()) + 1
-```
-To emulate cascaded comparions like “x \< y \< z” do `x <?(y <? z)`.
+> But it might be convenient to allow `not` and `assert` statements, like `check`, except they capture rejects in the following expression without the need for brackets.
 
-Note that `not?{}` is a block, but `check()` is a function. Only blocks can catch rejections — a reject in the argument of a function call skips calling the function altogether.
 
 ### Assertions and tests
 The `assert{...}` block converts a rejection into a crash. This is used to detect situations that should be impossible and which therefore indicate a programming error. For example
@@ -443,10 +455,10 @@ Each test block executes inside a copy of the containing document where all data
 x: 0
 y = x + 1
 test {
-  .x =? 0
+  check .x =? 0
   .x := 2
-  .y =? 3
-  y =? 1 // default state of y
+  check .y =? 3
+  check y =? 1 // default state of y
 }
 ```
 
@@ -558,9 +570,9 @@ The items in a list are numbered starting at 1 for the first item. This number i
 An item in a list can be accessed via its index using square brackets, as in:
 ```
 n = numbers & 1 & 2
-n[1] =? 1
-n[2] =? 2
-n length() =? 2
+check n[1] =? 1
+check n[2] =? 2
+check n length() =? 2
 ```
 
 The template of a list is accessed with `list[]`. The expression `list[i]` will crash if `i` is fractional or non-positive or larger than the length of the list. You can test if an index is valid with:
@@ -578,8 +590,8 @@ Items in a list can be updated individually by index:
 n = numbers & 1 & 2
 test {
   .n[1] := 3
-  .n[1] =? 3
-  .n[2] =? 2
+  check .n[1] =? 3
+  check .n[2] =? 2
 }
 ```
 Individual fields in a row can be updated similarly:
@@ -654,13 +666,13 @@ Two lists are considered equal by the `=?` function when they have the same numb
 ## Searching
 A find-block searches in a list:
 ```
-joe-index = customers find?{.name =? 'Joe'}
+joe-index = customers find?{check .name =? 'Joe'}
 ```
 The `find?` block is evaluated repeatedly with an item as its input value, starting with the first item and continuing until it does not reject. The result is the index of that item. If all the items are rejected, the entire operation rejects. The `find-last?` block does the same thing except it scans the table backwards. The `find-only?` block produces the index of the only match, and rejects if there are none or more than one. Inside a find-block, the special reference `@index` will evaluate to the index of the current item.
 
 It can be convenient to use a find-block as an index expression, which works because the default value of the index is the list itself
 ```
-joe = customers[find?{.name =? 'Joe'}]
+joe = customers[find?{check .name =? 'Joe'}]
 ```
 
 A useful special case is `list only?()`, resulting in the single item of the list, rejecting if the list has 0 or multiple items.
@@ -678,19 +690,19 @@ test {
   l = list{0} & 1 & 2 & 3
   
   // replace each item with result of block on it (like functional map)
-  l for-each {+ 1} =? (clear() & 2 & 3 & 4)
+  check l for-each {+ 1} =? (clear() & 2 & 3 & 4)
   
   // delete items on rejects (like functional filter)
-  l for-each {not=? 2} =? (clear() & & 3)
+  check l for-each {check not=? 2} =? (clear() & & 3)
   
   // replace and delete together
-  l for-each {not=? 2, + 1} =? (clear() & 1 & 3)
+  check l for-each {check not=? 2, + 1} =? (clear() & 1 & 3)
 
   // check every item satisfies a condition
-  l for-all? {>? 0}
+  check l for-all? {check >? 0}
   
   // check no item satisfies a condition
-  l for-none? {<? 0}
+  check l for-none? {check <? 0}
 }
 ```
 
@@ -702,7 +714,7 @@ l combine {
   sum: 0
   item + sum
 }
-=? 6
+check =? 6
 ```
 A combine-block must be a function with an input and one argument. The function wil be called repeatedly with inputs from the items of the input list. The function input in this example is called `item` (which is defined as an item of the list by default). The argument `sum` to the function acts as an accumulator. On the first call it defaults to the defined value 0. On the second and subsequent calls, `sum` is set to the result of the previous call. This example is equivalent to the built-in `sum()` function that sums a numeric list. If the function rejects an item then it will be skipped and the accumulator argument will be passed on to the next call. A combine-block is similar to a “fold” in functional languages. 
 
@@ -800,21 +812,20 @@ database: record {
 database do {
   .customers := & with{.name := 'joe'} & with{.name := 'jane'}
 
-  // Joe is a special customer
-  joe = customers first?()
-  .special-customers := link joe
+  // Jane is a special customer
+  .special-customers := link customers[2]
 
   // write through link
-  .special-customers[joe].address := 'Main St'
-  .customers[joe].address =? 'Main St'
+  .special-customers[1].address := 'Main St'
+  check .customers[2].address =? 'Main St'
 
   // cascading delete
-  .customers delete joe
-  .special-customers length() =? 0
+  .customers delete 1
+  check .special-customers length() =? 0
 
   // insert into target table via link
   .special-customers & with{.name := 'john'}
-  .customers[last?()].name =? 'john'
+  check .customers[last?()].name =? 'john'
 }
 
 ```
@@ -1011,11 +1022,11 @@ Often we want to match a repeating pattern, and produce an extra result which is
 csv? = function {
   text: '1,2,3'
   numbers: list {0}
-  try {
-    text =? ''
+  text try {
+    check =? ''
     extra(~numbers = numbers)
   } else {
-    text match-number?()
+    match-number?()
     match? ','
     csv?(numbers & ~number)
   } else reject
@@ -1124,8 +1135,6 @@ A generic function can be called with a subject of any type value. Every call of
 
 As a consequence of the above semantics, all functions (whether or not generic) have _dynamic defaults_. The expression defining the default value of an argument is recomputed from the actual value of the subject. If those default expressions make reference to locations outside the function, then their current value will be used.
 
-# scraps
-
 ## Semantics
 
 In PL terms, code blocks are pure on the outside but imperative on the inside. While they can be seen as internally mutating locations within their subject, they have no effect on any state outside themselves. All they can do is return a changed subject value, which their caller may in turn use to mutate its own subject value.
@@ -1143,112 +1152,6 @@ Subtext is deterministic: every code block’s end value is purely a function of
 Sometimes code takes too long to execute, or consumes too many internal resources.
 
 > TBD. Simplest solution is that doc becomes read-only while reacting to an input, and then the results are shown atomically at completion. If computation takes too long the user can terminate it, which cancels the entire input action and leaves the document in its prior state. The input action remains in the history though and can be redone later if desired. Exceeding resource quotas (like stack size) would also terminate computation. However it would be nicer to be able to interrupt a long-running execution, observe it’s execution so far, and resume if desired.
-
-
-# Appendix: code introspection
-The key research goal of Subtext 9 was exploiting the reified execution model at runtime. The motivating example is a simple recursive descent parser which could be reflected on to get an AST for free. This works, but is hard to explain, involving higher-order values. A more conventional solution is the _extra results_ mechanism which now replaces the reflective approach. Below is the previous discussion of the reflectve approach.
-
-## Associated results
-
-The result of a function is the value of the last field. However we often would like to return extra results from a function. For example, integral division would like to return not only the integral ratio but the fractional remainder as well:
-```
-integral-divide = function {
-  numerator: 1
-  divisor: 1
-  ratio = numerator /(divisor) floor()
-  remainder = numerator -(ratio * divisor)
-  ratio
-}
-x = 5 integral-divide 3  // 1
-```
-
-The formula `x` calls the function `integral-divide` as follows
-1. The input field `numerator`of the function is set to `5`
-2. The `divisor` field is set to `3`
-3. The `ratio` is calculated to be 1 using the `floor` function to round-down the division
-4. The `remainder` field is calculated to be 2 based on `ratio`
-5. The ratio is the last value in the function, so it becomes the value of `x`
-
-We can access the remainder from this calculation with:
-```
-y = x~remainder
-```
-The reference `x~remainder` is pronounced “x’s remainder”. What this does is to reference the block defining x’s expression, and extract the `remainder` field from it. We will see more examples of associated results when we discuss parsing, including the ability to treat an entire expression or function call as a value.
-
-## Parsing
-
-The most basic parsing function is `match?`, which takes a text argument and matches that against the front of the input text, returning the remainder if it is present, or rejecting otherwise. For example, the following function matches either `'foo'` or `'bar'`:
-
-```
-foobar? = function {
-  in: ''
-  try {
-    match? 'foo'
-   } else {
-    match? 'bar'
-   } else reject
-
-test {
-  'foo123' foobar?() =? '123'
-  'bar123' foobar?() =? '123'
-  not?{'123' foobar?()}
-}
-```
-
-Parsing alternative patterns like in this example requires backtracking, which we get from the way rejection discards changes to the subject value. Thus we can use normal conditional and looping constructs to do backtracking parsing.
-
-Another useful parsing function is `match-number?` which matches a numeric text and returns its numeric value as an associated result `number`. For example:
-
-```
-test {
-  x? = '123foo' match-number?()
-  x? =? 'foo'
-  x?~number =? 123
-}
-```
-
-Here is an example of parsing a simple numeric expression like the `expr` example earlier:
-```
-match-expr? = '1+1' try {
-  match-number?()
-} else {
-  match-expr?()
-  match? '+'
-  match-expr?()
-} else reject
-```
-
-This works, but in order to write an interpreter for this syntax we need to construct an AST like the `expr` datatype defined earlier. It can require a lot of boilerplate code to construct an AST during parsing, which is why many parsing DSLs add special semantics to do this automaticlly. Instead we can use the code itself as the AST by adding names to the try clauses and extracting associated results, as follows:
-
-```Txt
-match-expr? = '1+1' try
-literal? = {
-  match-number?()
-} else
-plus? = {
-  left? = match-expr?()
-  match? '+'
-  right? = match-expr?()
-} else reject
-
-eval-expr = function {
-  expr: match-expr~
-  try {
-    expr~literal?~number
-  } else {
-    expr~plus?~left?~ eval-expr() + (expr~plus?~right?~ eval-expr())
-}
-
-test {
-  check '1+2' match-expr?()~ eval-expr() =? 3
-}
-```
-
-In the above we labeled the try clauses with `literal?` and `plus?`. We also labeled the recursive calls to `match-expr?` with `left =` and `right =`. The `eval-expr` function takes the formula of `match-expr` as its input. It accesses the try clauses labeled `literal?` and `plus?` as if they were fields of a choice. In fact a try block is essentially a choice block that is dynamically computed, with exactly one choice per clause.
-
-The `test` block matches and evaluates `1+2`. The function call `match-expr()~` ends with a `~`, indicating that the formula of the call is used rather than it’s result, which is then passed into the call to `eval-expr()`.
-
-The novel feature here is that parsing code serves as its own AST by just adding labels, which is made possible by the way Subtext materializes code execution. We will return to parsing later, showing how to parse repeated sequences after we describe tables.
 
 
 
