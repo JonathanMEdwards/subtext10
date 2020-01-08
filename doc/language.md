@@ -50,7 +50,7 @@ This section summarizes the notable programming language features of Subtext whi
 
 The artifact that Subtext mediates is called a _document_. It is somewhat like a spreadsheet (e.g. Excel) in that it presents both data and formulas in a visual metaphor that is easy to learn. It is somewhat like a notebook (e.g. Jupyter) in that it offers the full power of a programming language. These artifacts are characterized by their geometry: notebooks are a linear list of cells; spreadsheets are a 2-dimensional grid of cells; Subtext documents are a tree of cells.
 
-- Subtext documents are built out of two things: data and formulas. There are a predefined set of base types of data like numbers, strings, and times. Formulas are built from a predefined set of _operations_ and _functions_ which process data.
+- Subtext documents are built out of two things: data and formulas. There are a predefined set of types of data like numbers, text, and times. Formulas are built from a predefined set of _operations_ and _functions_ which process data.
 - Documents are built up in two ways: _blocks_ and _lists_.
 - A block is a fixed group of _fields_ holding data and formulas. Fields can be named. There are different kinds of blocks. A _record_ block gathers a set of fields to be handled as a group, similarly to _structs_ and _objects_ in other languages. The entire _document_ is a top-level block. A _choice_ block gathers a set of fields out of which exactly one must be chosen,  similarly to _variants_ ,  _sums types_, and\_discriminated unions\_  in other languages. There are several kinds of _code_ blocks similar to traditional PL control structures, with their fields corresponding to statements.
 - Lists contain contain zero or more _items_ of the same type. When a list contains records it is called a _table_, and the items are called _rows_. 
@@ -58,7 +58,7 @@ The artifact that Subtext mediates is called a _document_. It is somewhat like a
 
 The tree structure of Subtext documents strike a nice balance: they are more flexible and dynamic than the grid of a spreadsheet, yet simpler and more visualizable than the graph-structured data of imperative programming languages.
 
-Subtext is statically typed, which conventionally means that the code and the types of values are fixed at _compile time_ and do not vary at _run time_. But there is no such thing as compile time in Subtext documents, which are always running and fully editable with persistent state. Subtext distinguishes between two kinds of changes: modifying data and editing code or definitions. It is possible to lock a document so that only data modifications are allowed. Data modifications are highly constrained: data types are fixed (a number can’t be changed to a string), and changes are limited to data updates, choices, list insertions and deletions. Only certain kinds of errors can occur during data modification. In contrast, code editing can change anything, and can lead to various sorts of inconsistencies called _static errors_, corresponding to the errors a traditional compiler might report. Static errors are reported to the programmer as problems in the document to be resolved, but unlike compiled languages, the document continues to function outside the affected parts.
+Subtext is statically typed, which conventionally means that the code and the types of values are fixed at _compile time_ and do not vary at _run time_. But there is no such thing as compile time in Subtext documents, which are always running and fully editable with persistent state. Subtext distinguishes between two kinds of changes: modifying data and editing code or definitions. It is possible to lock a document so that only data modifications are allowed. Data modifications are highly constrained: data types are fixed (a number can’t be changed into text), and changes are limited to data updates, choices, list insertions and deletions. Only certain kinds of errors can occur during data modification. In contrast, code editing can change anything, and can lead to various sorts of inconsistencies called _static errors_, corresponding to the errors a traditional compiler might report. Static errors are reported to the programmer as problems in the document to be resolved, but unlike compiled languages, the document continues to function outside the affected parts.
 
 Although Subtext is statically typed in the above sense, there is no mention of types in the language syntax or error messages, because concrete values serve as witnesses of their types (see _Types_).
 
@@ -70,10 +70,11 @@ Nesting blocks and lists leads to a tree structure somewhat like those of static
 - Cross-references within the tree are static. Links can dynamically change which items they link to, but the list containing those items is known statically, which limits the damage they can do.
 
 ## Base values
-Subtext provides a set of base values out of which documents can be built. The base values are:
+Subtext provides severl kinds of values out of which documents can be built:
 
-- string: a JavaScript string literal using single quotes: `'hello'`
-- number: double float using JavaScript syntax, and the special value `_number_` not equal to any other number.
+- _number_: double float using JavaScript syntax, and the special value `_number_` not equal to any other number. 
+- TODO: infinite precision rationals_ - _text_: a JavaScript text literal using single quotes: `'hello'`
+- TODO: fancy text with fonts and formatting
 - `nil`, the unit value, useful in enumerations (see _Choices_)
 - TODO: date-times
 - TODO: media (MIME-typed blobs)
@@ -186,13 +187,13 @@ x: record {
   number: 0
 }
 ```
-This record contains two data fields: `name` which is an initially empty string, and `number` which is initially the number `0`.
+This record contains two data fields: `name` which is an initially empty text, and `number` which is initially the number `0`.
 
 The essential operations on a record are to read and change individual fields. We read the fields using paths, like `x.name` and `x.number`. To change a field we use a _set operation_:
 ```
 x with{name:= 'Joe'}
 ```
-We pronounce this “x with name set to string Joe”. The result of a set operation is
+We pronounce this “x with name set to text Joe”. The result of a set operation is
 a record equal to the value of `x` except with the field `name` set to `'Joe'`, which is
 ```
 record{ name: 'Joe', number: 0}
@@ -373,7 +374,7 @@ rgb? = function {
 }
 'yellow' rgb?() // rejects
 ```
-This function take a string as input and tests whether it is red, green, or blue, rejecting otherwise. Note that because of the final `else reject` we know that the `rgb?` function is conditional, and so has a question mark, whereas `polarity` could not reject, and thus was unconditional.
+This function take text as input and tests whether it is red, green, or blue, rejecting otherwise. Note that because of the final `else reject` we know that the `rgb?` function is conditional, and so has a question mark, whereas `polarity` could not reject, and thus was unconditional.
 
 Try-blocks can take an input value, and will pass it as the input to each of the clauses. Thus we could rewrite the above example as:
 ```Txt
@@ -535,9 +536,9 @@ customers: table {
   address: ''
 }
 ```
-The list `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: list {record {...}}`. The table contain columns `name` and `address` defaulting to the empty string. 
+The list `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: list {record {...}}`. The table contain columns `name` and `address` defaulting to the empty text. 
 
-All lists are initially created as empty. A string is a list of characters with the space character as the template, so `'' =? list{space}`
+All lists are initially created as empty. Text is a list of characters with the space character as the template, so `'' =? list{space}`
 
 The `&` function (pronounced “and”) is used to create items in a list. For example:
 ```
@@ -837,13 +838,13 @@ Two copies of a tracked list can be compared to see exactly how they have diverg
 
 Changes made to one copy can be merged into the other. If changes are merged in both directions the two copies become equal again. Sometimes changes made to both copies are such that merging must lose some information, for example if the same field in the same item is changed to be two different numbers. Merging can be done using an automatic policy to resolve such conflicts, or human intervention can be requested, either immediately in the UI when performing the merge, or later by reifying such conflicts into the document itself (but without breaking the document as textual version-control does).
 
-Merging can be done across copies of entire documents. Merging can also apply to documents included inside another document (see _include_ and _variant_). Merging applies to all tracked lists and links within a document. Non-tracked lists are treated as atomic values, like strings, that change as a whole.
+Merging can be done across copies of entire documents. Merging can also apply to documents included inside another document (see _include_ and _variant_). Merging applies to all tracked lists and links within a document. Non-tracked lists (including text) are treated as atomic values that change as a whole.
 
 TODO: details.
 
 ## Parsing
 
-It is common to need to find and operate on patterns in strings. The traditional solutions involve specialized languages with radically different syntax and semantics, such as _regular expressions_ or _parser generators_. Subtext provides these capabilities without the need to learn a specialized sub-language.
+It is common to need to find and operate on patterns in text. The traditional solutions involve specialized languages with radically different syntax and semantics, such as _regular expressions_ or _parser generators_. Subtext provides these capabilities without the need to learn a specialized sub-language.
 
 A _selection_ is a list that has been divided into three parts, called _before_, _selected_, and _after_. Any of these parts can be empty. We can define a selection to be a list plus two indices `begin` and `end` where `1 ≤ begin ≤ end ≤ length + 1`. A selection is created from a list with
 ```
@@ -851,9 +852,9 @@ list selection(begin:= i, end:= j)
 ```
 where the begin and end indexes default to 1.
 
-Two selections are equal if they are equal as lists and have equal begin and end indexes. A selection is equal to a list if its begin and end indexes are both 1 and the after part is equal to the list. The UI displays a string selection with the selected part highlighted as in a text region selection. If the selection is empty, the UI displays it as a text cursor between two characters, or at the beginning or end. When a string selection is edited, changes to the cursor/selection state are saved.
+Two selections are equal if they are equal as lists and have equal begin and end indexes. A selection is equal to a list if its begin and end indexes are both 1 and the after part is equal to the list. The UI displays a text selection with the selected part highlighted as in a text region selection. If the selection is empty, the UI displays it as a text cursor between two characters, or at the beginning or end. When a text selection is edited, changes to the cursor/selection state in the UI are saved.
 
-selections are useful when attempting to recognize various patterns in a string (or any kind of list, but we focus on strings in the following). This process is called _matching_. The most basic matching function is `match?`, which will check that the front of the input string equals the argument string, rejecting otherwise. So:
+Selections are useful when attempting to recognize various patterns in text (or any kind of list, but we focus on text in the following discussion). This process is called _matching_. The most basic matching function is `match?`, which will check that the front of the input text equals the argument text, rejecting otherwise. So:
 ```
 'foobar' match? 'foo'
 not{'foobar' match? 'bar'}
@@ -864,7 +865,7 @@ All matching functions result in selecting the matched portion of the input, so:
 check selected() =? 'foo'
 check after() =? 'bar'
 ```
-The input to a matching function can be a string or a selection in a string — if it is a selection then matching is done against the **after** part. In that way a sequence of matches will look for a sequence of patterns:
+The input to a matching function can be text or a selection in a text — if it is a selection then matching is done against the **after** part. In that way a sequence of matches will look for a sequence of patterns:
 ```
 'foobar' match? 'foo'
 check selected() =? 'foo'
@@ -882,7 +883,7 @@ Sometimes when matching sequential patterns like this we want to combine the ent
 check selected() =? 'foobar'
 ```
 
-Another useful matching function is `match-number?` which matches a numeric string and returns its numeric value as an extra result `number`. For example:
+Another useful matching function is `match-number?` which matches a numeric text and returns its numeric value as an extra result `number`. For example:
 ```Txt
 '123foo' match-number?()
 check after() =? 'foo'
@@ -972,7 +973,7 @@ is more complicated. It chooses the `plus` option, and sets the `left` and `righ
 ```
 '2+2' match-expr?() ~AST eval-expr() =? 4
 ```
-matches the string `2+2`, pulls out the AST result and inputs it to `eval-expr` to get the final result 4.
+matches the text `2+2`, pulls out the AST result and inputs it to `eval-expr` to get the final result 4.
 
 We can simplify the above solution by eliminating the definition of `expr`,  instead defining it implicitly inside `match-expr?` and then redefining `eval-expr` to take it as input. We use the ability for the extra blocks inside try-clauses to asemble a choice rather than using one defined previoously.
 
@@ -1000,17 +1001,17 @@ eval-expr = function {
 
 
 ### Repeated matching
-Often we want to match a repeating pattern, and produce an extra result which is a list. Subtext uses recursion to do unbounded looping. Here is an example that matches a CSV string into a list of numbers:
+Often we want to match a repeating pattern, and produce an extra result which is a list. Subtext uses recursion to do unbounded looping. Here is an example that matches a CSV text into a list of numbers:
 
 ```
 csv? = function {
-  string: '1,2,3'
+  text: '1,2,3'
   numbers: list {0}
   try {
-    string =? ''
+    text =? ''
     extra(~numbers = numbers)
   } else {
-    string match-number?()
+    text match-number?()
     match? ','
     csv?(numbers & ~number)
   } else reject
@@ -1032,18 +1033,18 @@ A `repeat` can be used inside a function or any do-block (`repeat?` if the block
 
 ### Scanning
 
-A scan-block can be used to search for a pattern in a string. For example:
+A scan-block can be used to search for a pattern in text. For example:
 ```
-string = 'foo123'
-string scan {match-number?()}
+text = 'foo123'
+text scan {match-number?()}
 check selected() =? '123'
 check ~number =? 123
 ```
-A scan-block will repeatedly execute the enclosed block until it succeeds. At first the input string or selection is passed to the code in the block, and if it succeeds nothing further is done. But if it fails the block is reexecuted with a selection that skips one character (or item) in the input. This is done by moving the selected part to the before part, and then moving the first item of the after part to the before part. One character at a time is skipped this way until the match succeeds or the end of the string is hit (which results in selecting the end of the string).
+A scan-block will repeatedly execute the enclosed block until it succeeds. At first the input text or selection is passed to the code in the block, and if it succeeds nothing further is done. But if it fails the block is reexecuted with a selection that skips one character (or item) in the input. This is done by moving the selected part to the before part, and then moving the first item of the after part to the before part. One character at a time is skipped this way until the match succeeds or the end of the text is hit (which results in selecting the end of the text).
 
 ### Replacing
 
-You can replace matched portions of strings as follows:
+You can replace matched portions of text as follows:
 ```
 'Some Millenials attacking other Millenials' scan {
   match? 'Millenial'
@@ -1052,7 +1053,7 @@ You can replace matched portions of strings as follows:
 } 
 combined() =? 'Some snake-people attacking other snake-people'
 ```
-The `replace-selection` replaces the selected part of the input with the argument string. Note that replacing the selection does not affect subsequent matches, which work on the after-part, so replacement can be done “on the fly”. The `combined()` function at the end converts the final selection back into a plain string by concatenating the before, selected, and after parts.
+The `replace-selection` replaces the selected part of the input with the argument text. Note that replacing the selection does not affect subsequent matches, which work on the after-part, so replacement can be done “on the fly”. The `combined()` function at the end converts the final selection back into a plain text by concatenating the before, selected, and after parts.
 
 ## Missing values
 Nulls are a perennial controversy in PL and DB design. The idea is to add a special value Null to all types of values in order to represent a “missing” or “unknown” value. Unfortunately Null adds complexity and more ways for code to break, or more language features to avoid breaking. FP languages avoid Null values by using Option wrappers (like Subtext choices), but at the cost of continually wrapping and unwrapping values.  NULL in SQL is an acknowledged disaster. We want to avoid this whole mess if possible.
@@ -1060,7 +1061,7 @@ Nulls are a perennial controversy in PL and DB design. The idea is to add a spec
 We propose a simple solution for missing values that visualizes naturally in the UI:
 
 1. There is a special number called `_number_` that corresponds to an empty numeric field in the UI. Numeric functions treat `_number_` as a special case, as Excel does with empty cells. Unlike IEEE NaN, `_number_` is equal to itself.
-2. The empty string represents a missing string.
+2. The empty text represents a missing text.
 3. There are predefined missing values for each media type that serve as placeholders.
 4. The missing value for a record is when all its data fields are missing.
 5. The missing value for a list is when it is empty.
@@ -1085,7 +1086,7 @@ Subtext has no syntax for describing types: programs only talk about values. All
 
 We believe that type systems are an essential formalism for language theoreticians and designers, but that many language users would prefer to obtain their benefits without having to know about them and write about them.
 
-Field names are nominal, which ironically means that their names are irrelevant (unlike structural systems where the spelling of a field’s name identifies it). Every time a field is defined a globally unique ID is assigned to it. There is a document-wide dictionary that maps these field IDs to their current name strings. Renaming a field just changes that dictionary entry. So the following two definitions look similar but define two different `a` fields.
+Field names are nominal, which ironically means that their names are irrelevant (unlike structural systems where the spelling of a field’s name identifies it). Every time a field is defined a globally unique ID is assigned to it. There is a document-wide dictionary that maps these field IDs to their current names. Renaming a field just changes that dictionary entry. So the following two definitions look similar but define two different `a` fields.
 ```
 x: data {a: 0}
 y: data {a: 1}
@@ -1172,7 +1173,7 @@ The reference `x~remainder` is pronounced “x’s remainder”. What this does 
 
 ## Parsing
 
-The most basic parsing function is `match?`, which takes a string argument and matches that against the front of the input string, returning the remainder if it is present, or rejecting otherwise. For example, the following function matches either `'foo'` or `'bar'`:
+The most basic parsing function is `match?`, which takes a text argument and matches that against the front of the input text, returning the remainder if it is present, or rejecting otherwise. For example, the following function matches either `'foo'` or `'bar'`:
 
 ```
 foobar? = function {
@@ -1192,7 +1193,7 @@ test {
 
 Parsing alternative patterns like in this example requires backtracking, which we get from the way rejection discards changes to the subject value. Thus we can use normal conditional and looping constructs to do backtracking parsing.
 
-Another useful parsing function is `match-number?` which matches a numeric string and returns its numeric value as an associated result `number`. For example:
+Another useful parsing function is `match-number?` which matches a numeric text and returns its numeric value as an associated result `number`. For example:
 
 ```
 test {
@@ -1255,14 +1256,14 @@ The novel feature here is that parsing code serves as its own AST by just adding
 Atom :=
 	| '{}'				// unit value 'nothing'
 	| Number
-	| String
+	| text
 	| '_serial_'		// missing serial number
 
 Number :=
 	| // JavaScript number
 	| '_number_'		// Special missing number
 
-String := 		// single-quoted JavaScript string literal
+text := 		// single-quoted JavaScript text literal
 
 Label := Name | Operator | Ordinal
 Name := [a-z A-Z] ([a-z A-Z 0-9 _ \-]* [[a-z A-Z 0-9])? '?'?
@@ -1280,7 +1281,7 @@ Statement :=
 	| Name '=' Qualifier* Expr				// formula - 'name equals'
 	| Name '()=' Expr						// function - 'name of'
 	| (Name '=')? Path? ':=' ContextExpr	// 'set to'
-	| (Name '=')? Check Expr ('error' String)?
+	| (Name '=')? Check Expr ('error' text)?
 	| 'assert' ContextExpr
 	| 'end'									// control containing repeat
 
