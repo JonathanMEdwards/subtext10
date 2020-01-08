@@ -30,7 +30,7 @@ This section summarizes the notable programming language features of Subtext whi
 * One IF to rule them all: there is a single mechanism of conditionality: partial functions which either return a result or reject their input. Inspired by SNOBOL, this single mechanism provides conventional control structures, backtracking logic, pattern matching, assertions, and data invariants.
 * Functions are not abstract entities. Instead the formula computing any field can be “called” and supplied with alternate subject and argument values to use. As a result all code is always executing on concrete input values. Code can be edited live, immediately seeing the execution results, as in a spreadsheet.
 * Calling a function is essentially inlining a copy of it. Lexical closures fall out of the way that relative paths within a subtree are mapped through copies.
-* A function argument has access to the static type of the parameter definition. For example this avoids the redundancy of `insertRow(new Row(...))` instead of just `insertRow(do{:=...})`. A function argument also has access to the default value of the parameter, which the function can compute dynamically based on the value of the subject and prior arguments.
+* A function argument has access to the static type of the parameter definition. For example this avoids the redundancy of `insertRow(new Row())` instead of just `insertRow()`. A function argument also has access to the default value of the parameter, which the function can compute dynamically based on the value of the subject and prior arguments.
 * Functions can have extra return values, which do not need to be explicitly captured at the call site as in other approaches.
 * Hidden types: Subtext is statically typed, but types are not mentioned in the language nor error messages. Concrete values serve as witnesses of types.
 * Parametric polymorphism (generics) are provided without exposing the concept of a type parameter.  Generics fall out almost for free from the ability to have dynamically defaulted parameters described above.
@@ -132,7 +132,7 @@ b = data record {
 ## Expressions
 In the formula `y = x + 1` the part to the right of the `=` is called an _expression_. This expression starts with the _value_ `x` followed by the _function call_ `+ 1`. An expression value can be either a literal like the number `1`, or a _reference_ to a field somewhere in the document, like `x`. References can be a _path_ of multiple names separated by `.`, as in `b.x`, pronounced “b dot x”, which refers to the `x` field of the block `b`. Other kinds of paths will be described later.
 
-A function call starts with a reference to a function, in this case `+`, the built-in addition function. The function reference is followed by parentheses containing zero or more _arguments_ to the function. When there is only one argument and it is a value, the parenthese are optional: so `x + 1` is equivalent to `x +(1)`. All functions operate on the value to their left, which is called their _input_, and additionally zero or more arguments in parentheses to their right. So in `x + 1` and `x +(1)` the input to the `+` function is the value `x` and the single argument is the value `1`. There is no such thing as a function with no input. If a function call has no arguments it uses empty parethenses as in `x negate()`. Arguments can also be expressions, in which parentheses must be used, for example `x +(y * 2)`. If a function takes more than one argument it uses a “keyword” syntax for the extra arguments: `value fnc(arg1, param := arg2)`. All arguments are optional, and will be given a default value if unspecified in the call.
+A function call starts with a reference to a function, in this case `+`, the built-in addition function. The function reference is followed by parentheses containing zero or more _arguments_ to the function. When there is only one argument and it is a value, the parenthese are optional: so `x + 1` is equivalent to `x +(1)`. All functions operate on the value to their left, which is called their _input_, and additionally zero or more arguments in parentheses to their right. So in `x + 1` and `x +(1)` the input to the `+` function is the value `x` and the single argument is the value `1`. There is no such thing as a function with no input. If a function call has no arguments it uses empty parethenses as in `x negate()`. Arguments can also be expressions, in which parentheses must be used, for example `x +(y * 2)`. If a function takes more than one argument it uses a “keyword” syntax for the extra arguments: `value fnc(arg1, .param := arg2)`. All arguments are optional, and will be given a default value if unspecified in the call.
 
 Expressions executely strictly left-to-right, which can violate the expectations of arithmetic precedence. The expression `1 + 2 * 3` is equal to 6 not 7. This is clearer if parenthese are used: `1 +(2) *(3)`. For that reason, the UI will always fill in parentheses in function calls, but fade them out in the case of a single value argument, so that they still resemble the familiar parentheses-free form, but hopefully still look different enough to break the expectations of aratithmetic precedence. We retain the parentheses-free form in the syntax because that is the entrenched expectation of experienced programmers, who are the audience for the syntax.
 
@@ -191,31 +191,35 @@ This record contains two data fields: `name` which is an initially empty text, a
 
 The essential operations on a record are to read and change individual fields. We read the fields using paths, like `x.name` and `x.number`. To change a field we use a _set operation_:
 ```
-x with{name:= 'Joe'}
+x with{.name := 'Joe'}
 ```
 We pronounce this “x with name set to text Joe”. The result of a set operation is
-a record equal to the value of `x` except with the field `name` set to `'Joe'`, which is
-```
-record{ name: 'Joe', number: 0}
-```
+a record equal to the value of `x` except with the field `name` set to `'Joe'`.
 Note that the value of `x` is not changed as a result of this operation: a new and different record value is produced. We might give this new record a name, as in:
 ```
-y = x with{name := 'Joe'}
+y = x with{.name := 'Joe'}
 ```
 We can update multiple fields at once:
 ```
-y = x with{name := 'Joe', number := 2}
+y = x with{.name := 'Joe', .number := 2}
 ```
 
 If we display the above formula as a do-block we see:
 ```
 y = do {
   x
-  name := 'Joe'
-  number := 2
+  .name := 'Joe'
+  .number := 2
 }
 ```
-Here the set operation `name := 'Joe'` takes as its input record the value of the previous field, which is the value `x`. The Joe-named record that results becomes the input to `number := 2`, whose results becomes the value of `y`
+Here the set operation `.name := 'Joe'` takes as its input record the value of the previous field, which is the value `x`. The Joe-named record that results becomes the input to `.number := 2`, whose results becomes the value of `y`.  Note this is not equivalent to:
+```
+y = do {
+  x with{.name := 'Joe'} // dead code!
+  x with{.number := 2}
+}
+```
+which would discard the change to the `name` field, and so is reported as a static error.
 
 Note that the `with{}` syntax disappeared in the do-block. That is because with-blocks don’t really exist: they are used in a formula to show fields that don’t meet the usual expectations of a formula, specifically anything besides a simple value or function call. With-blocks allow formulas to represent anything that can go into a do-block.
 
@@ -228,16 +232,16 @@ x: record {
     street: ''
     city: ''
 }
-y = x with{address.street := '12 Main St', address.city := 'Springville'}
+y = x with{.address.street := '12 Main St', .address.city := 'Springville'}
 ```
 
 Instead of using dotted paths, we can nest with-blocks:
 ```
-y = x with{address := with{street := '12 Main St', city := 'Springville'}}
+y = x with{.address := with{.street := '12 Main St', .city := 'Springville'}}
 ```
-Note how the with-block is nested: `address := with{street...}`. We saw earlier that the with-block expects an input record value on its left, which it then modifies. Here `address :=` passes the current value of `x.address` as the input to the with-block on its right, and then sets the `address` field to be the result. This example demonstrates a general feature of Subtext: _default inputs_. We saw earlier how operations in a do-block take their input from the previous field. Something similar happens with a `:=` — any operation on the right will by default input from the current value of the field named on the left. For example:
+Note how the with-block is nested: `.address := with{street...}`. We saw earlier that the with-block expects an input record value on its left, which it then modifies. Here `.address :=` passes the current value of `x.address` as the input to the with-block on its right, and then sets the `address` field to be the result. This example demonstrates a general feature of Subtext: _default inputs_. We saw earlier how operations in a do-block take their input from the previous field. Something similar happens with a `:=` — any operation on the right will by default input from the current value of the field named on the left. For example:
 ```
-y = x with{number := + 1}
+y = x with{.number := + 1}
 ```
 will increment the value of the `number` field. Default inputs are also supplied to function arguments, which will be discussed later.
 
@@ -268,9 +272,9 @@ ternary-function = function{
   arg2: 0
   ...
 }
-x = 1 ternary-function(2, arg2 := 3)
+x = 1 ternary-function(2, .arg2 := 3)
 ```
-The rule is that the first defined argument is anonymous in the call. Note that named arguments use the same notation `:=` as a set operation. That is because they actually are set operations, overriding the data fields of the function. The first argument implicitly uses a set operation too: `arg1 := 2`. Because arguments use set operations, we get defaul argument inputs. Thus for example `1 plus(+ 1)` will increment the default value of the argument (from 1 to 2), with a final result of 3. This is a contrived example, but we will see more useful cases later with choices and lists.
+The rule is that the first defined argument is anonymous in the call. Note that named arguments use the same notation `:=` as a set operation. That is because they actually are set operations, overriding the data fields of the function. The first argument implicitly uses a set operation too: `.arg1 := 2`. Because arguments use set operations, we get defaul argument inputs. Thus for example `1 plus(+ 1)` will increment the default value of the argument (from 1 to 2), with a final result of 3. This is a contrived example, but we will see more useful cases later with choices and lists.
 
 There is one big difference between functions in Subtext and other languages: they are expressions, not values. Look at this function:
 ```
@@ -302,7 +306,7 @@ integral-divide = function {
   numerator: 1
   divisor: 1
   ratio = numerator /(divisor) floor()
-  extra{remainder = numerator -(ratio * divisor)}
+  extra{~remainder = numerator -(ratio * divisor)}
 }
 x = 5 integral-divide 3  // 1
 y = x~remainder // 2
@@ -314,13 +318,13 @@ The formula `x` calls the function `integral-divide` as follows
 3. The `ratio` is calculated to be 1 using the `floor` function to round-down the division
 4. An _extra result_ named `remainder` is defined and calculated to be 2 based on `ratio`
 5. The extra-block passes through the ratio, which as the last value in the function becomes the value of `x`
-6. The reference `x~remainder` accesses the extra result `remainder` which becomes the value of `y`. Equivalently, `y = ~remainder` accesses the extra result of the previous field.
+6. The reference `y = x~remainder` accesses the extra result `remainder` which becomes the value of `y`. Equivalently, `y = ~remainder` would accesses the extra result of the previous field `x` without naming it.
 
 A function can have multiple extra results, each with a different name, defined as 
 ```
-extra{result1 = ..., result2 = ..., ...}
+extra{~result1 = ..., ~result2 = ..., ...}
 ```
-You can access the record containing all the extra results with a reference like `x~`, and just `~` for the extra results record from the previous field.
+The leading `~` is required. You can access the record containing all the extra results with a reference like `x~`, and just `~` for the extra results record from the previous field.
 
 If an extra block is not the last field of a function, then the extra results of the last field are passed on as the extra results of the function. The `floor()` function actually does return an extra result called `remainder` containing the fractional part of its input. So in this case we didn’t need to use the extra block. If you don’t want to return extra values from the last field, you can add `extra{}` to the end.
 
@@ -495,13 +499,13 @@ rgb = function {
   color: ''
   try {
     color =? 'red
-    extra{color |= red}
+    extra{~color |= red}
   } else {
     color =? 'green'
-    extra{color |= green}
+    extra{~color |= green}
   } else {
     color =? 'blue'
-    extra{color |= blue}
+    extra{~color |= blue}
   }
 }
 x = 'red' rgb()
@@ -543,7 +547,7 @@ All lists are initially created as empty. Text is a list of characters with the 
 The `&` function (pronounced “and”) is used to create items in a list. For example:
 ```
 n = numbers & 1 & 2 & 3
-c = customers & with{name:= 'Joe', address:= 'Pleasantown, USA'}
+c = customers & with{.name := 'Joe', .address := 'Pleasantown, USA'}
 ```
 The `&` operator takes a list as it’s input and an item value as its argument, and results in a list equal to the input plus a new item. The default value of the argument to `&` is the template item, which provides a default value, so `&()` will create an item with the default value. In tables it is convenient to use a with-block as above to set some of the fields and let the others default.
 
@@ -588,7 +592,7 @@ test {
 or equivalently using a with-block:
 ```
 test {
-  .customers[1] := with{name := 'Joe Jr.'}
+  .customers[1] := with{.name := 'Joe Jr.'}
 }
 ```
 
@@ -609,7 +613,7 @@ A column of a table is a list containing the contents of one field. The columns 
 t = table {
   name: ''
   amount: 0
-} & with{name:= 'joe', amount:= 100} & with{name:= 'jane', amount:= 200}
+} & with{.name := 'joe', .amount := 100} & with{.name := 'jane', .amount := 200}
 
 test {
   check .t.amount[1] =? 100
@@ -738,15 +742,15 @@ some in customers        // 1 or more rows
 maybe some in customers  // 0 or more rows
 ```
 
-A link records a subset of the IDs in its target list. A link is edited in the UI with something like a pick list of the items in the target list. Links can be modified with several functions that produce modified selections
+A link records a subset of the IDs in its target list. A link is edited in the UI with something like a pick list of the items in the target list. Links can be modified with several functions that produce modified links:
 ```
-l := link i              // link item with index i in target
-l := unlink i            // unlink item with index i in target
-l links? i               // rejects if target index i is not linked
-l := clear()             // unlink everything
-l := link-all list       // link all IDs from another list or link
-l := unlink-all list     // unlink all IDs from another list or link
-l := copy list           // clear and link-all
+l link i              // link item with index i in target
+l unlink i            // unlink item with index i in target
+l links? i            // rejects if target index i is not linked
+l clear()             // unlink everything
+l link-all list       // link all IDs from another list or link
+l unlink-all list     // unlink all IDs from another list or link
+l copy list           // clear and link-all
 ```
 
 Links act in some ways as if they were a list containing the linked items in their order in the target list, for example they can be indexed with `[...]` and searched with `find?{...}`. But note the indexes used in those examples are the index within the links, not the index in the target list. We can access the underlying target list with:
@@ -794,7 +798,7 @@ database: record {
   special-customers: some in customers 
 } 
 database do {
-  .customers := & with{name := 'joe'} & with{name := 'jane'}
+  .customers := & with{.name := 'joe'} & with{.name := 'jane'}
 
   // Joe is a special customer
   joe = customers first?()
@@ -809,7 +813,7 @@ database do {
   .special-customers length() =? 0
 
   // insert into target table via link
-  .special-customers & with{name := 'john'}
+  .special-customers & with{.name := 'john'}
   .customers[last?()].name =? 'john'
 }
 
@@ -848,7 +852,7 @@ It is common to need to find and operate on patterns in text. The traditional so
 
 A _selection_ is a list that has been divided into three parts, called _before_, _selected_, and _after_. Any of these parts can be empty. We can define a selection to be a list plus two indices `begin` and `end` where `1 ≤ begin ≤ end ≤ length + 1`. A selection is created from a list with
 ```
-list selection(begin:= i, end:= j)
+list selection(.begin := i, .end := j)
 ```
 where the begin and end indexes default to 1.
 
