@@ -35,8 +35,7 @@ This section summarizes the notable programming language features of Subtext whi
 * Hidden types: Subtext is statically typed, but types are not mentioned in the language nor error messages. Concrete values serve as witnesses of types.
 * Parametric polymorphism (generics) are provided without exposing the concept of a type parameter.  Generics fall out almost for free from the ability to have dynamically defaulted parameters described above.
 * There is one form of sequential data structure: the _list_, which when containing records serve as _tables_.
-* Lists can be tracked by automatically assigning hidden unique IDs to their items. Tracked ists support _links_ which can chose one or more items from a _target_ list. Links serve as foreign keys in databases. They also replace conventional uses of pointers/references, allowing reads and writes to a dynamically chosen location. This opens the Pandora’s Box of aliasing and side-effects, but only within the statically-known target list. Future research will look at exploiting this constraint for precise side-effect analysis.
-* Tracked lists allow precise document versioning and mergeing.
+* Lists can be tracked by automatically assigning hidden unique IDs to their items. Tracked ists support _links_ which chose one or more items from a _target_ list. Links serve as foreign keys in databases. Tracked lists also allow precise document versioning and mergeing. 
 
 ### Intentionally excluded features
 
@@ -129,7 +128,7 @@ b = data record {
 }
 ```
 
-## Expressions
+### Expressions
 In the formula `y = x + 1` the part to the right of the `=` is called an _expression_. This expression starts with the _value_ `x` followed by the _function call_ `+ 1`. An expression value can be either a literal like the number `1`, or a _reference_ to a field somewhere in the document, like `x`. References can be a _path_ of multiple names separated by `.`, as in `b.x`, pronounced “b dot x”, which refers to the `x` field of the block `b`. Other kinds of paths will be described later.
 
 A function call starts with a reference to a function, in this case `+`, the built-in addition function. The function reference is followed by parentheses containing zero or more _arguments_ to the function. When there is only one argument and it is a value, the parenthese are optional: so `x + 1` is equivalent to `x +(1)`. All functions operate on the value to their left, which is called their _input_, and additionally zero or more arguments in parentheses to their right. So in `x + 1` and `x +(1)` the input to the `+` function is the value `x` and the single argument is the value `1`. There is no such thing as a function with no input. If a function call has no arguments it uses empty parethenses as in `x negate()`. Arguments can also be expressions, in which parentheses must be used, for example `x +(y * 2)`. If a function takes more than one argument it uses a “keyword” syntax for the extra arguments: `value fnc(arg1, .param := arg2)`. All arguments are optional, and will be given a default value if unspecified in the call.
@@ -138,7 +137,7 @@ Expressions executely strictly left-to-right, which can violate the expectations
 
 > References will support “search paths” like `x…y` that look for a `y` field that is reachable via any path from `x`. Likewise `…y` would look for any path to `y` from any containing scope. In these examples it is an error if there is more than one path leading to `y`. A possible exception to this rule is when all the paths go through alternative cases of a choice or clauses of a conditional, and further that they lead to fields of the same type. If not all of the cases or clauses are covered then the path must be conditionalized like `…y?`. This feature gives us a convenient way to extract alternative information from choices and conditionals. Search paths might be intolerably fragile in a textual language, but an IDE can automatically repair them. In fact the reference editor in the IDE will provide all reachable paths of the right type, offering “… completion” rather than just “. completion”.
 
-## Do blocks
+## Code blocks
 Recall that record blocks can be seen either as a single line or as multiple lines with brackets and indentation. The same is true for formulas. Formulas are shown on a single line. But formulas are actually stored as a _do-block_, which is revealed when you choose to display the formula vertically, as in:
 ```
 y = x + 1 * 2
@@ -149,9 +148,9 @@ y = do {
   * 2
 }
 ```
-A do-block, like all blocks, consists of a sequence of fields. In this example there are three anonymous formula fields: `x`, `+ 1`, `* 2`. Both of the function calls have no value to their left, which means that they take as input the value of the previous field. So the value of `x` is the input to `+ 1`, whose result is the input to `* 2`. The value of the last field is the value of the entire block, which becomes the value of `y`. This top-down dataflow corresponds exactly to the left-right dataflow of formulas.
+A do-block is an example of a _code block_. Code blocks, like all blocks, consists of a sequence of fields, either data or formulas. In this example there are three unnamed formulas: `x`, `+ 1`, `* 2`. Both of the function calls have no value to their left, which means that they take as input the value of the previous field. So the value of `x` is the input to `+ 1`, whose result is the input to `* 2`. Code blocks produce a result, which is the value of the last field, which becomes the value of `y`. Note that the top-down dataflow within the block corresponds exactly to the left-right dataflow within formulas.
 
-Do-blocks can take inputs too. We can refactor the above code into:
+Code blocks can take inputs too. We can refactor the above code into:
 ```
 y = x do {
   + 1
@@ -168,18 +167,18 @@ y = do {
   that * 2
 }
 ```
-> Or possibly `.`
+> Or possibly `^`
 ```
 y = do {
   x
-  . + 1
-  . * 2
+  ^ + 1
+  ^ * 2
 }
 ```
 
 Do-blocks have a number of advantages over formulas. For one, they can grow much larger while still being readable. Another advantage is that the UI  shows the value of each formula underneath it, as in computational notebooks like Jupyter. Thus any formula can be flipped into the vertical block view to see a “mini notebook” showing every step of its execution. This total visibility of execution is a primary goal of Subtext.
 
-## Setting fields
+### Setting fields
 So far all our examples have used arithmetic. But it is very common to work with records, especially as they are the rows of tables. Take the record:
 ```
 x: record {
@@ -221,7 +220,7 @@ y = do {
 ```
 which would discard the change to the `name` field, and so is reported as a static error.
 
-Note that the `with{}` syntax disappeared in the do-block. That is because with-blocks don’t really exist: they are used in a formula to show fields that don’t meet the usual expectations of a formula, specifically anything besides a simple value or function call. With-blocks allow formulas to represent anything that can go into a do-block.
+Note that the `with{}` syntax disappeared in the do-block. That is because with-blocks don’t really exist: they are used in a formula to show fields that don’t meet the usual expectations of a formula, specifically anything besides a simple value or function call. With-blocks allow formulas to represent anything that can go into a code block.
 
 Set operations can “drill” into nested record by using a dotted path to the left of the `:=`
 ```
@@ -245,8 +244,8 @@ y = x with{.number := + 1}
 ```
 will increment the value of the `number` field. Default inputs are also supplied to function arguments, which will be discussed later.
 
-## Defining functions
-A function can be defined with a function-block, for example:
+### Defining functions
+A function can be defined with another kind of code block called a _function-block_, for example:
 ```
 plus = function {
   in: 0
@@ -298,7 +297,7 @@ The call `x increment()` takes the expression defining `increment` and sets its 
 
 What this means is that any formula can be used as a no-argument function (taking just an input). In most languages, if we have a formula that we want to reuse elsewhere we must copy it out into a separate function definition, and supply a name for the input, and further we should abstract the original formula into a call to the new function. In Subtext we can instead just call the formula as a function. However if we want the function input to be other than the first value, or we want there to be arguments, then we need to use a function-block. But even then there is no need to abstract out a separate function definition. We can just expose the formula as a do-block, then edit it into the function-block we want, without defining a new field. The original field still gets the result of executing that function block on the default values as if it were a formula. This approach to functions is motivated by a major goal of Subtext: avoiding the need for premature abstraction.
 
-## Extra results
+### Extra results
 
 The result of a function is the value of the last field. However we often would like to return extra results from a function. For example, integral division would like to return not only the integral ratio but the fractional remainder as well:
 ```
@@ -318,17 +317,32 @@ The formula `x` calls the function `integral-divide` as follows
 3. The `ratio` is calculated to be 1 using the `floor` function to round-down the division
 4. An _extra result_ named `remainder` is defined and calculated to be 2 based on `ratio`
 5. The extra-block passes through the ratio, which as the last value in the function becomes the value of `x`
-6. The reference `y = x~remainder` accesses the extra result `remainder` which becomes the value of `y`. Equivalently, `y = ~remainder` would accesses the extra result of the previous field `x` without naming it.
+6. The reference `y = x~remainder` accesses the extra result `remainder` which becomes the value of `y`. Equivalently, `y = ~remainder` would accesses the extra result of the previous field `x` without naming it (skipping preceding `check` and `let` fields)
 
 A function can have multiple extra results, each with a different name, defined as 
 ```
 extra{~result1 = ..., ~result2 = ..., ...}
 ```
-The leading `~` is required. You can access the record containing all the extra results with a reference like `x~`, and just `~` for the extra results record from the previous field.
+The leading `~` is required on each name. The input value is passed to each of the formulas, instead of chaining as in a normal block. You can access the record containing all the extra results with a reference like `x~`, and just `~` for the extra results record from the previous field.
 
 If an extra block is not the last field of a function, then the extra results of the last field are passed on as the extra results of the function. The `floor()` function actually does return an extra result called `remainder` containing the fractional part of its input. So in this case we didn’t need to use the extra block. If you don’t want to return extra values from the last field, you can add `extra{}` to the end.
 
 With the addition of extra results, function inputs and outputs become symmetric: they each have a single input and output value, zero or more named arguments, and zero or more named extra results.
+
+### Local variables (tentative proposal)
+Inside a code block formulas can be used to name intermediate computations and then reference them by name later. This is called a _local variable_ in some PLs, but in Subtext is it is just a normal named formula field. However it is common to chain statements, feeding the result of one into the input of the next. Local variables often break this flow, so there is special statement qualifier `let`:
+```
+...
+let foo = ... // compute something from previous value for later
+// input from value preceding the let statement 
+```
+This avoids having to invent a name:
+```
+temp = ...
+let foo = temp ...
+temp ... 
+```
+A `let` hides visibility of the name from outside the block, so it can also be useful inside records.
 
 ## Conditionals
 
@@ -360,9 +374,9 @@ do {
 
 Only formulas can be conditional, not data fields. See _Missing values_ for alternative techniques.
 
-When a formula rejects, what happens depends on the kind of block it is inside. Inside a do-block or a function-block, rejection halts further evaluation of the block, and makes the whole block reject. What happens next depends on the kind of block containing that block — if it is also a do-block or function-block the rejection continues to propagates into the containing block. This proceeds until the rejection reaches one of several kinds of block that handle rejections, for exampe the _try-block_.  In this way rejection is like exception catching in conventional languages, except that it is the only kind of exception supported.
+When a formula rejects, what happens depends on the kind of block it is inside. Inside a do-block or a function-block, rejection halts further evaluation of the block, and makes the whole block reject. What happens next depends on the kind of block containing that block — if it is also a do-block or function-block the rejection continues to propagates into the containing block. This proceeds until the rejection reaches one of several kinds of block that handle rejections, for example the _try-block_.  In this way rejection is like exception catching in conventional languages, except that it is the only kind of exception supported.
 
-A try-block allows you to respond to a rejection by doing something else — it fills the role of the ubiquitous _IF_ statement in conventional languages. Here is an example:
+A try-block is a code block allows you to respond to a rejection by doing something else — it fills the role of the ubiquitous _IF_ statement in conventional languages. Here is an example:
 ```Txt
 polarity = function {
   n: 0
@@ -378,7 +392,7 @@ polarity = function {
 }
 x = 1 polarity() // = 'positive'
 ```
-A try-block contains a sequence of blocks called _clauses_, separated by the `else` keyword. Try clauses are do-blocks. The first one will be evaluated, and if it succeeds its value becomes the value of the entire try-block, ignoring all the other clauses. But if the first clause rejects, then the second clause will be evaluated, and if it succeeds it supplies the value of the try-block and skips the rest. Successive clauses are evaluated until one succeeds.
+A try-block contains a sequence of code blocks called _clauses_, separated by the `else` keyword. The first one will be evaluated, and if it succeeds its value becomes the value of the entire try-block, ignoring all the other clauses. But if the first clause rejects, then the second clause will be evaluated, and if it succeeds it supplies the value of the try-block and skips the rest. Successive clauses are evaluated until one succeeds.
 
 If none of the clauses succeeds the try-block crashes. This is considered a programming error: a try-block must exhaustively test all possible cases.  _In the future we will try to infer exhaustiveness statically, but for now it is a dynamic check._ To allow none of the clauses to succeed, the statement `else reject` is placed at the end of the try-block. For example:
 
@@ -409,7 +423,20 @@ rgb? = '' try {
 
 'yellow' rgb?() // rejects
 ```
-> It is unclear whether this abbreviated form is useful, or confusing and should be disallowed.
+
+An alternative form of conditional is an optional-block:
+```Txt
+absolute-value = function {
+  n: 0
+  optionally {
+    check n <? 0
+    negate()
+  }
+}
+```
+The optionally-block is like a try-block, except that if none of the clauses succeed, the input value becomes the result. That requires that all the clauses must also result in the same type of value as the input. This is a shorthand for adding an empty clause at the end of a try-block, which acts like the identity function: `try {...} else {}`.
+
+> `try {...} else reject` could be instead `try? {...}`. Likwise `optionally {...}` could be just `try {...}`. To crash on incompleteness, `try! {...}`. This design is more consistent with the way other conditional forms are handled, but we worry it is too subtle.
 
 ### Boolean operations
 Subtext does not use Boolean values like conventional languages do for making decisions. The standard Boolean operations can be done with try-blocks instead. The `rgb?` function above was an example of a logical OR. Here is the recipe for writing boolean operations:
@@ -434,13 +461,14 @@ Note that `not{}` is a block, as is `try`. Only blocks catch rejections.
 
 > But it might be convenient to allow `not` and `assert` statements, like `check`, except they capture rejects in the following expression without the need for brackets.
 
-
 ### Assertions and tests
 The `assert{...}` block converts a rejection into a crash. This is used to detect situations that should be impossible and which therefore indicate a programming error. For example
 ```Txt
 assert {x =? y}
 ```
 will crash if `x` and `y` are unequal.
+
+> We could also replace any `?` with a `!` to turn it into an assertion. This is more flexible, but we worry it is too subtle
 
 Test blocks are used for unit tests:
 ```Txt
@@ -676,9 +704,9 @@ A useful special case is `list only?()`, resulting in the single item of the lis
 > Can a find block can also change the value of the item returned, as in a map?
 > `find-unique?` that returns result of block, so long as all matches return same value  
 > 
-### Replacing and combining
+### Replacing and aggregating
 
-A _for-each_ block will evaluate a do-block on each item, resulting in an unsorted list with each row replaced with the result of the code block in the same order as the input. If an item is rejected, it is left out of the result. The `for-all?` block is like `for-each` except it rejects if the code block rejects on any item, otherwise resulting in the replaced table. The `for-none?` block does the opposite, rejecting if the code block accepts any item, otherwise resulting in the input list. For example:
+A _for-each_ block will evaluate a code block on each item, resulting in an unsorted list with each row replaced with the result of the code block in the same order as the input. If an item is rejected, it is left out of the result. The `for-all?` block is like `for-each` except it rejects if the code block rejects on any item, otherwise resulting in the replaced table. The `for-none?` block does the opposite, rejecting if the code block accepts any item, otherwise resulting in the input list. For example:
 
 ```
 test {
@@ -701,17 +729,17 @@ test {
 }
 ```
 
-A _combine_ block is used to calculate a single result from scanning a list.
+An _aggregate function_ is used to accumulate a result by scanning a list.
 ```
-l = list{0} & 1 & 2 & 3
-l combine {
-  item: that
+l = list{0}
+sum = aggregate function {
+  item: l[]
   sum: 0
   item + sum
 }
-check =? 6
+check l & 1 & 2 sum() =? 3
 ```
-A combine-block must be a function with an input and one argument. The function wil be called repeatedly with inputs from the items of the input list. The function input in this example is called `item` (which is defined as an item of the list by default). The argument `sum` to the function acts as an accumulator. On the first call it defaults to the defined value 0. On the second and subsequent calls, `sum` is set to the result of the previous call. This example is equivalent to the built-in `sum()` function that sums a numeric list. If the function rejects an item then it will be skipped and the accumulator argument will be passed on to the next call. A combine-block is similar to a “fold” in functional languages. 
+An aggregate function must define its input as the template of a list (called `item` here). When an aggregate function is called, the input must be a list whose template is the same type as that used in the function definition. The function wil be called repeatedly with inputs from the items of the input list. The function must have an argument (called `sum` here), which will act as an accumulator. On the first call it defaults to the defined value (0 here). On the second and subsequent calls, `sum` is set to the result of the previous call. This example is equivalent to the built-in `sum()` function that sums a numeric list. If the function rejects an item then it will be skipped and the accumulator argument will be passed on to the next call. An aggregate function is  like a _fold_ function, except that the accumulator value is initialized in the definition instead of being supplied explicitly by the caller (though that is still possible if desired).
 
 ## Tracked lists
 
@@ -728,7 +756,7 @@ Two tracked lists are equal if their items are not only equal but also were crea
 
 ### Links
 
-Links are used to store references to items from outside the list. A common scenario is what relational databases call “foreign keys”, where rows in one table reference rows in another:
+Links are used to store references to items from outside the list. A common scenario is what relational databases call _foreign keys_, where rows in one table reference rows in another:
 
 ```
 customers: tracked table {
@@ -749,7 +777,7 @@ some in customers        // 1 or more rows
 maybe some in customers  // 0 or more rows
 ```
 
-A link records a subset of the IDs in its target list. A link is edited in the UI with something like a pick list of the items in the target list. Links can be modified with several functions that produce modified links:
+A link stores a subset of the IDs in its target list. Links are equal when their target lists are equal and they link the same items. A link is edited in the UI with something like a pick-list of the items in the target list (radio buttons for a singular link). Links can be modified with several functions that produce modified links:
 ```
 l link i              // add link to item with index i in target
 l unlink i            // unlink item with index i in target
@@ -782,6 +810,8 @@ orders: tracked table {
 ```
 Note that each link names the field within the opposite table that contains its reflection.
 
+Reflected links can also be declared as _unique_, _complete_, or _paired_, corresponding to injective (into), surjective (onto), and bijective (1-1) mappings.
+
 Note that while the above example is familiar from relational databases, in Subtext it would be simpler to just nest orders inside customers:
 ```
 customers: table {
@@ -793,52 +823,11 @@ customers: table {
 }
 ```
 
-### Synchronized links
-If a link and its target list are both defined as data in the same structure, then they will be kept in sync through changes to either. Likewise for reflected links. For example:
-
-```
-database: record {
-  customers: tracked table {
-    name: ''
-    address: ''
-  }
-  special-customers: some in customers 
-} 
-database do {
-  .customers := & with{.name := 'joe'} & with{.name := 'jane'}
-
-  // Jane is a special customer
-  .special-customers := link customers[2]
-
-  // write through link
-  .special-customers[1].address := 'Main St'
-  check .customers[2].address =? 'Main St'
-
-  // cascading delete
-  .customers delete 1
-  check .special-customers length() =? 0
-
-  // insert into target table via link
-  .special-customers & with{.name := 'john'}
-  check .customers last?() .name =? 'john'
-}
-
-```
-
-Synchronization takes place when a set statement (`:=`) executes on a context containing the affected tables and links, as in the `database` record in the above example. Changes made to copies of the links or tables have no side-effects until they are assigned back into a sufficiently broad context. The ability to do this is a major motivation for tracked tables.
-
-> This is the essence of Subtext’s solution to unifying functional and imperative semantics, which we believe is novel. This will also be the basis of more general “action-at-a-distance” features like change triggers and updateable views.
-
-### TODO: invalid links
-Links can have the wrong number of linked items through several causes:
-1. The user edits the link in the UI
-2. Code computes a link
-3. Deleting an item in the target list deletes all links to it
-4. Creating a new item containing a link, which defaults to empty
-The basic idea is to distinguish data and formula contexts. Invalid links in a formula will crash. Invalid links in a data field are considered a constraint violation, which prevents committing them to the document state until they are corrected manually.
 
 ### TODO: Nested links
 Links can target nested lists, linking to a path of IDs. Reflecting links can cross multiple layers of containing lists. Cardinality constraints are specified seperately for each level of nesting. 
+
+### TODO: link updates and referential integrity
 
 ### Merging
 
@@ -1039,7 +1028,7 @@ csv?(numbers & ~number)
 repeat?(numbers & ~number)
 repeat?(& ~number)
 ```
-A `repeat` can be used inside a function or any do-block (`repeat?` if the block is conditional). It will make a recursive call to the containing do-block or function, but with all the arguments defaulting to their value in the current call, not their defined values as in a normal call. Thus in this example the `numbers` argument becomes just `& ~number` to append to the list that was passed in.
+A `repeat` can be used inside any code block (`repeat?` if the block is conditional). It will make a recursive call to the containing code block (ignoring try, not, assert), but with all the arguments defaulting to their value in the current call, not their defined values as in a normal call. Thus in this example the `numbers` argument becomes just `& ~number` to append to the list that was passed in.
 
 ### Scanning
 
