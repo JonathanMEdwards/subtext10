@@ -95,9 +95,9 @@ b: record {
 ```
 This record defines two fields, one named `x` which has the value `0`, and one named `y`, whose value is a nested record with numeric fields named `i` and `j` with values `0` and `1` respectively. The names of the fields within a record must be different. Fields inside blocks are referenced from the outside using a dotted path like `b.y.j` pronounced “b dot y dot j”.
 
-Fields can be separated across lines and indented as in the above example, or combined in a line separated by commas:
+Fields can be separated across lines and indented as in the above example, or combined in a line separated by semicolons:
 ```
-b: record {x: 0, y: record {i: 0, j: 1, k: 2}}
+b: record {x: 0, y: record {i: 0; j: 1; k: 2}}
 ```
 The UI lets you flip between these two formats.
 
@@ -112,21 +112,21 @@ x + 2
 The second line is pronounced “y equals x plus 1”. The field `y` will always be one greater than `x`, and will be recalculated if `x` changes. The third line is a formula field too, but without a name or the `=` symbol.
 
 > The distinction between `:` and `=` may be too subtle. Possible alternatives are to `:` are:
-```
-x = data 0
-x = init 0
-```
+> ```
+> x = data 0
+> x = init 0
+> ```
 > but that can get verbose:
-```
-b = data record {
-  x = data 0
-  y = data record {
-    i = data 0
-    j = data 1
-    k = data 2
-  }
-}
-```
+> ```
+> b = data record {
+>   x = data 0
+>   y = data record {
+>     i = data 0
+>     j = data 1
+>     k = data 2
+>   }
+> }
+> ```
 
 ### Expressions
 In the formula `y = x + 1` the part to the right of the `=` is called an _expression_. This expression starts with the _value_ `x` followed by the _function call_ `+ 1`. An expression value can be either a literal like the number `1`, or a _reference_ to a field somewhere in the document, like `x`. References can be a _path_ of multiple names separated by `.`, as in `b.x`, pronounced “b dot x”, which refers to the `x` field of the block `b`. Other kinds of paths will be described later.
@@ -136,6 +136,36 @@ A function call starts with a reference to a function, in this case `+`, the bui
 Expressions executely strictly left-to-right, which can violate the expectations of arithmetic precedence. The expression `1 + 2 * 3` is equal to 6 not 7. This is clearer if parenthese are used: `1 +(2) *(3)`. For that reason, the UI will always fill in parentheses in function calls, but fade them out in the case of a single value argument, so that they still resemble the familiar parentheses-free form, but hopefully still look different enough to break the expectations of aratithmetic precedence. We retain the parentheses-free form in the syntax because that is the entrenched expectation of experienced programmers, who are the audience for the syntax.
 
 > References will support “search paths” like `x…y` that look for a `y` field that is reachable via any path from `x`. Likewise `…y` would look for any path to `y` from any containing scope. In these examples it is an error if there is more than one path leading to `y`. A possible exception to this rule is when all the paths go through alternative cases of a choice or clauses of a conditional, and further that they lead to fields of the same type. If not all of the cases or clauses are covered then the path must be conditionalized like `…y?`. This feature gives us a convenient way to extract alternative information from choices and conditionals. Search paths might be intolerably fragile in a textual language, but an IDE can automatically repair them. In fact the reference editor in the IDE will provide all reachable paths of the right type, offering “… completion” rather than just “. completion”.
+
+### Vertical dataflow
+In the expression `y = x + 2 * 3` the result of the `+` operation flows rightward to be the input to the `*` function. Values can also flow vertically between fields, like this:
+```
+x
++ 2
+y = * 3
+```
+We could rephrase that as:
+```
+x
++ 2
+* 3
+y = that
+```
+where `that` is a special expression that refers to the value of the previous field.
+
+> We might want to make vertical dataflow more explicit by using `that` at the beginning of expressions, as in:
+```
+x
+that + 2
+y = that * 3
+```
+> Or possibly `^`, figuratively pointing up at the value being used.
+```
+x
+^ + 2
+y = ^ * 3
+```
+> The UI may annotate to indicate vertical dataflow, so we will defer elaborating the syntax until that is explored.
 
 ## Code blocks
 Recall that record blocks can be seen either as a single line or as multiple lines with brackets and indentation. The same is true for formulas. Formulas are shown on a single line. But formulas are actually stored as a _do-block_, which is revealed when you choose to display the formula vertically, as in:
@@ -148,35 +178,18 @@ y = do {
   * 2
 }
 ```
-A do-block is an example of a _code block_. Code blocks, like all blocks, consists of a sequence of fields, either data or formulas. In this example there are three unnamed formulas: `x`, `+ 1`, `* 2`. Both of the function calls have no value to their left, which means that they take as input the value of the previous field. So the value of `x` is the input to `+ 1`, whose result is the input to `* 2`. Code blocks produce a result, which is the value of the last field, which becomes the value of `y`. Note that the top-down dataflow within the block corresponds exactly to the left-right dataflow within formulas.
+which exploits the fact that data flows both horizontally and vertically. A do-block is an example of a _code block_. Code blocks, like all blocks, consists of a sequence of fields, either data or formulas. In this example there are three unnamed formulas: `x`, `+ 1`, `* 2`. Both of the function calls have no value to their left, which means that they take as input the value of the previous field. So the value of `x` is the input to `+ 1`, whose result is the input to `* 2`. Code blocks produce a result, which is the value of the last field, which becomes the value of `y`. Note that the top-down dataflow within the block corresponds exactly to the left-right dataflow within formulas.
 
-Code blocks can take inputs too. We can refactor the above code into:
+A code block can take an input value on its left like a function call. We can refactor the above code into:
 ```
 y = x do {
   + 1
   * 2
 }
 ```
-Here the value of `x` is the input to the do-block, and thus the input to the initial call `+(1)`. This form will become useful when we introduce further kinds of blocks.
+Here the value of `x` is the input to the do-block, and thus the input to the initial call `+ 1 `. 
 
-> We might want to make the implicit top-down dataflow more explicit by using a special value `that`, as in:
-```
-y = do {
-  x
-  that + 1
-  that * 2
-}
-```
-> Or possibly `^`
-```
-y = do {
-  x
-  ^ + 1
-  ^ * 2
-}
-```
-
-Do-blocks have a number of advantages over formulas. For one, they can grow much larger while still being readable. Another advantage is that the UI  shows the value of each formula underneath it, as in computational notebooks like Jupyter. Thus any formula can be flipped into the vertical block view to see a “mini notebook” showing every step of its execution. This total visibility of execution is a primary goal of Subtext.
+Code blocks are more general than formulas because they can contain more kinds of field than formulas (not just values can function calls). Code blocks also grow much larger while still being readable. Another advantage is that the UI  shows the value of each field underneath it, as in computational notebooks like Jupyter. Thus any formula can be flipped into the vertical block view to see a “mini notebook” showing every step of its execution. This total visibility of execution is a primary goal of Subtext.
 
 ### Setting fields
 So far all our examples have used arithmetic. But it is very common to work with records, especially as they are the rows of tables. Take the record:
@@ -190,39 +203,27 @@ This record contains two data fields: `name` which is an initially empty text, a
 
 The essential operations on a record are to read and change individual fields. We read the fields using paths, like `x.name` and `x.number`. To change a field we use a _set operation_:
 ```
-x with{.name := 'Joe'}
+x.name := 'Joe'
 ```
-We pronounce this “x with name set to text Joe”. The result of a set operation is
-a record equal to the value of `x` except with the field `name` set to `'Joe'`.
-Note that the value of `x` is not changed as a result of this operation: a new and different record value is produced. We might give this new record a name, as in:
+We pronounce this “x dot name set to text Joe”. The result of a set operation is a record equal to the value of `x` except with the field `name` set to `'Joe'`. Note that the value of `x` is not changed as a result of this operation: a new and different record value is produced. We might give this new record a name, as in:
 ```
-y = x with{.name := 'Joe'}
+y = x.name := 'Joe'
 ```
-We can update multiple fields at once:
+We can chain multiple updates using a code block:
 ```
-y = x with{.name := 'Joe', .number := 2}
+y = do{x.name := 'Joe'; .number := 2}
 ```
+Note how `.number :=` applies to the result of the previous update. We could rephrase this as
+```
+y = x do{.name := 'Joe'; .number := 2}
+```
+Note that the following variant would be wrong:
+```
+y = do{x.name := 'Joe'; x.number := 2}
+```
+that code loses the update to `name` because the update to `number` goes back to the original value of x. This is reported as a _unused value_ static error.
 
-If we display the above formula as a do-block we see:
-```
-y = do {
-  x
-  .name := 'Joe'
-  .number := 2
-}
-```
-Here the set operation `.name := 'Joe'` takes as its input record the value of the previous field, which is the value `x`. The Joe-named record that results becomes the input to `.number := 2`, whose results becomes the value of `y`.  Note this is not equivalent to:
-```
-y = do {
-  x with{.name := 'Joe'} // dead code!
-  x with{.number := 2}
-}
-```
-which would discard the change to the `name` field, and so is reported as a static error.
-
-Note that the `with{}` syntax disappeared in the do-block. That is because with-blocks don’t really exist: they are used in a formula to show fields that don’t meet the usual expectations of a formula, specifically anything besides a simple value or function call. With-blocks allow formulas to represent anything that can go into a code block.
-
-Set operations can “drill” into nested record by using a dotted path to the left of the `:=`
+Set operations can delve into nested record by using a dotted path to the left of the `:=`
 ```
 x: record {
   name: ''
@@ -231,31 +232,31 @@ x: record {
     street: ''
     city: ''
 }
-y = x with{.address.street := '12 Main St', .address.city := 'Springville'}
+y = x do{.address.street := '12 Main St'; .address.city := 'Springville'}
 ```
 
-Instead of using dotted paths, we can nest with-blocks:
+Instead of using dotted paths, we can nest blocks:
 ```
-y = x with{.address := with{.street := '12 Main St', .city := 'Springville'}}
+y = x do{.address := do{.street := '12 Main St'; .city := 'Springville'}}
 ```
-Note how the with-block is nested: `.address := with{street...}`. We saw earlier that the with-block expects an input record value on its left, which it then modifies. Here `.address :=` passes the current value of `x.address` as the input to the with-block on its right, and then sets the `address` field to be the result. This example demonstrates a general feature of Subtext: _default inputs_. We saw earlier how operations in a do-block take their input from the previous field. Something similar happens with a `:=` — any operation on the right will by default input from the current value of the field named on the left. For example:
+Note how the block is nested: `.address := do{.street := ...}`. Here `.address :=` passes the current value of `x.address` as the input to the do-block on its right, and then sets the `address` field to be the result. This is an example of _default inputs_. We saw earlier how operations in a do-block take their input from the previous field. Something similar happens with a `:=` — any operation on the right will by default input from the current value of the field named on the left. For example:
 ```
-y = x with{.number := + 1}
+y = x.number := + 1
 ```
-will increment the value of the `number` field. Default inputs are also supplied to function arguments, which will be discussed later.
+will increment the value of the `number` field. Default inputs are also supplied to function arguments, to be discussed later.
 
 ### Defining functions
-A function can be defined with another kind of code block called a _function-block_, for example:
+A function is a code block that starts with data fields naming its input and arguments, for example:
 ```
-plus = function {
+plus = do {
   in: 0
   addend: 1
   in + addend
 }
 ```
-A function-block is like a do-block, except that it starts with one or more data fields naming the input and arguments to the function. When this function is called, as in `1 plus 2`, the value on the left, 1, is set into the first data field, `in`. The argument 2 is set into the second field, `addend`, resulting in:
+When this function is called, as in `1 plus 2`, the value on the left, 1, is set into the first data field, `in`. The argument 2 is set into the second field, `addend`, resulting in:
 ```
-function {
+do {
   in: 1
   addend: 2
   in + addend
@@ -265,7 +266,7 @@ which produces the result 3.
 
 Functions with more than one argument must name the extra arguments in the call, like this:
 ```
-ternary-function = function{
+ternary-function = do {
   in: 0
   arg1: 0
   arg2: 0
@@ -275,9 +276,9 @@ x = 1 ternary-function(2, .arg2 := 3)
 ```
 The rule is that the first defined argument is anonymous in the call. Note that named arguments use the same notation `:=` as a set operation. That is because they actually are set operations, overriding the data fields of the function. The first argument implicitly uses a set operation too: `.arg1 := 2`. Because arguments use set operations, we get defaul argument inputs. Thus for example `1 plus(+ 1)` will increment the default value of the argument (from 1 to 2), with a final result of 3. This is a contrived example, but we will see more useful cases later with choices and lists.
 
-There is one big difference between functions in Subtext and other languages: they are expressions, not values. Look at this function:
+There difference between functions in Subtext and most other languages: functions are expressions, not values. Look at this function:
 ```
-increment = function {
+increment = do {
   in: 0
   in + 1
 }
@@ -293,15 +294,42 @@ increment = do {
   + 1
 }
 ```
-The call `x increment()` takes the expression defining `increment` and sets its first value to the value of `x`. The result is exactly the same in all of the above alternative definitions of `increment`.
+which is the same as the function without the `in:` label. The call `x increment()` takes the expression defining `increment` and sets its first value to the value of `x`. The result is exactly the same in all of the above alternative definitions of `increment`.
 
-What this means is that any formula can be used as a no-argument function (taking just an input). In most languages, if we have a formula that we want to reuse elsewhere we must copy it out into a separate function definition, and supply a name for the input, and further we should abstract the original formula into a call to the new function. In Subtext we can instead just call the formula as a function. However if we want the function input to be other than the first value, or we want there to be arguments, then we need to use a function-block. But even then there is no need to abstract out a separate function definition. We can just expose the formula as a do-block, then edit it into the function-block we want, without defining a new field. The original field still gets the result of executing that function block on the default values as if it were a formula. This approach to functions is motivated by a major goal of Subtext: avoiding the need for premature abstraction.
+What this means is that any formula can be used as a no-argument function (taking just an input). In most languages, if we have a formula that we want to reuse elsewhere we must copy it out into a separate function definition, and supply a name for the input, and further we should abstract the original formula into a call to the new function. In Subtext we can instead just call the formula as a function. However if we want the function input to be other than the first value, or we want there to be arguments, then we need to use a do-block. But even then there is no need to abstract out a separate function definition. We can just expose the formula as a do-block, then edit it into the function-block we want, without defining a new field. The original field still gets the result of executing that function block on the default values as if it were a formula. This approach to functions is motivated by a major goal of Subtext: avoiding the need for premature abstraction.
+
+> Possibly it is confusing to call formulas, and we should first refactor them into a function form. 
+> ```
+> increment = 0 + 1
+> ```
+> could be refactored into
+> ```
+> increment = do{in: 0; + 1}
+> ```
+
+> Formulas like `+ 1` have a hidden input field, which is revealed when expanded vertically
+> ```
+> do {
+>   that
+>   + 1
+> }
+> ```
+> The hidden input field is used by the UI to show the input value in context. The input field is also needed to call the formula and substitute in the actual input value. We do not want to force the syntax to include these placeholder input fields, rather to just say:
+> ```
+> do {
+>   + 1
+> } 
+> ```
+> The compiler will generate an input field automatically for a code block unless:
+> 1. the first field is a datum (function input), or
+> 2. the first field is a formula starting with a literal or reference (not an operation), or
+> 3. the first field is the formula `that`
 
 ### Extra results
 
 The result of a function is the value of the last field. However we often would like to return extra results from a function. For example, integral division would like to return not only the integral ratio but the fractional remainder as well:
 ```
-integral-divide = function {
+integral-divide = do {
   numerator: 1
   divisor: 1
   ratio = numerator /(divisor) floor()
@@ -317,9 +345,9 @@ The formula `x` calls the function `integral-divide` as follows
 3. The `ratio` is calculated to be 1 using the `floor` function to round-down the division
 4. An _extra result_ named `remainder` is defined and calculated to be 2 based on `ratio`
 5. The extra-block passes through the ratio, which as the last value in the function becomes the value of `x`
-6. The reference `y = x~remainder` accesses the extra result `remainder` which becomes the value of `y`. Equivalently, `y = ~remainder` would accesses the extra result of the previous field `x` without naming it (skipping preceding `check` and `let` fields)
+6. The reference `y = x~remainder` accesses the extra result `remainder` which becomes the value of `y`. Equivalently, `y = ~remainder` would accesses the extra result of the previous field `x` without naming it.
 
-A function can have multiple extra results, each with a different name, defined as 
+A code block can have multiple extra results, each with a different name, defined as 
 ```
 extra{~result1 = ..., ~result2 = ..., ...}
 ```
@@ -355,22 +383,32 @@ When an expression is evaluated, one of the following things will happen:
 
 An expression that might reject is called _conditional_. The name of a conditional formula has a question mark appended to it. For example, the equality function `=?` tests whether two values are equal, rejecting if they aren’t. It is called like this: `x =? y`. You can tell that an expression is conditional by the presence of a `?` inside it, which indicates a place where it may reject.
 
-By convention, comparison functions like `=?` and `<?` that succeed will result in their argument value,  so that they can be chained, as in `x <? y <? z`. But often conditionals are executed only to test whether they reject, and their result is not otherwise used. The special syntax `check` will discard the result of an expression, passing on the value of the previous field instead:
+By convention, comparison functions like `=?` and `<?` that succeed will result in their argument value,  so that they can be chained, as in `x <? y <? z`. Often conditionals are executed only to test whether they reject, and their result is not otherwise used. It is an error to produce a value that is not used. To indicate that a value is not intended to be used, an expression can start with `check`. That will also have pass on the value of the previous field. In most situations, conditional functions should be called in a `check` expression. For example:
 ```
+// incorrect
+do {
+  x >? 0    // unused value
+  x even?() // unused value
+  x + 1
+}
+
+// correct
 do {
   check x >? 0
-  check x even?()
+  check even?()
   x + 1
 }
-```
-Discarding a value without using `check` is reported as a static error:
-```
-do {
-  x >? 0    // discarded value
-  x even?() // discarded value
-  x + 1
+
+// using value pass-through
+x do {
+  check >? 0
+  check even?()
+  + 1
 }
+
 ```
+
+> An alternative to prefixing `check` (and `let` and `extra`) is to suffix `\`.
 
 Only formulas can be conditional, not data fields. See _Missing values_ for alternative techniques.
 
@@ -378,7 +416,7 @@ When a formula rejects, what happens depends on the kind of block it is inside. 
 
 A try-block is a code block allows you to respond to a rejection by doing something else — it fills the role of the ubiquitous _IF_ statement in conventional languages. Here is an example:
 ```Txt
-polarity = function {
+polarity = do {
   n: 0
   try {
     check n <? 0
@@ -397,7 +435,7 @@ A try-block contains a sequence of code blocks called _clauses_, separated by th
 If none of the clauses succeeds the try-block crashes. This is considered a programming error: a try-block must exhaustively test all possible cases.  _In the future we will try to infer exhaustiveness statically, but for now it is a dynamic check._ To allow none of the clauses to succeed, the statement `else reject` is placed at the end of the try-block. For example:
 
 ```Txt
-rgb? = function {
+rgb? = do {
   color: ''
   try {
     color =? 'red
@@ -426,7 +464,7 @@ rgb? = '' try {
 
 An alternative form of conditional is an optional-block:
 ```Txt
-absolute-value = function {
+absolute-value = do {
   n: 0
   optionally {
     check n <? 0
@@ -440,7 +478,7 @@ The optionally-block is like a try-block, except that if none of the clauses suc
 
 ### Boolean operations
 Subtext does not use Boolean values like conventional languages do for making decisions. The standard Boolean operations can be done with try-blocks instead. The `rgb?` function above was an example of a logical OR. Here is the recipe for writing boolean operations:
-```Txt
+```
 // a? OR b?
 try {
   check a?
@@ -515,9 +553,9 @@ This pronounced “a-literal equals expr choosing literal one”. The `|=` expec
 ```Txt
 a-literal = expr |= literal
 ```
-Note the similarity between the choice operation `|=` and the record set operation `:=`. As with `:=` we can use a with-block to nest choices:
+Note the similarity between the choice operation `|=` and the record set operation `:=`. As with `:=` we can use a do-block to nest choices:
 ```Txt
-a-plus = expr |= plus with{left |= literal 2, right |= literal 2}
+a-plus = expr |= plus do{left |= literal 2, right |= literal 2}
 ```
 
 Sometimes there is no value of interest to associate with an option — we want it to indicate just that me made the choice. This is often called an _enumeration_ in other languages. We use the special value `nil` in this case:
@@ -587,9 +625,9 @@ All lists are initially created as empty. Text is a list of characters with the 
 The `&` function (pronounced “and”) is used to create items in a list. For example:
 ```
 n = numbers & 1 & 2 & 3
-c = customers & with{.name := 'Joe', .address := 'Pleasantown, USA'}
+c = customers & do{.name := 'Joe', .address := 'Pleasantown, USA'}
 ```
-The `&` operator takes a list as it’s input and an item value as its argument, and results in a list equal to the input plus a new item. The default value of the argument to `&` is the template item, which provides a default value, so `&()` will create an item with the default value. In tables it is convenient to use a with-block as above to set some of the fields and let the others default.
+The `&` operator takes a list as it’s input and an item value as its argument, and results in a list equal to the input plus a new item. The default value of the argument to `&` is the template item, which provides a default value, so `&()` will create an item with the default value. In tables it is convenient to use a do-block as above to set some of the fields and let the others default.
 
 The `&&` function concatenates lists: `list1 && list2` is a copy of `list1` with all the items from `list2` added to its end. The two lists must have the same type template.
 
@@ -630,10 +668,10 @@ test {
 }
 
 ```
-or equivalently using a with-block:
+or equivalently using a do-block:
 ```
 test {
-  .customers[1] := with{.name := 'Joe Jr.'}
+  .customers[1] := do{.name := 'Joe Jr.'}
 }
 ```
 
@@ -654,7 +692,7 @@ A column of a table is a list containing the contents of one field. The columns 
 t = table {
   name: ''
   amount: 0
-} & with{.name := 'joe', .amount := 100} & with{.name := 'jane', .amount := 200}
+} & do{.name := 'joe', .amount := 100} & do{.name := 'jane', .amount := 200}
 
 test {
   check .t.amount[1] =? 100
@@ -699,11 +737,8 @@ joe = customers find?{check .name =? 'Joe'}
 ```
 The `find?` block is evaluated repeatedly with an item as its input value, starting with the first item and continuing until it does not reject. The result is that item, with `~index` set to the index. If all the items are rejected, the entire operation rejects. The `find-last?` block does the same thing except it scans the table backwards. The `find-only?` block suceeds if there is only match, and rejects if there are none or more than one. 
 
-A useful special case is `list only?()`, resulting in the single item of the list, rejecting if the list has 0 or multiple items.
+A useful special case is `list only?()`, resulting in the single item of the list, rejecting if the list has 0 or multiple items. Another is `find-unique?{...}` that finds all matches and rejects if there are none or they are not all equal.  
 
-> Can a find block can also change the value of the item returned, as in a map?
-> `find-unique?` that returns result of block, so long as all matches return same value  
-> 
 ### Replacing and aggregating
 
 A _for-each_ block will evaluate a code block on each item, resulting in an unsorted list with each row replaced with the result of the code block in the same order as the input. If an item is rejected, it is left out of the result. The `for-all?` block is like `for-each` except it rejects if the code block rejects on any item, otherwise resulting in the replaced table. The `for-none?` block does the opposite, rejecting if the code block accepts any item, otherwise resulting in the input list. For example:
@@ -732,14 +767,15 @@ test {
 An _aggregate function_ is used to accumulate a result by scanning a list.
 ```
 l = list{0}
-sum = aggregate function {
-  item: l[]
+sum = l aggregate {
+  item: that
   sum: 0
   item + sum
 }
 check l & 1 & 2 sum() =? 3
 ```
-An aggregate function must define its input as the template of a list (called `item` here). When an aggregate function is called, the input must be a list whose template is the same type as that used in the function definition. The function wil be called repeatedly with inputs from the items of the input list. The function must have an argument (called `sum` here), which will act as an accumulator. On the first call it defaults to the defined value (0 here). On the second and subsequent calls, `sum` is set to the result of the previous call. This example is equivalent to the built-in `sum()` function that sums a numeric list. If the function rejects an item then it will be skipped and the accumulator argument will be passed on to the next call. An aggregate function is  like a _fold_ function, except that the accumulator value is initialized in the definition instead of being supplied explicitly by the caller (though that is still possible if desired).
+An aggregate block takes as input a list. The code block must be a function with one argument. The function is called repeatedly with inputs from the items of the input list. In this example we called the input `item`, and define it from the default template value referenced as `that`. 
+The function must have an argument (called `sum` here), which will act as an accumulator. On the first call it defaults to the defined value (0 here). On the second and subsequent calls, `sum` is set to the result of the previous call. This example is equivalent to the built-in `sum()` function that sums a list of numbers. If the function rejects an item then it will be skipped and the accumulator argument will be passed on to the next call. An aggregate function is  like a _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `l sum(100)`).
 
 ## Tracked lists
 
@@ -883,7 +919,7 @@ check selected() =? 'foobar'
 ```
 
 Another useful matching function is `match-number?` which matches a numeric text and returns its numeric value as an extra result `number`. For example:
-```Txt
+```
 '123foo' match-number?()
 check after() =? 'foo'
 check ~number =? 123
@@ -954,7 +990,7 @@ match-expr? = '1+1' try {
   left-expr = match-expr?()
   match? '+'
   right-expr = match-expr?()
-  extra{~AST = expr |= plus with{left: left-expr~AST, right: right-expr~AST}}
+  extra{~AST = expr |= plus do{left: left-expr~AST, right: right-expr~AST}}
 } else reject
 
 `2+2` match-expr?() ~AST eval-expr() =? 4
@@ -966,7 +1002,7 @@ The first extra block
 ```
 set the extra result `AST` to be an `expr` choice choosing the `literal` option with the value from the `number` extra result of the prior `match-number?` call. The second extra block
 ```
-  extra{~AST = expr |= plus with{left: left~AST, right: right~AST}}
+  extra{~AST = expr |= plus do{left: left~AST, right: right~AST}}
 ```
 is more complicated. It chooses the `plus` option, and sets the `left` and `right` fields of its record value to be the corresponding `AST` results from the recursive parses of the syntax to the left and right of the plus sign. The last line
 ```
@@ -987,7 +1023,7 @@ match-expr? = '1+1' try {
   extra{~AST |= plus record{left: left-expr~AST, right: right-expr~AST}}
 } else reject
 
-eval-expr = function {
+eval-expr = do {
   x: match-expr?~AST
   try {
     x.literal?
@@ -1003,7 +1039,7 @@ eval-expr = function {
 Often we want to match a repeating pattern, and produce an extra result which is a list. Subtext uses recursion to do unbounded looping. Here is an example that matches a CSV text into a list of numbers:
 
 ```
-csv? = function {
+csv? = do {
   text: '1,2,3'
   numbers: list {0}
   text try {
