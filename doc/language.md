@@ -72,7 +72,7 @@ Nesting blocks and lists leads to a tree structure somewhat like those of static
 Subtext provides severl kinds of values out of which documents can be built:
 
 - _number_: double float using JavaScript syntax, and the special value `_number_` not equal to any other number. 
-- TODO: infinite precision rationals_ - _text_: a JavaScript text literal using single quotes: `'hello'`
+- TODO: infinite precision rationals\_ - _text_: a JavaScript text literal using single quotes: `'hello'`
 - TODO: fancy text with fonts and formatting
 - `nil`, the unit value, useful in enumerations (see _Choices_)
 - TODO: date-times
@@ -333,7 +333,7 @@ integral-divide = do {
   numerator: 1
   divisor: 1
   ratio = numerator /(divisor) floor()
-  extra{~remainder = numerator -(ratio * divisor)}
+  extra remainder = numerator -(ratio * divisor)
 }
 x = 5 integral-divide 3  // 1
 y = x~remainder // 2
@@ -349,11 +349,27 @@ The formula `x` calls the function `integral-divide` as follows
 
 A code block can have multiple extra results, each with a different name, defined as 
 ```
-extra{~result1 = ..., ~result2 = ..., ...}
+extra result1 = ...
+extra result2 = ...
+...
 ```
-The leading `~` is required on each name. The input value is passed to each of the formulas, instead of chaining as in a normal block. You can access the record containing all the extra results with a reference like `x~`, and just `~` for the extra results record from the previous field.
+Extra expressions, like check expressions, drop the computed value and pass on the previous one, so they can be easily cascaded like this.
 
-If an extra block is not the last field of a function, then the extra results of the last field are passed on as the extra results of the function. The `floor()` function actually does return an extra result called `remainder` containing the fractional part of its input. So in this case we didn’t need to use the extra block. If you don’t want to return extra values from the last field, you can add `extra{}` to the end.
+You can access a record containing all the extra results with a reference like `x~`, and just `~` for the extra results record from the previous field.
+
+Extra results are passed out of nested blocks automatically. So the above definition of `integral-divide` is equivalent to
+```
+integral-divide = do {
+  numerator: 1
+  divisor: 1
+  do {
+    ratio = numerator /(divisor) floor()
+    extra remainder = numerator -(ratio * divisor)
+  }
+}
+```
+
+Extra results are only passed out of nested blocks, not calls (that is, extras are lexical). So a call to `integral-divide` does not define the `remainder` extra in the caller automatically.
 
 With the addition of extra results, function inputs and outputs become symmetric: they each have a single input and output value, zero or more named arguments, and zero or more named extra results.
 
@@ -571,27 +587,50 @@ color: choice {
 red = color |= red
 ```
 
-Try blocks can define extra results that are choices assembled from each clause. For example:
+### Conditional extra results
+Extra results can be defined in the clauses of a try block and pass out to extra results for the containing code block. The extra results in clauses are considered alternative definitions of the same result when they use the same name. _This is the only situation where a name can be defined in multiple locations._
+
+For example, consider parsing text that might contain numeric digits or a qouted string, and wanting to convert it into either a number or a text. Here is one way:
 ```Txt
-rgb = function {
-  color: ''
-  try {
-    color =? 'red
-    extra{~color |= red}
-  } else {
-    color =? 'green'
-    extra{~color |= green}
-  } else {
-    color =? 'blue'
-    extra{~color |= blue}
-  }
+parse = '123' try {
+  ... check for numeric digits
+  extra number = ... compute number
+  else {
+  ... check for quoted string
+  extra string = ... compute string
 }
-x = 'red' rgb()
-x~color.red?
-not?{x~color.green?}
+
+check '1' parse() ~number? =? 1
+check '"foo"' parse() ~string =? 'foo'
+```
+This example shows what happens when an extra result is not defined in all clauses. Accessing that result from outside is considered conditional, and must be referenced with a `?`, which will reject if it wasn’t defined in the successful clause. So `~number?` can be used to extract the numeric value while testing that it exists.
+
+An alternative solution to this problem is to define a choice:
+```Txt
+parse-value = choice {
+  number?: 0
+  string?: ''
+}
+```
+and then return it as the result of the parsing function. We can instead return it as a extra result without having to define the choice in advance:
+
+```Txt
+parse = '123' try {
+  ... check for numeric digits
+  extra value |= number ... compute number
+  else {
+  ... check for quoted string
+  extra value |= string = ... compute string
+}
+
+check '1' parse() ~value.number? =? 1
+check '"foo"' parse() ~value.string? =? 'foo'
 ```
 
-The extra blocks in each try clause define the extra result `color` to be a choice with three options: `red`, `green`, and `blue`. Those options could have been given values by putting an expression following the option name inside the extra block, but as that wasn’t done the values default to `nil`, making `color` an enumeration.  Defining extra options in this way avoided the need to previously define a color enumeration — it gets defined automatically by combining all the options from the try clauses.
+Here the extra result is defined using the `|=` form for making a choice, but in this context it defines an option of a choice. All the options for the extra result `value` are combined to define a choice.
+
+> Note that assembling result choices in this way is the dual of conventional pattern matching on sum types, constructing rather than deconstructing. We aren’t aware of other languages with this feature.
+
 
 ### Pattern matching
 
@@ -707,6 +746,8 @@ test {
 ```
 A column  can only be replaced with a list of the same length as the table, otherwise it will crash. In a tracked tabled (see below) no insertions, deletion, or moves can have happened in the column.
 
+When a table field is a conditional formula, the corresponding column will skip all items where the formula rejects. 
+
 ### Sorted lists
 
 Normally, new items are added to the end of a list. But a list can be defined as _sorted_, which means the items will be automatically kept in order of increasing value, or _reverse sorted_, which keeps then in order of decreasing value. Tables, whose items are records, use lexicographical ordering, where the first column is the most significant. Thus
@@ -766,13 +807,13 @@ test {
 
 An _aggregate function_ is used to accumulate a result by scanning a list.
 ```
-l = list{0}
-sum = l aggregate {
+list{0} & 1 & 2
+aggregate {
   item: that
   sum: 0
   item + sum
 }
-check l & 1 & 2 sum() =? 3
+check =? 3
 ```
 An aggregate block takes as input a list. The code block must be a function with one argument. The function is called repeatedly with inputs from the items of the input list. In this example we called the input `item`, and define it from the default template value referenced as `that`. 
 The function must have an argument (called `sum` here), which will act as an accumulator. On the first call it defaults to the defined value (0 here). On the second and subsequent calls, `sum` is set to the result of the previous call. This example is equivalent to the built-in `sum()` function that sums a list of numbers. If the function rejects an item then it will be skipped and the accumulator argument will be passed on to the next call. An aggregate function is  like a _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `l sum(100)`).
@@ -1035,57 +1076,63 @@ eval-expr = do {
 ```
 
 
-### Repeated matching
-Often we want to match a repeating pattern, and produce an extra result which is a list. Subtext uses recursion to do unbounded looping. Here is an example that matches a CSV text into a list of numbers:
+### Repeats
+Often we want to match a repeating pattern, and produce an extra result which is a list. Here is an example that matches a CSV text into a list of numbers:
 
 ```
-csv? = do {
-  text: '1,2,3'
-  numbers: list {0}
-  text try {
-    check =? ''
-    extra(~numbers = numbers)
-  } else {
-    match-number?()
+'1,2,3'
+repeat { 
+  match-number?()
+  extra numbers = ~number
+  optionally {
     match? ','
-    csv?(numbers & ~number)
-  } else reject
+    continue?()
+  }
 }
-csv?~numbers =? (clear() & 1 & 2 & 3)
+
+check ~numbers =? (list{0} & 1 & 2 & 3)
 ```
 
-This is an example of _tail recursion_: the recursive call to `csv?` only occurs where its result(s) will be immediately become the result of the whole function. The UI will display the execution of tail-recursive calls as a linear list of calls rather than the stack of nested calls that it is in reality. 
+This example uses a _repeat-block_, which is Subtext’s form of looping. Unlike traditional loop mechanisms, repeat-blocks are expressed as a _tail recursive_ function: The special call `continue?()` recursively calls the containing repeat block. Like any other call it takes an input value on the left, and arguments if they are defined. But it may only be used where its result will immediately become the result of the whole function (_tail position_).
 
-> We hypothesize that visualizing tail recursion as if it were a loop will provide the conceptual simplicity of looping without having to add any extra language syntax or semantics, while still allowing for non-tail calls to be visualized as nested executions.
+Tail recursive functions are equivalent to loops, and repeat blocks are actually implemented that way, as a list of calls. In the UI they will be displayed as a list rather than the nesting used for normal function calls. However, unlike traditional loops, repeat blocks do not involve mutable variables — that is replaced by passing new input and argument values to the next iteration. We hypothesize that this is the best of both worlds: the simple iterative semantics of loops, with the clean value semantics of recursion.
 
-To make recursion simpler and clearer, there is a special form for making recursive calls: `repeat`. In the above example, the following calls are all equivalent:
-```
-csv?(numbers & ~number)
-repeat?(numbers & ~number)
-repeat?(& ~number)
-```
-A `repeat` can be used inside any code block (`repeat?` if the block is conditional). It will make a recursive call to the containing code block (ignoring try, not, assert), but with all the arguments defaulting to their value in the current call, not their defined values as in a normal call. Thus in this example the `numbers` argument becomes just `& ~number` to append to the list that was passed in.
+> Maybe the `continue` call should default all arguments to their value in the current iteration, not the original definition. That would more closely emulate mutable loop variables, and allow forms like `continue(count := + 1)`.
+> 
+> Maybe `continue` should do an early exit to guarantee tail position and simplify conditional structure. 
+> 
+> When repeats are nested it may be useful to have continue specify a name of the block as in `continue foo-loop()`. 
+ 
+A repeat block collects extra results into a list. In this example the extra result `numbers` is defined to be a number in each call, but when accessed from outside via `~numbers` it is seen as a list of numbers. 
+
+The recursive call `continue?()` has a question mark because the repeat block can reject. An unconditional `continue()` would be used in an unconditional repeat.
+
+A try block inside a repeated function can define conditional extra results, meaning they are defined only in certain cases. The repeat block will collect a list of the defined cases, skipping the undefined ones.
+
+> Perhaps a `visit` block that can be multiply-recursive, and collects the extra results in the order of execution, concatenating them as in a “flat map”. Combined with skipping of conditional extras, this allows arbitrary search algorithms to be easily written.
 
 ### Scanning
 
 A scan-block can be used to search for a pattern in text. For example:
 ```
-text = 'foo123'
-text scan {match-number?()}
+'foo123'
+scan? {match-number?()}
+check before() =? 'foo'
 check selected() =? '123'
 check ~number =? 123
 ```
-A scan-block will repeatedly execute the enclosed block until it succeeds. At first the input text or selection is passed to the code in the block, and if it succeeds nothing further is done. But if it fails the block is reexecuted with a selection that skips one character (or item) in the input. This is done by moving the selected part to the before part, and then moving the first item of the after part to the before part. One character at a time is skipped this way until the match succeeds or the end of the text is hit (which results in selecting the end of the text).
+A scan-block will repeatedly execute the enclosed block until it succeeds. At first the input text or selection is passed to the code in the block, and if it succeeds nothing further is done. But if it fails the block is reexecuted with a selection that skips one character (or item) in the input. This is done by moving the selected part to the before part, and then moving the first item of the after part to the before part. One character at a time is skipped this way until the match succeeds or the end of the text is hit (which causes a reject).
 
-### Replacing
-
-You can replace matched portions of text as follows:
+Scanning can be combined with replacing text:
 ```
-'Some Millenials attacking other Millenials' scan {
-  match? 'Millenial'
-  replace-selection 'snake-people'
-  repeat()
-} 
+'Some Millenials attacking other Millenials' 
+repeat {
+  optionally {
+    scan? {match? 'Millenial'}
+    replace-selection 'snake-people'
+    continue()
+  }
+}
 combined() =? 'Some snake-people attacking other snake-people'
 ```
 The `replace-selection` replaces the selected part of the input with the argument text. Note that replacing the selection does not affect subsequent matches, which work on the after-part, so replacement can be done “on the fly”. The `combined()` function at the end converts the final selection back into a plain text by concatenating the before, selected, and after parts.
