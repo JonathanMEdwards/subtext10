@@ -325,55 +325,8 @@ What this means is that any formula can be used as a no-argument function (takin
 > 2. the first field is a formula starting with a literal or reference (not an operation), or
 > 3. the first field is the formula `that`
 
-### Extra results
+### Local variables
 
-The result of a function is the value of the last field. However we often would like to return extra results from a function. For example, integral division would like to return not only the integral ratio but the fractional remainder as well:
-```
-integral-divide = do {
-  numerator: 1
-  divisor: 1
-  ratio = numerator /(divisor) floor()
-  extra remainder = numerator -(ratio * divisor)
-}
-x = 5 integral-divide 3  // 1
-y = x~remainder // 2
-```
-
-The formula `x` calls the function `integral-divide` as follows
-1. The input field `numerator`of the function is set to `5`
-2. The `divisor` field is set to `3`
-3. The `ratio` is calculated to be 1 using the `floor` function to round-down the division
-4. An _extra result_ named `remainder` is defined and calculated to be 2 based on `ratio`
-5. The extra-block passes through the ratio, which as the last value in the function becomes the value of `x`
-6. The reference `y = x~remainder` accesses the extra result `remainder` which becomes the value of `y`. Equivalently, `y = ~remainder` would accesses the extra result of the previous field `x` without naming it.
-
-A code block can have multiple extra results, each with a different name, defined as 
-```
-extra result1 = ...
-extra result2 = ...
-...
-```
-Extra expressions, like check expressions, drop the computed value and pass on the previous one, so they can be easily cascaded like this.
-
-You can access a record containing all the extra results with a reference like `x~`, and just `~` for the extra results record from the previous field.
-
-Extra results are passed out of nested blocks automatically. So the above definition of `integral-divide` is equivalent to
-```
-integral-divide = do {
-  numerator: 1
-  divisor: 1
-  do {
-    ratio = numerator /(divisor) floor()
-    extra remainder = numerator -(ratio * divisor)
-  }
-}
-```
-
-Extra results are only passed out of nested blocks, not calls (that is, extras are lexical). So a call to `integral-divide` does not define the `remainder` extra in the caller automatically.
-
-With the addition of extra results, function inputs and outputs become symmetric: they each have a single input and output value, zero or more named arguments, and zero or more named extra results.
-
-### Local variables (tentative proposal)
 Inside a code block formulas can be used to name intermediate computations and then reference them by name later. This is called a _local variable_ in some PLs, but in Subtext is it is just a normal named formula field. However it is common to chain statements, feeding the result of one into the input of the next. Local variables often break this flow, so there is special statement qualifier `let`:
 ```
 ...
@@ -386,7 +339,34 @@ temp = ...
 let foo = temp ...
 temp ... 
 ```
-A `let` hides visibility of the name from outside the block, so it can also be useful inside records.
+Inside a record block, `let` will also hide visibility of the name from outside the block. 
+
+### Extra results and formula values
+
+The result of a function is the value of the last field. However we often would like to return extra results from a function. For example, integral division would like to return not only the integral ratio but the fractional remainder as well:
+```
+integral-divide = do {
+  numerator: 1
+  divisor: 1
+  ratio = numerator /(divisor) floor()
+  extra remainder = numerator -(ratio * divisor)
+  ratio
+}
+x = 5 integral-divide 3  // 1
+y = x~remainder // 2
+```
+
+The formula `x` calls the function `integral-divide` as follows
+1. The input field `numerator`of the function is set to `5`
+2. The `divisor` field is set to `3`
+3. The `ratio` is calculated to be 1 using the `floor` function to round-down the division
+4. The extra result `remainder` is calculated by `extra remainder = ...`, calculated from `ratio` as 2. 
+5. The `ratio` becomes the final result of the function. This line would not have been necessary is the previous line had been `let extra ...` which would pass through the  previous value of `ratio`.
+6. The reference `y = x~remainder` accesses the extra result `remainder` which becomes the value of `y`. Equivalently, `y = ~remainder` would accesses the extra result of the previous field `x` without naming it.
+
+What is going on here is that `x~` accesses the _formula value_ of the field `x`. Every formula can be accessed as a data value. The formula value of a do-block is a record containing all the `extra` fields of the block with their computed values. So `x~.remainder`, abbreviated to `x~remainder`, accesses the value of the `remainder` field of the do-block.
+
+With extra results, function inputs and outputs become symmetric: they each have a single input and output value, zero or more named arguments, and zero or more named extra results.
 
 ## Conditionals
 
@@ -587,51 +567,6 @@ color: choice {
 red = color |= red
 ```
 
-### Conditional extra results
-Extra results can be defined in the clauses of a try block and pass out to extra results for the containing code block. The extra results in clauses are considered alternative definitions of the same result when they use the same name. _This is the only situation where a name can be defined in multiple locations._
-
-For example, consider parsing text that might contain numeric digits or a qouted string, and wanting to convert it into either a number or a text. Here is one way:
-```Txt
-parse = '123' try {
-  ... check for numeric digits
-  extra number = ... compute number
-  else {
-  ... check for quoted string
-  extra string = ... compute string
-}
-
-check '1' parse() ~number? =? 1
-check '"foo"' parse() ~string =? 'foo'
-```
-This example shows what happens when an extra result is not defined in all clauses. Accessing that result from outside is considered conditional, and must be referenced with a `?`, which will reject if it wasn’t defined in the successful clause. So `~number?` can be used to extract the numeric value while testing that it exists.
-
-An alternative solution to this problem is to define a choice:
-```Txt
-parse-value = choice {
-  number?: 0
-  string?: ''
-}
-```
-and then return it as the result of the parsing function. We can instead return it as a extra result without having to define the choice in advance:
-
-```Txt
-parse = '123' try {
-  ... check for numeric digits
-  extra value |= number ... compute number
-  else {
-  ... check for quoted string
-  extra value |= string = ... compute string
-}
-
-check '1' parse() ~value.number? =? 1
-check '"foo"' parse() ~value.string? =? 'foo'
-```
-
-Here the extra result is defined using the `|=` form for making a choice, but in this context it defines an option of a choice. All the options for the extra result `value` are combined to define a choice.
-
-> Note that assembling result choices in this way is the dual of conventional pattern matching on sum types, constructing rather than deconstructing. We aren’t aware of other languages with this feature.
-
-
 ### Pattern matching
 
 Languages with choice-like datatypes often also provide specialized syntax for _pattern matching_. Try-blocks combine with choices to provide pattern matching without extra syntax:
@@ -646,6 +581,35 @@ eval-expr = function {
 ```
 
 Here the first try clause accesses the `literal?` option. If it was chosen, its numeric value becomes the value of the function. But if `plus?` was chosen, then the first clause will reject and the second will execute instead, recursively evaluating the `left` abd `right` fields of the `plus?` option and then adding them together. We get the equivalent of pattern matching because accessing an option makes the entire containing try clause conditional on that option having been choosen.
+
+### Conditional formula values
+
+Recall that the formula value of a do-block, referenced with `name~`, is a record containing the extra results. The formula value of a try-block is a choice. The options of this choice correspond to the clauses of the try-block. Clauses can be named to give names to these options and access them.
+
+For example, consider parsing text that might contain numeric digits or a qouted string, and wanting to convert it into either a number or a text. Here is one way:
+```Txt
+'123'
+parse = try number? = {
+  ... check for numeric digits
+  let extra value = ... compute number
+} else string? = {
+  ... check for quoted string
+  let extra value = ... compute string
+}
+check '1' parse() ~number?.value =? 1
+check '"foo"' parse() ~string.value =? 'foo'
+```
+
+Here the two clauses are named `number?` and `string?`. So `parse~` is a choice that looks like this:
+```Txt
+parse-formula = choice {
+  number?: record{value: 0}
+  string?: record{value: ''}
+}
+```
+
+The formula value of a try-block is a choice because a try-block really _is_ a choice, just one that is computed rather than modified as data.
+
 
 ## Lists and tables
 
@@ -959,11 +923,12 @@ Sometimes when matching sequential patterns like this we want to combine the ent
 check selected() =? 'foobar'
 ```
 
-Another useful matching function is `match-number?` which matches a numeric text and returns its numeric value as an extra result `number`. For example:
+Another useful matching function is `match-number?` which matches a numeric text and returns its numeric value as an extra result `value`. For example:
 ```
-'123foo' match-number?()
+'123foo' 
+match-number?()
 check after() =? 'foo'
-check ~number =? 123
+check ~value =? 123
 ```
 
 When a matching function does not see the expected pattern in the input, it rejects. This means it is easy to use try-blocks to test for alternative patterns. Here is a classic example of matching a little languge of addition expressions:
@@ -987,24 +952,7 @@ Note how in this example, if one clause of the try-block rejects then the next o
 
 ### ASTs
 
-The above example will match simple expression adding numbers, but how would we perform the indicated addition? The simplest way is to mimick the way that the `match-number?` function produces the extra result `~number`, as follows:
-
-```
-match-expr? = '' try {
-  match-number?()
-  extra{~value = ~number}
-} else {
-  match '('
-  left = match-expr?()
-  match? '+'
-  right = match-expr?()
-  extra{~value = left~value + right~value}
-} else reject
-
-'(2+2)' match-expr?() ~value =? 4
-```
-
-Commonly a more general solution is used: producing an AST (Abstract Syntax Tree) during the match, and then interpreting it later in various ways. We have already seen an example of an AST for these expressions — it is the `eval-expr` example of recursive choices, recalled here:
+Recall the `eval-expr` example that evaluated simple arithmetic expressions encoded as a recursive choice `expr`:
 ```Txt
 expr: choice {
   literal?: 0
@@ -1013,6 +961,7 @@ expr: choice {
     right: expr
   }
 }
+
 eval-expr = function {
   x: expr
   try {
@@ -1022,104 +971,97 @@ eval-expr = function {
 }
 ```
 
-We can produce an `expr` as an extra result of `match-expr?` called `~AST` by adding two lines of code:
-```
-match-expr? = '1+1' try {
-  match-number?()
-  extra{~AST = expr |= literal ~number}
-} else {
-  left-expr = match-expr?()
+When we produce a recursive choice like `expr` while parsing text it is sometimes called an AST (Abstract Syntax Tree). Often that requires a lot of repetitive code in the parser to assemble the AST as it is being parsed. But using extra results, we can produce an AST just by adding extra result labels to the parsing code, as follows:
+
+```Txt
+'1+1' 
+match-expr? = try literal? = {
+  extra number = match-number?()
+} else plus? = {
+  extra left = match-expr?()
   match? '+'
-  right-expr = match-expr?()
-  extra{~AST = expr |= plus do{left: left-expr~AST, right: right-expr~AST}}
+  extra right = match-expr?()
 } else reject
 
-`2+2` match-expr?() ~AST eval-expr() =? 4
-```
-
-The first extra block
-```
-  extra{~AST = expr |= literal ~number}
-```
-set the extra result `AST` to be an `expr` choice choosing the `literal` option with the value from the `number` extra result of the prior `match-number?` call. The second extra block
-```
-  extra{~AST = expr |= plus do{left: left~AST, right: right~AST}}
-```
-is more complicated. It chooses the `plus` option, and sets the `left` and `right` fields of its record value to be the corresponding `AST` results from the recursive parses of the syntax to the left and right of the plus sign. The last line
-```
-'2+2' match-expr?() ~AST eval-expr() =? 4
-```
-matches the text `2+2`, pulls out the AST result and inputs it to `eval-expr` to get the final result 4.
-
-We can simplify the above solution by eliminating the definition of `expr`,  instead defining it implicitly inside `match-expr?` and then redefining `eval-expr` to take it as input. We use the ability for the extra blocks inside try-clauses to asemble a choice rather than using one defined previoously.
-
-```
-match-expr? = '1+1' try {
-  match-number?()
-  extra{~AST |= literal ~number}
-} else {
-  left-expr = match-expr?()
-  match? '+'
-  right-expr = match-expr?()
-  extra{~AST |= plus record{left: left-expr~AST, right: right-expr~AST}}
-} else reject
-
-eval-expr = do {
-  x: match-expr?~AST
+eval-expr = function {
+  ast: match-expr~
   try {
-    x.literal?
+    ast.literal?~number~value
   } else {
-    x.plus?.left eval-expr() +(x.plus?.right eval-expr())
+    ast.plus?~left~ eval-expr() + (ast.plus?~right~ eval-expr())
 }
 
-'2+2' match-expr?() ~AST eval-expr() =? 4
+test {
+  check '1+2' match-expr?()~ eval-expr() =? 3
+}
 ```
+
+The trick is that the formula value of a try-block is a choice, and so the formula value of a recursive try-block (like `match-expr`) is a recursive choice. So we can treat the formula value of the parse function itself as an AST. In `eval-expr`, `ast: match-expr~` says the input of the function must be a formula value of `match-expr`, which is a choice. We then pattern match on the AST: if it is a literal, the expression `ast.literal?~number~value` will pull out the value of the matched number. Likewise if it is an addition, the left and right expressions are pulled out, recursively evaluated, and then added.
+
+Deep paths into formula values like `ast.literal?~number~value` can be complex. We expect that they will not be coded in the abstract, but instead generated in the UI by opening an execution of the formula and clicking on the desired value, which will add any needed labels and generate the correct path.
 
 
 ### Repeats
-Often we want to match a repeating pattern, and produce an extra result which is a list. Here is an example that matches a CSV text into a list of numbers:
+
+**split out repeating and then extra results in repeats **
+
+Often we want to match a repeating pattern. Here is an example that matches a CSV (comma separated values) text:
 
 ```
-'1,2,3'
+'1,2,3foo'
 repeat { 
   match-number?()
-  extra numbers = ~number
   optionally {
     match? ','
     continue?()
   }
 }
-
-check ~numbers =? (list{0} & 1 & 2 & 3)
+check =? 'foo'
 ```
 
 This example uses a _repeat-block_, which is Subtext’s form of looping. Unlike traditional loop mechanisms, repeat-blocks are expressed as a _tail recursive_ function: The special call `continue?()` recursively calls the containing repeat block. Like any other call it takes an input value on the left, and arguments if they are defined. But it may only be used where its result will immediately become the result of the whole function (_tail position_).
 
 Tail recursive functions are equivalent to loops, and repeat blocks are actually implemented that way, as a list of calls. In the UI they will be displayed as a list rather than the nesting used for normal function calls. However, unlike traditional loops, repeat blocks do not involve mutable variables — that is replaced by passing new input and argument values to the next iteration. We hypothesize that this is the best of both worlds: the simple iterative semantics of loops, with the clean value semantics of recursion.
 
+The recursive call `continue?()` has a question mark because the repeat block can reject. An unconditional `continue()` would be used in an unconditional repeat.
+
 > Maybe the `continue` call should default all arguments to their value in the current iteration, not the original definition. That would more closely emulate mutable loop variables, and allow forms like `continue(count := + 1)`.
 > 
 > Maybe `continue` should do an early exit to guarantee tail position and simplify conditional structure. 
 > 
 > When repeats are nested it may be useful to have continue specify a name of the block as in `continue foo-loop()`. 
- 
-A repeat block collects extra results into a list. In this example the extra result `numbers` is defined to be a number in each call, but when accessed from outside via `~numbers` it is seen as a list of numbers. 
-
-The recursive call `continue?()` has a question mark because the repeat block can reject. An unconditional `continue()` would be used in an unconditional repeat.
-
-A try block inside a repeated function can define conditional extra results, meaning they are defined only in certain cases. The repeat block will collect a list of the defined cases, skipping the undefined ones.
 
 > Perhaps a `visit` block that can be multiply-recursive, and collects the extra results in the order of execution, concatenating them as in a “flat map”. Combined with skipping of conditional extras, this allows arbitrary search algorithms to be easily written.
+
+ 
+## Repeated formula values
+
+When we parse a CSV we typically want to produce a list of the numeric values. We can do that by adding one extra result label to the code:
+
+```
+'1,2,3'
+csv = repeat { 
+  extra number = match-number?()
+  optionally {
+    match? ','
+    continue?()
+  }
+}
+
+check csv~number~value =? (list{0} & 1 & 2 & 3)
+```
+
+Recall that the formula value `~` of a do-block is a record, and the formula value of a try-block is a choice. The formula value of a repeat-block is a table, with each row being the formula value of the repeated code block. Thus `csv~` is the table of formula values of the code block, which contains one extra result `number` which is the result of the `match-number?()` call.  We can extract the column containing those results with `csv~number` and then extract the column containing the numeric value of the match with `csv~number~value`.
 
 ### Scanning
 
 A scan-block can be used to search for a pattern in text. For example:
 ```
 'foo123'
-scan? {match-number?()}
+scan? {number = match-number?()}
 check before() =? 'foo'
 check selected() =? '123'
-check ~number =? 123
+check ~number~value =? 123
 ```
 A scan-block will repeatedly execute the enclosed block until it succeeds. At first the input text or selection is passed to the code in the block, and if it succeeds nothing further is done. But if it fails the block is reexecuted with a selection that skips one character (or item) in the input. This is done by moving the selected part to the before part, and then moving the first item of the after part to the before part. One character at a time is skipped this way until the match succeeds or the end of the text is hit (which causes a reject).
 
