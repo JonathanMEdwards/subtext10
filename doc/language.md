@@ -31,7 +31,7 @@ This section summarizes the notable programming language features of Subtext whi
 * Functions are not abstract entities. Instead the formula computing any field can be “called” and supplied with alternate subject and argument values to use. As a result all code is always executing on concrete input values. Code can be edited live, immediately seeing the execution results, as in a spreadsheet.
 * Calling a function is essentially inlining a copy of it. Lexical closures fall out of the way that relative paths within a subtree are mapped through copies.
 * A function argument has access to the static type of the parameter definition. For example this avoids the redundancy of `insertRow(new Row())` instead of just `insertRow()`. A function argument also has access to the default value of the parameter, which the function can compute dynamically based on the value of the subject and prior arguments.
-* Functions can have extra return values, which do not need to be explicitly captured at the call site as in other approaches.
+* Functions can have extra result values, which do not need to be explicitly captured at the call site as in other approaches. Extra result values are provided by allowing access into the execution of the function itself, seen as a data structure. Sequential code is a record, loops are a list, and conditionals are a sum. In this way extra results inside a loop are automatically collected into a list, and extra results in a conditional are automatically combined into a sum.
 * Hidden types: Subtext is statically typed, but types are not mentioned in the language nor error messages. Concrete values serve as witnesses of types.
 * Parametric polymorphism (generics) are provided without exposing the concept of a type parameter.  Generics fall out almost for free from the ability to have dynamically defaulted parameters described above.
 * There is one form of sequential data structure: the _list_, which when containing records serve as _tables_.
@@ -582,7 +582,7 @@ eval-expr = function {
 
 Here the first try clause accesses the `literal?` option. If it was chosen, its numeric value becomes the value of the function. But if `plus?` was chosen, then the first clause will reject and the second will execute instead, recursively evaluating the `left` abd `right` fields of the `plus?` option and then adding them together. We get the equivalent of pattern matching because accessing an option makes the entire containing try clause conditional on that option having been choosen.
 
-### Conditional formula values
+### Conditional extra results
 
 Recall that the formula value of a do-block, referenced with `name~`, is a record containing the extra results. The formula value of a try-block is a choice. The options of this choice correspond to the clauses of the try-block. Clauses can be named to give names to these options and access them.
 
@@ -590,11 +590,9 @@ For example, consider parsing text that might contain numeric digits or a qouted
 ```Txt
 '123'
 parse = try number? = {
-  ... check for numeric digits
-  let extra value = ... compute number
+  let extra value = ...? // produce number or reject
 } else string? = {
-  ... check for quoted string
-  let extra value = ... compute string
+  let extra value = ... // produce quoted string or reject
 }
 check '1' parse() ~number?.value =? 1
 check '"foo"' parse() ~string.value =? 'foo'
@@ -602,7 +600,7 @@ check '"foo"' parse() ~string.value =? 'foo'
 
 Here the two clauses are named `number?` and `string?`. So `parse~` is a choice that looks like this:
 ```Txt
-parse-formula = choice {
+choice {
   number?: record{value: 0}
   string?: record{value: ''}
 }
@@ -1034,9 +1032,9 @@ The recursive call `continue?()` has a question mark because the repeat block ca
 > Perhaps a `visit` block that can be multiply-recursive, and collects the extra results in the order of execution, concatenating them as in a “flat map”. Combined with skipping of conditional extras, this allows arbitrary search algorithms to be easily written.
 
  
-## Repeated formula values
+## Repeated extra results
 
-When we parse a CSV we typically want to produce a list of the numeric values. We can do that by adding one extra result label to the code:
+When we parse a CSV we typically want to produce a list of the numeric values. We can do that by adding an extra result label to the code:
 
 ```
 '1,2,3'
@@ -1058,10 +1056,10 @@ Recall that the formula value `~` of a do-block is a record, and the formula val
 A scan-block can be used to search for a pattern in text. For example:
 ```
 'foo123'
-scan? {number = match-number?()}
+scan? {match-number?()}
 check before() =? 'foo'
 check selected() =? '123'
-check ~number~value =? 123
+check ~value =? 123
 ```
 A scan-block will repeatedly execute the enclosed block until it succeeds. At first the input text or selection is passed to the code in the block, and if it succeeds nothing further is done. But if it fails the block is reexecuted with a selection that skips one character (or item) in the input. This is done by moving the selected part to the before part, and then moving the first item of the after part to the before part. One character at a time is skipped this way until the match succeeds or the end of the text is hit (which causes a reject).
 
