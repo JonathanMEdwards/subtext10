@@ -31,7 +31,7 @@ This section summarizes the notable programming language features of Subtext whi
 * Functions are not abstract entities. Instead the formula computing any field can be “called” and supplied with alternate subject and argument values to use. As a result all code is always executing on concrete input values. Code can be edited live, immediately seeing the execution results, as in a spreadsheet.
 * Calling a function is essentially inlining a copy of it. Lexical closures fall out of the way that relative paths within a subtree are mapped through copies.
 * A function argument has access to the static type of the parameter definition. For example this avoids the redundancy of `insertRow(new Row())` instead of just `insertRow()`. A function argument also has access to the default value of the parameter, which the function can compute dynamically based on the value of the subject and prior arguments.
-* Functions can have extra result values, which do not need to be explicitly captured at the call site as in other approaches. Extra result values are provided by allowing access into the execution of the function itself, seen as a data structure. Sequential code is a record, loops are a list, and conditionals are a sum. In this way extra results inside a loop are automatically collected into a list, and extra results in a conditional are automatically combined into a sum.
+* Functions can have extra results, which do not need to be captured at the call site as in conventional approaches. The extra results of a function are a record value of named values. Extra results of conditional clauses are combined into a discriminated union. The extra results of a loop are collected into a list.
 * Hidden types: Subtext is statically typed, but types are not mentioned in the language nor error messages. Concrete values serve as witnesses of types.
 * Parametric polymorphism (generics) are provided without exposing the concept of a type parameter.  Generics fall out almost for free from the ability to have dynamically defaulted parameters described above.
 * There is one form of sequential data structure: the _list_, which when containing records serve as _tables_.
@@ -341,7 +341,7 @@ temp ...
 ```
 Inside a record block, `let` will also hide visibility of the name from outside the block. 
 
-### Extra results and formula values
+### Extra results
 
 The result of a function is the value of the last field. However we often would like to return extra results from a function. For example, integral division would like to return not only the integral ratio but the fractional remainder as well:
 ```
@@ -350,7 +350,6 @@ integral-divide = do {
   divisor: 1
   ratio = numerator /(divisor) floor()
   extra remainder = numerator -(ratio * divisor)
-  ratio
 }
 x = 5 integral-divide 3  // 1
 y = x~remainder // 2
@@ -361,12 +360,14 @@ The formula `x` calls the function `integral-divide` as follows
 2. The `divisor` field is set to `3`
 3. The `ratio` is calculated to be 1 using the `floor` function to round-down the division
 4. The extra result `remainder` is calculated by `extra remainder = ...`, calculated from `ratio` as 2. 
-5. The `ratio` becomes the final result of the function. This line would not have been necessary is the previous line had been `let extra ...` which would pass through the  previous value of `ratio`.
+5. The `extra` statement acts like a `let`, passing on the previous value, so `ratio` becomes the final result of the function. 
 6. The reference `y = x~remainder` accesses the extra result `remainder` which becomes the value of `y`. Equivalently, `y = ~remainder` would accesses the extra result of the previous field `x` without naming it.
 
-What is going on here is that `x~` accesses the _formula value_ of the field `x`. Every formula can be accessed as a data value. The formula value of a do-block is a record containing all the `extra` fields of the block with their computed values. So `x~.remainder`, abbreviated to `x~remainder`, accesses the value of the `remainder` field of the do-block.
+What is going on here is that `x~` accesses the _extra result_ of the field `x`. The extra result of a do-block is a record containing the values of the formulas prefaced with `extra`. The extra result `remainder` can be accessed as `x~.remainder`, or `x~remainder` for short. If a function (or 
 
-With extra results, function inputs and outputs become symmetric: they each have a single input and output value, zero or more named arguments, and zero or more named extra results.
+Extra results, make function inputs and outputs symmetric: functions have a single input and output, zero or more named arguments, and zero or more named extra results.
+
+Note that in the example above, `x` is defined as the formula `x = 5 integral-divide 3`, which is equivalent to the do-block: `x = do{5; integral-divide 3}`. There are no `extra` statements in this do-block. In that case, the extra result of the last field (the call to `integral-divide`) is promoted to be the extra result of the whole block. That allows us to say `x~remainder`. You can also declare a single value to be the extra result of the entire block explicitly with a statement `extra ...` that does not name the result, and which is only allowed if there are no other `extra` statements in the block. So when there are no `extra` statements, there is an implicit `extra ~` at the end of the block exporting the extra results of the final statement.
 
 ## Conditionals
 
@@ -404,7 +405,7 @@ x do {
 
 ```
 
-> An alternative to prefixing `check` (and `let` and `extra`) is to suffix `\`.
+> An alternative to prefixing `check` (and `let`) is to suffix `\` or `skip`.
 
 Only formulas can be conditional, not data fields. See _Missing values_ for alternative techniques.
 
@@ -569,7 +570,7 @@ red = color |= red
 
 ### Pattern matching
 
-Languages with choice-like datatypes often also provide specialized syntax for _pattern matching_. Try-blocks combine with choices to provide pattern matching without extra syntax:
+Languages with choice-like datatypes often also provide specialized syntax for _pattern matching_. Try-blocks combine with choices to provide pattern matching without additional syntax and semantics:
 ```Txt
 eval-expr = function {
   x: expr
@@ -581,33 +582,6 @@ eval-expr = function {
 ```
 
 Here the first try clause accesses the `literal?` option. If it was chosen, its numeric value becomes the value of the function. But if `plus?` was chosen, then the first clause will reject and the second will execute instead, recursively evaluating the `left` abd `right` fields of the `plus?` option and then adding them together. We get the equivalent of pattern matching because accessing an option makes the entire containing try clause conditional on that option having been choosen.
-
-### Conditional extra results
-
-Recall that the formula value of a do-block, referenced with `name~`, is a record containing the extra results. The formula value of a try-block is a choice. The options of this choice correspond to the clauses of the try-block. Clauses can be named to give names to these options and access them.
-
-For example, consider parsing text that might contain numeric digits or a qouted string, and wanting to convert it into either a number or a text. Here is one way:
-```Txt
-'123'
-parse = try number? = {
-  let extra value = ...? // produce number or reject
-} else string? = {
-  let extra value = ... // produce quoted string or reject
-}
-check '1' parse() ~number?.value =? 1
-check '"foo"' parse() ~string.value =? 'foo'
-```
-
-Here the two clauses are named `number?` and `string?`. So `parse~` is a choice that looks like this:
-```Txt
-choice {
-  number?: record{value: 0}
-  string?: record{value: ''}
-}
-```
-
-The formula value of a try-block is a choice because a try-block really _is_ a choice, just one that is computed rather than modified as data.
-
 
 ## Lists and tables
 
@@ -948,7 +922,7 @@ not{'1+2' match-expr?()}
 ```
 Note how in this example, if one clause of the try-block rejects then the next one is evaluated using the original input selection, which is sometimes called _backtracking_.
 
-### ASTs
+### Syntax trees
 
 Recall the `eval-expr` example that evaluated simple arithmetic expressions encoded as a recursive choice `expr`:
 ```Txt
@@ -969,24 +943,27 @@ eval-expr = function {
 }
 ```
 
-When we produce a recursive choice like `expr` while parsing text it is sometimes called an AST (Abstract Syntax Tree). Often that requires a lot of repetitive code in the parser to assemble the AST as it is being parsed. But using extra results, we can produce an AST just by adding extra result labels to the parsing code, as follows:
+When we produce a recursive choice like `expr` while parsing text it is sometimes called an AST (Abstract Syntax Tree). Often that requires a lot of repetitive code in the parser to assemble the AST as it is being parsed. We can produce an AST just by adding extra results to the parsing code, as follows:
 
 ```Txt
 '1+1' 
 match-expr? = try literal? = {
-  extra number = match-number?()
+  match-number?()
+  extra ~value 
 } else plus? = {
-  extra left = match-expr?()
+  match-expr?()
+  extra left = ~
   match? '+'
-  extra right = match-expr?()
+  match-expr?()
+  extra right = ~ 
 } else reject
 
 eval-expr = function {
   ast: match-expr~
   try {
-    ast.literal?~number~value
+    ast.literal?
   } else {
-    ast.plus?~left~ eval-expr() + (ast.plus?~right~ eval-expr())
+    ast.plus?.left eval-expr() + (ast.plus?.right eval-expr())
 }
 
 test {
@@ -994,14 +971,9 @@ test {
 }
 ```
 
-The trick is that the formula value of a try-block is a choice, and so the formula value of a recursive try-block (like `match-expr`) is a recursive choice. So we can treat the formula value of the parse function itself as an AST. In `eval-expr`, `ast: match-expr~` says the input of the function must be a formula value of `match-expr`, which is a choice. We then pattern match on the AST: if it is a literal, the expression `ast.literal?~number~value` will pull out the value of the matched number. Likewise if it is an addition, the left and right expressions are pulled out, recursively evaluated, and then added.
-
-Deep paths into formula values like `ast.literal?~number~value` can be complex. We expect that they will not be coded in the abstract, but instead generated in the UI by opening an execution of the formula and clicking on the desired value, which will add any needed labels and generate the correct path.
-
+The extra result of a try-block is a choice, and the extra result of a recursive try-block is a recursive choice. So the extra result of `match-expr` is an AST. The clauses of the try-block are labeled `literal?` and `plus?` like in the `expr` choice. Completing the correspondence, the matched number is returned as the extra result of the `literal?` clause, and the left and right ASTs are returned as named extra results of the `plus?` clause. So the extra result of `match-expr` matches the earlier definition of `expr`.  In `eval-expr`, `ast: match-expr~` says the input of the function must be the extra result of `match-expr`. The rest of the code is identical to `eval-expr`.
 
 ### Repeats
-
-**split out repeating and then extra results in repeats **
 
 Often we want to match a repeating pattern. Here is an example that matches a CSV (comma separated values) text:
 
@@ -1034,22 +1006,23 @@ The recursive call `continue?()` has a question mark because the repeat block ca
  
 ## Repeated extra results
 
-When we parse a CSV we typically want to produce a list of the numeric values. We can do that by adding an extra result label to the code:
+When we parse a CSV we typically want to produce a list of the numeric values. We can do that by adding an extra result:
 
 ```
 '1,2,3'
 csv = repeat { 
-  extra number = match-number?()
+  match-number?()
+  extra ~value
   optionally {
     match? ','
     continue?()
   }
 }
 
-check csv~number~value =? (list{0} & 1 & 2 & 3)
+check csv~ =? (list{0} & 1 & 2 & 3)
 ```
 
-Recall that the formula value `~` of a do-block is a record, and the formula value of a try-block is a choice. The formula value of a repeat-block is a table, with each row being the formula value of the repeated code block. Thus `csv~` is the table of formula values of the code block, which contains one extra result `number` which is the result of the `match-number?()` call.  We can extract the column containing those results with `csv~number` and then extract the column containing the numeric value of the match with `csv~number~value`.
+Recall that the extra result of a do-block is a record, and the extra result of a try-block is a choice. The extra result of a repeat-block is a list, with each item containing the extra result of an iteration of the code block. The statement `extra ~value` declares the result of the block to be the numeric value from the prior call to `match-number?()`. So the extra result of the entire repeat is a list of matched numbers. 
 
 ### Scanning
 
