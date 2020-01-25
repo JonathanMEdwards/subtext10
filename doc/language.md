@@ -11,164 +11,138 @@ Subtext rejects:
 2. Requiring knowledge of existing software technology and practices beyond using a browser.
 3. Appealing to the tastes of professional programmers or computer scientists.
 
-These goals require changing not just the programming language but the entire programming experience. Much of this experience is still just a vision — this article discusses the language design decisions we have made to enable that vision, but without being able to go into much detail about what the experience will actually be. Nevertheless we must say a few things up front. Many programming languages presume that the programming experience is a text editor. Subtext instead provides an interactive environment with structured editing offering high-level code transformations, and live execution. As such, a complete textual representation would need to be a serialization format not well suited to manual editing. We will defer these concerns by assuming that all of the examples in this article are compiled into a fresh Subtext document and not subsequently edited. Also note that the ASCII syntax presented herein may diverge significantly from what the developer sees on screen, where we can exploit graphics, typography, and layout. For example, the curly brackets around blocks may render as rectangular regions; comments and labels may render in the margins. But syntax still matters, as it is the most effective way to communicate the design of the language in papers, which are still the primary medium of research. Syntax is also highly effective for testing and bootstrapping. As such, we have tried to keep the syntax reasonably readable and credibly usable.
+These goals require changing not just the programming language but the entire programming experience. Much of this experience is still just a vision — this article discusses the language design decisions we have made to enable that vision, but without being able to go into much detail about what the experience will actually be. Nevertheless we must say a few things up front. Many programming languages presume that the programming experience is a text editor. Subtext instead provides an interactive environment with structured editing offering high-level code transformations, and live execution. As such, a complete textual representation would need to be a serialization format not well suited to manual editing. We will defer these concerns by assuming that all of the examples in this article are compiled into a fresh Subtext document and not subsequently edited. Also note that the ASCII syntax presented herein may diverge significantly from what the developer sees on screen, where we can exploit graphics, typography, and layout. For example, the curly brackets around structures may render as rectangular regions; comments and labels may render in the margins. But syntax still matters, as it is the most effective way to communicate the design of the language in papers, which are still the primary medium of research. Syntax is also highly effective for testing and bootstrapping. As such, we have tried to keep the syntax reasonably readable and credibly usable.
 
 > Discussion of design alternatives will be placed in notes like this.
 
 ## Notable features
 
-This section summarizes the notable programming language features of Subtext which are discussed throughout the document.
+This section summarizes the notable programming language features of Subtext.
 
-* Code and data are combined into autonomous _documents_ that provide reproduceability, collaboration, version control, and schema change. Documents change both through direct manipulation by users and executing code within the document.
+* The traditional terminology of programming languages and software development is rejected in favor of plain English, though we continue to use the old words in this sequence.
+* Subtext specifies how to pronounce its syntax.
+* Code and data are combined into autonomous documents that provide reproduceability, collaboration, version control, and schema change. Documents change both through direct manipulation by users and executing code within the document.
 * Everything is nestable: programs, databases, and documents can all be nested inside each other. A Subtext document is a tree.
 * All inputs and sources of randomness are recorded in the document history to make it autonomous and reproduceable.
 * Subtext is both a PL and a DB: data is either persistent and transactional, or determinstically computed from such persistent data.
-* There is a close relationship between what a user can do by direct manipulation of data and what code can do when executed. The recorded history of user interactions and external inputs is in fact code that can replay that history, or be used as raw material for Programming by Demonstration.  Conversely, code can be understood as scripts that a user could manually enact to perform the same operations. The language syntax and semantics have been designed to make these connections as close as possible. For example, the syntax for replacing a value at a path within a tree, which looks like an assignment statement, is used to record user edits in the history.
-* Reified execution: code execution is materialized as data, visible both to the programmer and reflectively to the program itself. For example, the execution of a parser is itself an AST data structure.
-* Reified execution takes the LISP idea that _syntax is data_ and applies it to semantics: _execution is data_. Straight-line code is a record, loops are lists, and conditionals are discriminated unions.
-* Reified execution has an unconventional semantics: rather than seeing programs as _reducing to results_, they are seen as _expanding to traces_.
-* One IF to rule them all: there is a single mechanism of conditionality: partial functions which either return a result or reject their input. Inspired by SNOBOL, this single mechanism provides conventional control structures, backtracking logic, pattern matching, assertions, and data invariants.
-* Functions are not abstract entities. Instead the formula computing any field can be “called” and supplied with alternate subject and argument values to use. As a result all code is always executing on concrete input values. Code can be edited live, immediately seeing the execution results, as in a spreadsheet.
-* Calling a function is essentially inlining a copy of it. Lexical closures fall out of the way that relative paths within a subtree are mapped through copies.
-* A function argument has access to the static type of the parameter definition. For example this avoids the redundancy of `insertRow(new Row())` instead of just `insertRow()`. A function argument also has access to the default value of the parameter, which the function can compute dynamically based on the value of the subject and prior arguments.
-* Functions can have extra results, which do not need to be captured at the call site as in conventional approaches. The extra results of a function are a record value of named values. Extra results of conditional clauses are combined into a discriminated union. The extra results of a loop are collected into a list.
-* Hidden types: Subtext is statically typed, but types are not mentioned in the language nor error messages. Concrete values serve as witnesses of types.
-* Parametric polymorphism (generics) are provided without exposing the concept of a type parameter.  Generics fall out almost for free from the ability to have dynamically defaulted parameters described above.
-* There is one form of sequential data structure: the _list_, which when containing records serve as _tables_.
-* Lists can be tracked by automatically assigning hidden unique IDs to their items. Tracked ists support _links_ which chose one or more items from a _target_ list. Links serve as foreign keys in databases. Tracked lists also allow precise document versioning and mergeing. 
+* What a user can do by direct manipulation of data and what code can do when executed are similar. The grouped history of user interactions and external inputs is in fact a program that can replay that history, or be used as raw material for Programming by Demonstration.  Conversely, a program can be understood as a script that a user could follow to perform the same operations. The language syntax and semantics have been designed to make these connections as direct as possible. For example, the syntax for replacing a value at a path within a tree, which looks like an assignment statement, is used to group user edits in the history.
+* All code is strict, pure, and referentially transparent.
+* Program execution is materialized as data, completely visible to the programmer using the same UI as for data. Materialized execution takes the LISP idea that _syntax is data_ and applies it to semantics: _execution is data_. Straight-line code is a group, loops are sequences, and conditionals are discriminated unions. Calling is inlining.
+* Materialized execution has an unconventional semantics: rather than seeing programs as _reducing to results_, they are seen as _expanding to traces_.
+* One IF to rule them all: there is a single mechanism of conditionality: partial programs which either return a result or reject their input. Inspired by SNOBOL, this single mechanism provides conventional control structures, backtracking logic, pattern matching, assertions, and data invariants.
+* Programs are not abstract entities, defined in one place then used in others. Instead programs, sometimes represented as formulas, compute a result from concrete inputs. Any such computation can be reused, with a conventional-looking call syntax, optionally replacing its input values. All programs are continuously executing on concrete input values. Programs can be edited live, immediately seeing the execution results, as in a spreadsheet.
+* Calling a program is materialized as inlining a copy of it. Lexical closures fall out of the way that relative paths within a subtree are mapped through copies.
+* programs can have extra results, which do not need to be captured at the call site as in conventional approaches. The extra results of a program are a group value. Extra results of conditional clauses are combined into a discriminated union. The extra results of a loop are collected into a sequence.
+* Subtext is statically (parametrically) typed, but types are not mentioned in the language nor error messages. Concrete values serve as witnesses of types. 
+* There is one form of sequential data structure, which when containing groups serves as a table.
+* Sequences can be tracked by automatically assigning hidden unique IDs to their items. Tracking supports stable links into sequences that serve as foreign keys in databases. Tracking also supports precise document versioning and mergeing. 
 
 ### Intentionally excluded features
 
 * Separate compilation
 * Subtypes, interfaces, typeclasses (but maybe traits)
-* First-class functions (generics are enough)
+* First-class programs (generics are enough)
 * The stack and the heap (and garbage collection)
 
+## Introduction to documents
 
-## Documents
+The artifact that Subtext mediates is called a _document_. It is somewhat like a spreadsheet (e.g. Excel) in that it presents both data and formulas in a visual metaphor that is easy to learn. It is somewhat like a notebook (e.g. Jupyter) in that it offers the full power of a programming language. These artifacts are characterized by their geometry: notebooks are a linear sequence of cells; spreadsheets are a 2-dimensional grid of cells; Subtext documents are a tree of nested cells called _items_. There are many types of items, explained in the following:
 
-The artifact that Subtext mediates is called a _document_. It is somewhat like a spreadsheet (e.g. Excel) in that it presents both data and formulas in a visual metaphor that is easy to learn. It is somewhat like a notebook (e.g. Jupyter) in that it offers the full power of a programming language. These artifacts are characterized by their geometry: notebooks are a linear list of cells; spreadsheets are a 2-dimensional grid of cells; Subtext documents are a tree of cells.
+- Items are a holder for a value of some type
+- The value of an item is either an _atom_, a _structure_, or a _sequence_
+- Atoms can be one of several types of basic values: numbers, characters, times, images, etc. Atoms do not contain any other items, and occupy the bottom of the document tree
+- Structures and sequences are built out of other items, called their contents. They differ on how the contents are organized. 
+- Structures contain a fixed set of items, like conventional records or structs. Each item defines the type of it’s value. When used as data, the items of the structure will be given unique names, but when used as programs the items may be left as anonymous intermediate computations. The top item of a document is a _head_ structure. The _history_ of a document is a structure containing heads.
+- Sequences contain a variable number of items all of the same type in a linear order, like conventional arrays or lists. _Text_ is a sequence of _characters_. A sequence of structures is called a _table_.
 
-- Subtext documents are built out of two things: data and formulas. There are a predefined set of types of data like numbers, text, and times. Formulas are built from a predefined set of _operations_ and _functions_ which process data.
-- Documents are built up in two ways: _blocks_ and _lists_.
-- A block is a fixed group of _fields_ holding data and formulas. Fields can be named. There are different kinds of blocks. A _record_ block gathers a set of fields to be handled as a group, similarly to _structs_ and _objects_ in other languages. The entire _document_ is a top-level block. A _choice_ block gathers a set of fields out of which exactly one must be chosen,  similarly to _variants_ ,  _sums types_, and\_discriminated unions\_  in other languages. There are several kinds of _code_ blocks similar to traditional PL control structures, with their fields corresponding to statements.
-- Lists contain contain zero or more _items_ of the same type. When a list contains records it is called a _table_, and the items are called _rows_. 
-- In analogy with spreadsheets, the “cells” of a Subtext document are the fields and the items. A tree structure is built up by nesting blocks and lists. A Subtext document is a whole tree.
+The tree structure of Subtext documents strikes a balance: they are more flexible and dynamic than the grid of a spreadsheet, yet simpler and more visualizable than the graph-structured data of imperative programming languages. They are somewhat like the tree-structured values of programal programming languages, except that:
 
-The tree structure of Subtext documents strike a nice balance: they are more flexible and dynamic than the grid of a spreadsheet, yet simpler and more visualizable than the graph-structured data of imperative programming languages.
+- Items (called _inputs_) can be changed by the user and programs.
+- Items (called _outputs_) can be automatically derived from the state of other portions of the document as they change.
+- The same structures are used to represent data and code (as in LISP), but they also represent the execution of code for inspection by the developer.
+- There are cross-references within the tree. Cross-references can be dynamic only to the extent of selecting different items within a specific sequence — other than that, cross-references are static.
 
-Subtext is statically typed, which conventionally means that the code and the types of values are fixed at _compile time_ and do not vary at _run time_. But there is no such thing as compile time in Subtext documents, which are always running and fully editable with persistent state. Subtext distinguishes between two kinds of changes: modifying data and editing code or definitions. It is possible to lock a document so that only data modifications are allowed. Data modifications are highly constrained: data types are fixed (a number can’t be changed into text), and changes are limited to data updates, choices, list insertions and deletions. Only certain kinds of errors can occur during data modification. In contrast, code editing can change anything, and can lead to various sorts of inconsistencies called _static errors_, corresponding to the errors a traditional compiler might report. Static errors are reported to the programmer as problems in the document to be resolved, but unlike compiled languages, the document continues to function outside the affected parts.
+Subtext is statically typed, which conventionally means that the code and the types of values are fixed at _compile time_ and do not vary at _run time_. But there is no such thing as compile time in Subtext documents, which are always running and fully editable with their state stored persistently in a file. Subtext distinguishes between two kinds of changes: modifying data and editing code or definitions. It is possible to lock a document so that only data modifications are allowed — this is called _user mode_. In user mode data changes are highly constrained: data types are fixed. For example a number can’t be changed into text, and a newly created item in a sequence will have the same type as all the others. Only certain kinds of errors can occur in user mode. In _programming mode_ anything can be changed, which can lead to various sorts of inconsistencies called _static errors_, corresponding to the errors a traditional compiler might report. Static errors are reported to the programmer as problems in the document to be resolved, but unlike compiled languages, the document continues to program outside the implicated parts.
 
 Although Subtext is statically typed in the above sense, there is no mention of types in the language syntax or error messages, because concrete values serve as witnesses of their types (see _Types_).
 
-Nesting blocks and lists leads to a tree structure somewhat like those of statically typed FP languages, except that:
-- They are mutable.
-- The same structures are used to represent data and code (as in LISP), but they also represent the execution of code. We call this _reified execution_.
-- Some parts of the tree can be dynamically computed from other parts via cross-references.
-- A _link_ can dynamically select one or more items from a specific target list. Links are like foreign keys in a DB. Links are also like pointers in that you can “write through” them into the target list, but in a way compatible with pure functional semantics. See _Synchronized links_.
-- Cross-references within the tree are static. Links can dynamically change which items they link to, but the list containing those items is known statically, which limits the damage they can do.
 
 ## Base values
-Subtext provides severl kinds of values out of which documents can be built:
+Subtext provides several kinds of values out of which documents are built:
 
-- _number_: double float using JavaScript syntax, and the special value `_number_` not equal to any other number. 
-- TODO: infinite precision rationals\_ - _text_: a JavaScript text literal using single quotes: `'hello'`
-- TODO: fancy text with fonts and formatting
+- _number_: double float using JavaScript syntax, and the special value `_number_` not equal to any other number (except itself)
+- TODO: infinite precision rationals
 - `nil`, the unit value, useful in enumerations (see _Choices_)
-- TODO: date-times
+- `anything`, the top value used to define generic programs (see _Types_)
+- _text_: JavaScript string literal using single quotes: `'hello'`
+- _character_: a unicode character, using JavaScript escape sequences like `\a` or `\u0021`
+- TODO: fancy text with fonts and formating
+- TODO: date-times and calendars
 - TODO: media (MIME-typed blobs)
 
-> Of course a language for scientific computing must support units of measure. Except that the most popular ones don’t! This is a solved problem, and we should add units as soon as we can.
+> Of course a language for scientific computing must support units of measure. Except that the popular ones don’t! This is a solved problem, and we should add units as soon as we can.
 
-## Blocks and fields
+## Structures, formulas, and programs
 
-One way Subtext documents are constructed is with _blocks_ (the other is _listss_) . Blocks contain a fixed sequence of _fields_, which can be given names. Blocks are defined with curly brackets preceded by a keyword indicating the kind of block. The most basic kind of  block is a _record_. Records are like structs or objects in other languages, and rows in relational databases. For example:
+One way Subtext documents are constructed is with _structures_ (the other is _sequences_) . A structure contains a fixed set of items with (optional) names. Structures are defined in the syntax with curly brackets preceded by a keyword indicating the kind of structure. A basic structure is the _group_. A group is like a record or struct or object in other languages, and like a row in a relational databases. For example:
 ```
-b: record {
+b: group {
   x: 0
-  y: record {
+  y: group {
     i: 0
     j: 1
     k: 2
   }
 }
 ```
-This record defines two fields, one named `x` which has the value `0`, and one named `y`, whose value is a nested record with numeric fields named `i` and `j` with values `0` and `1` respectively. The names of the fields within a record must be different. Fields inside blocks are referenced from the outside using a dotted path like `b.y.j` pronounced “b dot y dot j”.
+This group contains two items, one named `x` which has the value `0`, and one named `y`, whose value is a nested group with numeric items named `i` and `j` with values `0` and `1` respectively. The names of the items within a group must be different. When we _refer_ to nested items we use a _path_ like `b.y.i`.
 
-Fields can be separated across lines and indented as in the above example, or combined in a line separated by semicolons:
+The subtext UI offers two views of any item: as a single _line_ or as a multi-line _outline_. The above syntax example approximates what an outline looks like in the UI, except there are no curly brackets. An outline uses indentation to show nesting of structures. The corresponding single-line representation looks like the following syntax, where brackets indicate nesting and semicolons separate items:
 ```
-b: record {x: 0, y: record {i: 0; j: 1; k: 2}}
+b: group {x: 0; y: group {i: 0; j: 1; k: 2}}
 ```
-The UI lets you flip between these two formats.
+The UI lets you flip between line and outline presentations.
 
-A field is either a _datum_ or a _formula_. Every data field is defined with a name followed by a `:` followed by a formula. The formula determines the initial value of the field. A data field can be changed to a different value later by the user or code (but only to a value of the same type - to change the type the formula must be edited). We pronounce `x: 0` as “x is 0”.
+### Inputs and outputs
+Every item is either an input or output. For example,
+```
+group {
+  x: 0
+  y = x + 1
+}
+```
+The item `x` is defined as an input by being followed with a colon, whereas `y` is defined as an output by being followed by an equals sign. The item `x` can be modified by the user or a program.  But the item `y` is read-only — it is automatically computed from the value of `x` whenever it changes. Note that the UI will display the computed value of `y` on a line underneath it.
 
-The other kind of field is a _formula_, which uses `=` instead of `:`. Formulas are like the formulas in a spreadsheet. For example:
-```
-x: 0
-y = x + 1
-x + 2
-```
-The second line is pronounced “y equals x plus 1”. The field `y` will always be one greater than `x`, and will be recalculated if `x` changes. The third line is a formula field too, but without a name or the `=` symbol.
+This is like a spreadsheet: cells containing a formula are outputs, and cells containing just values are inputs. But unlike a spreadsheet, input cells also have formulas (`0` in this example) which compute the _initial value_ of the cell. Unlike in spreadsheets, new items are often dynamically created, and so their inputs need to be given some initial value, which can be computed with a formula. In program structures, the initial value of inputs serve as convenient default values. Input formulas execute once when the structure is created, whereas output formulas execute whenever anything they depend on changes.
 
-> The distinction between `:` and `=` may be too subtle. Possible alternatives are to `:` are:
-> ```
-> x = data 0
-> x = init 0
-> ```
-> but that can get verbose:
-> ```
-> b = data record {
->   x = data 0
->   y = data record {
->     i = data 0
->     j = data 1
->     k = data 2
->   }
-> }
-> ```
+Note that the terms input and output mean different things in computational notebooks like Jupyter, where an input is a formula and the paired output is its value. Notebooks do not let the user directly edit a value as can be done with non-formula cells in a spreadsheet and input items in Subtext.
 
-### Expressions
-In the formula `y = x + 1` the part to the right of the `=` is called an _expression_. This expression starts with the _value_ `x` followed by the _function call_ `+ 1`. An expression value can be either a literal like the number `1`, or a _reference_ to a field somewhere in the document, like `x`. References can be a _path_ of multiple names separated by `.`, as in `b.x`, pronounced “b dot x”, which refers to the `x` field of the block `b`. Other kinds of paths will be described later.
+Subtext specifies how to pronounce its syntax. The above example syntax is pronounced “group of, x set 0, y equals x plus 1”. A `{` is pronounced “of”, `:` is pronounced “set”, and `=` is pronounced “equals”. Note that, unlike imany programming languages, `=` means the same thing as in mathematics — the left and right sides have the same value. The ':' means the left hand side originally had the same value as the right-hand side.
 
-A function call starts with a reference to a function, in this case `+`, the built-in addition function. The function reference is followed by parentheses containing zero or more _arguments_ to the function. When there is only one argument and it is a value, the parenthese are optional: so `x + 1` is equivalent to `x +(1)`. All functions operate on the value to their left, which is called their _input_, and additionally zero or more arguments in parentheses to their right. So in `x + 1` and `x +(1)` the input to the `+` function is the value `x` and the single argument is the value `1`. There is no such thing as a function with no input. If a function call has no arguments it uses empty parethenses as in `x negate()`. Arguments can also be expressions, in which parentheses must be used, for example `x +(y * 2)`. If a function takes more than one argument it uses a “keyword” syntax for the extra arguments: `value fnc(arg1, .param := arg2)`. All arguments are optional, and will be given a default value if unspecified in the call.
+> The distinction between `:` and `=` may be too subtle, but we haven’t come up with a better alternative.
 
-Expressions executely strictly left-to-right, which can violate the expectations of arithmetic precedence. The expression `1 + 2 * 3` is equal to 6 not 7. This is clearer if parenthese are used: `1 +(2) *(3)`. For that reason, the UI will always fill in parentheses in function calls, but fade them out in the case of a single value argument, so that they still resemble the familiar parentheses-free form, but hopefully still look different enough to break the expectations of aratithmetic precedence. We retain the parentheses-free form in the syntax because that is the entrenched expectation of experienced programmers, who are the audience for the syntax.
+### Formulas
+In the item definition `y = x + 1` the part to the right of the `=` is called a _formula_. Formulas are simple programs. They contain literal values like `1` and _references_ to items elsewhere in the document like `x` and `+`. They can _call_ the program defining an item, like `+`, which is the built-in program that adds numbers. Programs have one or more inputs and produce a result value. The program `+` is _called_ by first, making a copy of it, then setting its inputs to the values of `x` and `1`, and then taking its result as the value of `y`. The two references here are just names, but in general they can be paths (see Reference binding).
 
-> References will support “search paths” like `x…y` that look for a `y` field that is reachable via any path from `x`. Likewise `…y` would look for any path to `y` from any containing scope. In these examples it is an error if there is more than one path leading to `y`. A possible exception to this rule is when all the paths go through alternative cases of a choice or clauses of a conditional, and further that they lead to fields of the same type. If not all of the cases or clauses are covered then the path must be conditionalized like `…y?`. This feature gives us a convenient way to extract alternative information from choices and conditionals. Search paths might be intolerably fragile in a textual language, but an IDE can automatically repair them. In fact the reference editor in the IDE will provide all reachable paths of the right type, offering “… completion” rather than just “. completion”.
+> In PL terminology, Subtext programs are pure strict functions. Subtext tries to use plain English instead of mathematical concepts, and so uses just “program”. In this case the term 'function” has the wrong meaning in both Math and English! The functions of Functional Programming are not actually mathematical functions.
+> Subtext is also referentially transparent, which means that equal inputs produce equal results.
 
-### Vertical dataflow
-In the expression `y = x + 2 * 3` the result of the `+` operation flows rightward to be the input to the `*` function. Values can also flow vertically between fields, like this:
+The formula `x + 1` uses so-called _infix notation_, where the program reference `+` is placed between the input values `x` and `1`. Many programming languages allow infix notation only as a special case for arithmetic operations like `+`, but in general use notation borrowed from mathematical programs: `program(formula1, formula2)` where the inputs to the program, possibly complex formulas, come afterwards in parentheses, in the proper order, separated by commas. Subtext always uses infix notation, but adds parentheses to allow complex formulas and more than two inputs, as follows:
 ```
-x
-+ 2
-y = * 3
+formula1 program()
+formula1 program literal
+formula1 program reference
+formula1 program(formula2)
+formula1 program(formula2, .input3 := formula3)
 ```
-We could rephrase that as:
-```
-x
-+ 2
-* 3
-y = that
-```
-where `that` is a special expression that refers to the value of the previous field.
+Every program has at least one input. In a call the first input is the value of the formula to the left of the reference to the program. A program may have more than one input, but only the first input must be supplied in a call — the extra input items have an initial value that serves as a default. A call supplying only the first input puts empty parentheses `()` after the program reference. Conventional infix form can be used when only the first and second inputs are used, and the second input is a literal or reference, as in `x + 1`. If the second input is instead a more complex formula then it is put in parentheses, for example in `x +(y * 2)`. 
 
-> We might want to make vertical dataflow more explicit by using `that` at the beginning of expressions, as in:
-```
-x
-that + 2
-y = that * 3
-```
-> Or possibly `^`, figuratively pointing up at the value being used.
-```
-x
-^ + 2
-y = ^ * 3
-```
-> The UI may annotate to indicate vertical dataflow, so we will defer elaborating the syntax until that is explored.
+When a call supplies the third or later input of a program, shown in the last case above, the name of the input item is specified with the form `.input3 := formula3`, like the _keyword arguments_ in some languages. The design philosophy behind these conventions is that many programs have one or two inputs, and it is natural to read infix notation like an Object-Verb-Subject construct in English, not to mention the familiarity of infix notation in math. But when there are  more than two inputs, it is better to name their roles explicitly.
 
-## Code blocks
-Recall that record blocks can be seen either as a single line or as multiple lines with brackets and indentation. The same is true for formulas. Formulas are shown on a single line. But formulas are actually stored as a _do-block_, which is revealed when you choose to display the formula vertically, as in:
+Formulas executely strictly left-to-right, which can violate the rules of arithmetic precedence. For example the formula `1 + 2 * 3` is equal to 6, not 7 as we have been taught. This becoes clearer if we use parentheses: `1 +(2) *(3)`. For that reason the UI will always fill in parentheses in program calls, but fade them out when they contains a single value, so that they still resemble the familiar parentheses-free infix form, but hopefully still look different enough to break the expectations of arithmetic precedence. We retain the parentheses-free form in the syntax because that is the expectation of experienced programmers, who are the audience for the syntax.
+
+### `do` structures
+Formulas are used when an item is formatted as a line, but when we format it as an outline the formula is revealed as a `do` structure. For example,
 ```
 y = x + 1 * 2
 // is equivalent to
@@ -178,156 +152,171 @@ y = do {
   * 2
 }
 ```
-which exploits the fact that data flows both horizontally and vertically. A do-block is an example of a _code block_. Code blocks, like all blocks, consists of a sequence of fields, either data or formulas. In this example there are three unnamed formulas: `x`, `+ 1`, `* 2`. Both of the function calls have no value to their left, which means that they take as input the value of the previous field. So the value of `x` is the input to `+ 1`, whose result is the input to `* 2`. Code blocks produce a result, which is the value of the last field, which becomes the value of `y`. Note that the top-down dataflow within the block corresponds exactly to the left-right dataflow within formulas.
+Like all structures, a `do` structure is a series of items. In this example there are three items, one per line, and they are output items whose value is calculated from their formula. Unlike in previous examples, these are anonymous outputs, lacking a name and the following `=`.  
 
-A code block can take an input value on its left like a function call. We can refactor the above code into:
+The first item is just a reference to `x` but the last two items are calls without a left input value: `+ 1` and `* 2`. In that case the value of the previous item is used as the left input. We can see this as the value of items flowing downward from the result of one formula into the start of the next formula. The result is the bottom value, which becomes the value of `y`. Note how this downward dataflow corresponds exactly to the rightward dataflow in the formula `x + 1 + 2`, with the result being the final value on the right. Thus data flows in formulas from left to right, and in outlined structures from top to bottom. This matchs the reading order of English prose. 
+
+A formula is a single-line representation of a `do` structure, but it will only look like a series of infix calls when the `do` structure follows the pattern shown above: a series of anonymous outputs with the first being a literal or reference and the following ones single calls without a left input. Anything else will use the general notation for structures in a line, with brackets and semicolons. For example, if we had named one of the items:
 ```
-y = x do {
-  + 1
+y = do {
+  x
+  incremented = + 1
   * 2
 }
+// is equivalent to
+y = do {x; incremented = + 1; * 2}
 ```
-Here the value of `x` is the input to the do-block, and thus the input to the initial call `+ 1 `. 
 
-Code blocks are more general than formulas because they can contain more kinds of field than formulas (not just values can function calls). Code blocks also grow much larger while still being readable. Another advantage is that the UI  shows the value of each field underneath it, as in computational notebooks like Jupyter. Thus any formula can be flipped into the vertical block view to see a “mini notebook” showing every step of its execution. This total visibility of execution is a primary goal of Subtext.
+There are two advantages of using outlines over lines. First, a large outline can be more readable than a very long line. Secondly, the UI shows the values computed for each output on an extra line below them, as in computational notebooks like Jupyter. Thus outlining an item turns the formula into a nested “mini-notebook” showing every step of the computation.
 
-### Setting fields
-So far all our examples have used arithmetic. But it is very common to work with records, especially as they are the rows of tables. Take the record:
+> We might want to make vertical dataflow more explicit by using `that` at the beginning of formulas, as in:
 ```
-x: record {
+y = do {
+  x
+  that + 1
+  that * 2
+}
+```
+> Or possibly `^`, figuratively pointing up at the value being used.
+```
+y = do {
+  x
+  ^ + 1
+  ^ * 2
+}
+```
+> The UI may add annotations indicating vertical dataflow, so we will defer elaborating the syntax until that is explored.
+
+### Defining programs
+It is often useful to have named inputs in a program. For example:
+```
+plus = do {
+  x: 0
+  y: 1
+  x + y
+}
+```
+When this program is called, as in `1 plus 2`, the value on the left, 1, is set into the first input item, named `x`. The value 2 is set into the second input item, named `y`, resulting in:
+```
+do {
+  x: 1
+  y: 2
+  x + y
+}
+```
+The value of the last item, 3, becomes the result of the call.
+
+We can abbreviate programs with just one input. For example:
+```
+0
+increment = do{+ 1}
+```
+Here the 0 preceding the definition of `increment` serves as the default input value to the program. When `increment` is called, the actual input value will be inserted as the first item. This abbreviation is especially convenient with sequential programs, like `find`, that automatically supply a default input value, saving the duplication of specifying it explicitly. 
+
+There is another abbreviation for defining programs. For example,
+```
+increment2 = 0 + 1
+
+```
+can be called like the previous example. Note this is equivalent to:
+```
+increment2 = do {
+  0
+  + 1
+}
+```
+The first item of the `do` structure is not an input, but neither does it use the previous value as `increment` does. In this case, the first item is treated as the input of the program. In other words, the input to a call of `increment2()` will replace the first value (0) of the formula
+
+> Possibly this is too subtle, and it might be better to first refactor a formula to have an explicit input item that allows it to be called. For example `0 + 1` could be refactored into `do{in:0; + 1}` to make it callable.
+
+As a result of these abbreviations, every item is a program that can be called elsewhere. This design avoids premature abstraction. In most languages before code can be reused it must first be abstracted out into a separate definition, and replaced with a call to that definition. In Subtext every item’s definition can be reused elsewhere. 
+
+Note that, unlike other languages, a program is not a separate entity or value — it is always “inside” the definition of an item, not its value. In the first example, 
+```
+plus = do {
+  x: 0
+  y: 1
+  x + y
+}
+```
+the value of `plus` is just 1, the result of executing the program, not a special kind of value representing a program. When we call the program, as in `1 plus 1` what we are really doing is reusing the program that defines the value of `plus` with different inputs. 
+
+> In fact programs really are “first-class” values, accessible via special metadata references, but they are only used in the UI and planned metaprogramming capabilities.
+
+### Structure modification
+So far all of the examples have used arithmetic. But it is very common to work with data structures, particularly groups,  as they are the rows of tables. Take the group:
+```
+x: group {
   name: ''
   number: 0
 }
 ```
-This record contains two data fields: `name` which is an initially empty text, and `number` which is initially the number `0`.
+This group contains two data items: `name` which is an initially empty text, and `number` which is initially the number `0`.
 
-The essential operations on a record are to read and change individual fields. We read the fields using paths, like `x.name` and `x.number`. To change a field we use a _set operation_:
+The essential operations on a group are to read and change individual items. We read the items using paths, like `x.name` and `x.number`. To change a item we use a _set operation_:
 ```
 x.name := 'Joe'
 ```
-We pronounce this “x dot name set to text Joe”. The result of a set operation is a record equal to the value of `x` except with the field `name` set to `'Joe'`. Note that the value of `x` is not changed as a result of this operation: a new and different record value is produced. We might give this new record a name, as in:
+We pronounce this “x dot name is set to text Joe”. The result of a set operation is a group equal to the value of `x` except with the item `name` set to `'Joe'`, and keeping the prior value of `number`. Note that the value of `x` is not changed as a result of this operation: a new and different group value is produced. We might give this new group value a name, as in:
 ```
 y = x.name := 'Joe'
 ```
-We can chain multiple updates using a code block:
+We can chain multiple updates using a `do` structure:
 ```
 y = do{x.name := 'Joe'; .number := 2}
 ```
-Note how `.number :=` applies to the result of the previous update. We could rephrase this as
+Note how `.number :=` applies to the result of the previous update. We could rephrase this more symmetrically as
 ```
 y = x do{.name := 'Joe'; .number := 2}
 ```
-Note that the following variant would be wrong:
+Here `.name :=` applies to the value of `x`, which flows into the `do` structure from the left.
+
+The following is wrong:
 ```
 y = do{x.name := 'Joe'; x.number := 2}
 ```
-that code loses the update to `name` because the update to `number` goes back to the original value of x. This is reported as a _unused value_ static error.
+The update to `name` is lost because the update to `number` goes back to the original value of x. This will be reported as an  _unused value_ static error.
 
-Set operations can delve into nested record by using a dotted path to the left of the `:=`
+Set operations can delve into nested groups by using a dotted path to the left of the `:=`
 ```
-x: record {
+x: group {
   name: ''
   number: 0
-  address: record {
+  address: group {
     street: ''
     city: ''
 }
 y = x do{.address.street := '12 Main St'; .address.city := 'Springville'}
 ```
 
-Instead of using dotted paths, we can nest blocks:
+Instead of using dotted paths, we can nest `do` structures:
 ```
 y = x do{.address := do{.street := '12 Main St'; .city := 'Springville'}}
 ```
-Note how the block is nested: `.address := do{.street := ...}`. Here `.address :=` passes the current value of `x.address` as the input to the do-block on its right, and then sets the `address` field to be the result. This is an example of _default inputs_. We saw earlier how operations in a do-block take their input from the previous field. Something similar happens with a `:=` — any operation on the right will by default input from the current value of the field named on the left. For example:
+Note how the structure is nested: `.address := do{.street := ...}`. Here `.address :=` passes the current value of `x.address` as the input to the `do` structure on its right, and then sets the `address` item to be the result. This is an example of _default inputs_. We saw earlier how the first call in a `do` structure can take its input from the previous item before the `do` structure. The set operation `:=` works similarly — any formula on the right will by default input from the current value of the item named on the left. Thus for example:
+
 ```
 y = x.number := + 1
 ```
-will increment the value of the `number` field. Default inputs are also supplied to function arguments, to be discussed later.
+will increment the value of the `number` item. Note how this looks like an _assignment statement_ in an imperative language, which modifies values “in place”. Subtext only modifies by creating new values, so in the above example `x` is not changed. Some functional languages force you to rebuild such new values “bottom up”. The Subtext `:=` operation does that automatically, copying an entire tree-structured value with one path inside it replaced. Defaulting of inputs allows a `:=` to extract the current value at a path and transform it.
 
-### Defining functions
-A function is a code block that starts with data fields naming its input and arguments, for example:
-```
-plus = do {
-  in: 0
-  addend: 1
-  in + addend
-}
-```
-When this function is called, as in `1 plus 2`, the value on the left, 1, is set into the first data field, `in`. The argument 2 is set into the second field, `addend`, resulting in:
-```
-do {
-  in: 1
-  addend: 2
-  in + addend
-}
-```
-which produces the result 3.
+Set operations can only be done on input items, those defined with `:`, not outputs defined with '='.
 
-Functions with more than one argument must name the extra arguments in the call, like this:
+Recall that `:=` is also used when supplying the third or later inputs when calling a program. This is not a cooincidence. For example:
 ```
-ternary-function = do {
-  in: 0
-  arg1: 0
-  arg2: 0
+ternary-program = do {
+  input1: 0
+  input2: 0
+  input3: 0
   ...
 }
-x = 1 ternary-function(2, .arg2 := 3)
+x = 1 ternary-program(2, .input3 := 3)
 ```
-The rule is that the first defined argument is anonymous in the call. Note that named arguments use the same notation `:=` as a set operation. That is because they actually are set operations, overriding the data fields of the function. The first argument implicitly uses a set operation too: `.arg1 := 2`. Because arguments use set operations, we get defaul argument inputs. Thus for example `1 plus(+ 1)` will increment the default value of the argument (from 1 to 2), with a final result of 3. This is a contrived example, but we will see more useful cases later with choices and lists.
-
-There difference between functions in Subtext and most other languages: functions are expressions, not values. Look at this function:
-```
-increment = do {
-  in: 0
-  in + 1
-}
-```
-The value of the `increment` field is just 1, the result of executing the function on the default input and argument values. It is not a “function value”. We could have equivalently defined it as:
-```
-increment = 0 + 1
-```
-which is equivalent to
-```
-increment = do {
-  0
-  + 1
-}
-```
-which is the same as the function without the `in:` label. The call `x increment()` takes the expression defining `increment` and sets its first value to the value of `x`. The result is exactly the same in all of the above alternative definitions of `increment`.
-
-What this means is that any formula can be used as a no-argument function (taking just an input). In most languages, if we have a formula that we want to reuse elsewhere we must copy it out into a separate function definition, and supply a name for the input, and further we should abstract the original formula into a call to the new function. In Subtext we can instead just call the formula as a function. However if we want the function input to be other than the first value, or we want there to be arguments, then we need to use a do-block. But even then there is no need to abstract out a separate function definition. We can just expose the formula as a do-block, then edit it into the function-block we want, without defining a new field. The original field still gets the result of executing that function block on the default values as if it were a formula. This approach to functions is motivated by a major goal of Subtext: avoiding the need for premature abstraction.
-
-> Possibly it is confusing to call formulas, and we should first refactor them into a function form. 
-> ```
-> increment = 0 + 1
-> ```
-> could be refactored into
-> ```
-> increment = do{in: 0; + 1}
-> ```
-
-> Formulas like `+ 1` have a hidden input field, which is revealed when expanded vertically
-> ```
-> do {
->   that
->   + 1
-> }
-> ```
-> The hidden input field is used by the UI to show the input value in context. The input field is also needed to call the formula and substitute in the actual input value. We do not want to force the syntax to include these placeholder input fields, rather to just say:
-> ```
-> do {
->   + 1
-> } 
-> ```
-> The compiler will generate an input field automatically for a code block unless:
-> 1. the first field is a datum (function input), or
-> 2. the first field is a formula starting with a literal or reference (not an operation), or
-> 3. the first field is the formula `that`
+The syntax `.input3 := 3` is actually a set operation applied to the `do` structure. It sets the value of the `input3` input item to 3. The same thing happens with the second input: `.input2 := 2` , but that is hidden in the syntax.
 
 ### Local variables
 
-Inside a code block formulas can be used to name intermediate computations and then reference them by name later. This is called a _local variable_ in some PLs, but in Subtext is it is just a normal named formula field. However it is common to chain statements, feeding the result of one into the input of the next. Local variables often break this flow, so there is special statement qualifier `let`:
+Inside a structure an ouput item can be used to name an intermediate computation and then reference it by name later. This is called a _local variable_ in some languages. As we have seen, it is common in `do` structures for values to flow downward form one item to the next. Local variables can break this flow, so there is special output qualifier `let` that lets the previous value flow “around” it:
 ```
 ...
 let foo = ... // compute something from previous value for later
@@ -339,11 +328,11 @@ temp = ...
 let foo = temp ...
 temp ... 
 ```
-Inside a record block, `let` will also hide visibility of the name from outside the block. 
+A `let` item is also hidden from references outside the structure.
 
 ### Extra results
 
-The result of a function is the value of the last field. However we often would like to return extra results from a function. For example, integral division would like to return not only the integral ratio but the fractional remainder as well:
+The result of a program is the value of the last item. However we often would like to return extra results from a program. For example, integral division would like to return not only the integral ratio but the fractional remainder as well:
 ```
 integral-divide = do {
   numerator: 1
@@ -355,37 +344,45 @@ x = 5 integral-divide 3  // 1
 y = x~remainder // 2
 ```
 
-The formula `x` calls the function `integral-divide` as follows
-1. The input field `numerator`of the function is set to `5`
-2. The `divisor` field is set to `3`
-3. The `ratio` is calculated to be 1 using the `floor` function to round-down the division
-4. The extra result `remainder` is calculated by `extra remainder = ...`, calculated from `ratio` as 2. 
-5. The `extra` statement acts like a `let`, passing on the previous value, so `ratio` becomes the final result of the function. 
-6. The reference `y = x~remainder` accesses the extra result `remainder` which becomes the value of `y`. Equivalently, `y = ~remainder` would accesses the extra result of the previous field `x` without naming it.
+Skipping to the definition of `x`, we see that it calls the program `integral-divide` as follows:
+1. A copy of the `do` structure of `integral-divide` is made
+2. Its input item `numerator` is set to `5`
+3. Its input item `divisor` is set to `3`
+4. The output item `ratio` is calculated to be 1 using the `floor` program to round-down the division
+5. The extra result `remainder` is calculated from `ratio` as 2. 
+6. The `extra` statement acts like a `let`, passing on the previous value, so `ratio` becomes the final result of the program. 
+7. After the call, the item `y` references `x~remainder`, which is the extra result `remainder` produced in the computation of `x`.
 
-What is going on here is that `x~` accesses the _extra result_ of the field `x`. The extra result of a do-block is a record containing the values of the formulas prefaced with `extra`. The extra result `remainder` can be accessed as `x~.remainder`, or `x~remainder` for short. If a function (or 
+What is going on here is that `x~` accesses the _extra result_ of the program that computed the value of `x`. The extra result of a `do` structure is a group containing the values of the outputs prefaced with `extra`. The extra result `remainder` can be accessed as `x~.remainder`, or `x~remainder` for short. We also could have equivalently said `y = ~remainder` to access the extra result of the previous item without naming it.
 
-Extra results, make function inputs and outputs symmetric: functions have a single input and output, zero or more named arguments, and zero or more named extra results.
+Note that in the example above, `x` is defined as `5 integral-divide 3`, which is equivalent to the `do` structure: `do {5; integral-divide 3}`. There are no `extra` statements in this `do` structure. In that case, the extra result of the last item (the call to `integral-divide`) is promoted to be the extra result of the whole structure. That allows us to say `x~remainder`. You can also declare a single value to be the extra result of the entire structure explicitly with a statement `extra ...` that does not name the result, and which is only allowed if there are no other `extra` statements in the structure. 
+So when there are no `extra` statements, there is an implicit `extra ~` at the end of the structure exporting the extra results of the final item.
 
-Note that in the example above, `x` is defined as the formula `x = 5 integral-divide 3`, which is equivalent to the do-block: `x = do{5; integral-divide 3}`. There are no `extra` statements in this do-block. In that case, the extra result of the last field (the call to `integral-divide`) is promoted to be the extra result of the whole block. That allows us to say `x~remainder`. You can also declare a single value to be the extra result of the entire block explicitly with a statement `extra ...` that does not name the result, and which is only allowed if there are no other `extra` statements in the block. So when there are no `extra` statements, there is an implicit `extra ~` at the end of the block exporting the extra results of the final statement.
+### TODO: Reference binding
+
+The syntax uses conventional _lexical binding_, but the UI will not be constrained by that, nor subject to lexical shadowing. 
+
+> When the UI lets the developer make references that can’t be expressed lexically, we might want to automatically fix that by adding names to anonymous items and renaming shadowed items.
+
+> References could support “search paths” like `x…y` that look for a `y` item that is reachable via any path from `x`. Likewise `…y` would look for any path to `y` from any containing scope. In these examples it is an error if there is more than one path leading to `y`. A possible exception to this rule is when all the paths go through alternative cases of a choice or clauses of a conditional, and further that they lead to items of the same type. If not all of the cases or clauses are covered then the path must be conditionalized like `…y?`. This feature gives us a convenient way to extract alternative information from choices and conditionals. Search paths might be intolerably fragile in a textual language, but an IDE can automatically repair them. In fact the reference editor in the IDE will provide all reachable paths of the right type, offering “… completion” rather than just “. completion”.
 
 ## Conditionals
 
-When an expression is evaluated, one of the following things will happen:
+When a program executes (including formulas), exactly one of the following things will happen:
 
-1. The expression crashes. A crash indicates a programming error, not a user error: some condition has arisen that ought to be impossible. The crash is recorded, but no changes are made to the document. Sometimes crashes can be predicted ahead of time when formulas are being edited (for example type mismatches). These are called static errors and are presented to the developer as problems to be fixed. However unlike conventional compiler errors, static errors do not prevent the system from running, so long as the erroneous formula is not used.
-2. The expression is terminated before it completes because it has taken too long or used too many resources. It hasn’t been decided how to handle this yet.
-3. The expression completes successfully, producing a value.
-4. The expression intentionally _rejects_ without producing a value. Rejection means the expression refuses to handle the input values supplied to it. Rejection is inspired by [SNOBOL](https://en.wikipedia.org/wiki/SNOBOL), which calls it _failure_, as do many parsing DSLs. We call it rejection rather than failure to make clear it is an intentional occurence, not a programming error.
+1. The program crashes. A crash indicates a programming error, not a user error: some condition has arisen that ought to be impossible. A crash is reported to the document developer, including a snapshot of the document that can reproduce the crash. No changes are made to the document when an input event (including user actions) causes a crash. Sometimes crashes can be predicted ahead of time when formulas are being edited (for example type mismatches). These are called static errors and are presented to the developer as problems to be fixed. Unlike conventional compiler errors, static errors do not prevent the system from running, so long as the erroneous formula is not used.
+2. The program is terminated before it completes because it has taken too long or used too many resources.
+3. The program completes successfully, producing results.
+4. The program intentionally _rejects_ without producing a result. Rejection means the program refuses to handle the input values supplied to it. Rejection is inspired by [SNOBOL](https://en.wikipedia.org/wiki/SNOBOL), which calls it _failure_, as do many parsing DSLs. We call it rejection rather than failure to make clear it is an intentional occurence, not a programming error (a crash).
 
-An expression that might reject is called _conditional_. The name of a conditional formula has a question mark appended to it. For example, the equality function `=?` tests whether two values are equal, rejecting if they aren’t. It is called like this: `x =? y`. You can tell that an expression is conditional by the presence of a `?` inside it, which indicates a place where it may reject.
+If a program may reject it is called _conditional_, a program that never rejects is called _unconditional_. The name of a conditional program has a question mark appended to it. For example, the equality program `=?` tests whether two values are equal, rejecting if they aren’t. It is called like this: `x =? y`. You can tell that a program is conditional by the presence of a `?` inside it, which indicates a point where it may reject.
 
-By convention, comparison functions like `=?` and `<?` that succeed will result in their argument value,  so that they can be chained, as in `x <? y <? z`. Often conditionals are executed only to test whether they reject, and their result is not otherwise used. It is an error to produce a value that is not used. To indicate that a value is not intended to be used, an expression can start with `check`. That will also have pass on the value of the previous field. In most situations, conditional functions should be called in a `check` expression. For example:
+By convention, comparison programs like `=?` and `<?` will result in their right-hand input value when they succeed,  so that they can be chained, as in `x <? y <? z`. But often conditionals are executed only to test whether they reject, and their result is not otherwise used. To help avoid programming mistakes it is an error to produce a value that is not used. To indicate that a value is not intended to be used, an output item can start with `check`. That will also pass on the value of the previous item as with `let`. In most situations, conditional programs should be called in a `check` formula. For example:
 ```
 // incorrect
 do {
-  x >? 0    // unused value
-  x even?() // unused value
+  x >? 0    // error: unused value
+  x even?() // error: unused value
   x + 1
 }
 
@@ -396,7 +393,7 @@ do {
   x + 1
 }
 
-// using value pass-through
+// passing values through check
 x do {
   check >? 0
   check even?()
@@ -407,11 +404,11 @@ x do {
 
 > An alternative to prefixing `check` (and `let`) is to suffix `\` or `skip`.
 
-Only formulas can be conditional, not data fields. See _Missing values_ for alternative techniques.
+Only output items can use a conditional program, not input items. See _Missing values_ for alternative techniques.
 
-When a formula rejects, what happens depends on the kind of block it is inside. Inside a do-block or a function-block, rejection halts further evaluation of the block, and makes the whole block reject. What happens next depends on the kind of block containing that block — if it is also a do-block or function-block the rejection continues to propagates into the containing block. This proceeds until the rejection reaches one of several kinds of block that handle rejections, for example the _try-block_.  In this way rejection is like exception catching in conventional languages, except that it is the only kind of exception supported.
+When a program rejects, what happens depends on the kind of structure it is inside. Inside a `do` structure (and other program structues to be introduced later), rejection halts further execution, and causes the whole program structure to reject. What happens next depends on the kind of structure containing that structure — if it is also a `do` structure then the rejection continues to propagates into the containing structure. This proceeds until the rejection reaches one of several kinds of structure that handle rejections, for example the `try` structure_.  Rejection is like _exception catching_ in conventional languages, except that it is the single kind of exception supported, and it carries no extra information visible to the program.
 
-A try-block is a code block allows you to respond to a rejection by doing something else — it fills the role of the ubiquitous _IF_ statement in conventional languages. Here is an example:
+A `try` structure is a program that can respond to a rejection by doing something else — it fills the role of the ubiquitous _IF_ statement in conventional languages. Here is an example:
 ```Txt
 polarity = do {
   n: 0
@@ -427,9 +424,9 @@ polarity = do {
 }
 x = 1 polarity() // = 'positive'
 ```
-A try-block contains a sequence of code blocks called _clauses_, separated by the `else` keyword. The first one will be evaluated, and if it succeeds its value becomes the value of the entire try-block, ignoring all the other clauses. But if the first clause rejects, then the second clause will be evaluated, and if it succeeds it supplies the value of the try-block and skips the rest. Successive clauses are evaluated until one succeeds.
+A `try` structure contains a sequence of `do` structures called _clauses_, separated by the `else` keyword. The first clause is executed, and if it succeeds its result becomes the result of the entire `try` structure, skipping all the other clauses. But if the first clause rejects, then the second clause will be executed, and if it succeeds it supplies the result of the `try` structure and skips the rest. Successive clauses are executed until one succeeds. The results of all the clauses must be the same type of value, otherwise it is a static error (except maybe this isn’t an error for `check try`)
 
-If none of the clauses succeeds the try-block crashes. This is considered a programming error: a try-block must exhaustively test all possible cases.  _In the future we will try to infer exhaustiveness statically, but for now it is a dynamic check._ To allow none of the clauses to succeed, the statement `else reject` is placed at the end of the try-block. For example:
+If none of the clauses succeeds the `try` structure crashes. This is considered a programming error: a `try` structure must exhaustively test all possible cases.  _In the future we will try to infer exhaustiveness statically, but for now it is a dynamic check._ To reject instead of crashing, the statement `else reject` can be placed at the end of the `try` structure. For example:
 
 ```Txt
 rgb? = do {
@@ -444,9 +441,9 @@ rgb? = do {
 }
 'yellow' rgb?() // rejects
 ```
-This function take text as input and tests whether it is red, green, or blue, rejecting otherwise. Note that because of the final `else reject` we know that the `rgb?` function is conditional, and so has a question mark, whereas `polarity` could not reject, and thus was unconditional.
+This program take text as input and tests whether it is red, green, or blue, rejecting otherwise. Note that because of the final `else reject` we know that the `rgb?` program is conditional, and so has a question mark, whereas the prior example `polarity` could not reject, and thus was unconditional.
 
-Try-blocks can take an input value, and will pass it as the input to each of the clauses. Thus we could rewrite the above example as:
+A `try` structure can take an input value on the left, and will pass it as the input to each of the clauses. Thus we could rewrite the above example as:
 ```Txt
 rgb? = '' try {
   =? 'red
@@ -459,7 +456,7 @@ rgb? = '' try {
 'yellow' rgb?() // rejects
 ```
 
-An alternative form of conditional is an optional-block:
+An alternative form of conditional is an `optionally` structure:
 ```Txt
 absolute-value = do {
   n: 0
@@ -469,12 +466,12 @@ absolute-value = do {
   }
 }
 ```
-The optionally-block is like a try-block, except that if none of the clauses succeed, the input value becomes the result. That requires that all the clauses must also result in the same type of value as the input. This is a shorthand for adding an empty clause at the end of a try-block, which acts like the identity function: `try {...} else {}`.
+The `optionally` structure is like a `try` structure, except that if none of the clauses succeed, the input value becomes the result (which must be the same type of value as the results of the clauses). An `optionally` structure is a shorthand for adding an empty clause at the end of a `try` structure, which acts like the identity program: `try {...} else {}`.
 
-> `try {...} else reject` could be instead `try? {...}`. Likwise `optionally {...}` could be just `try {...}`. To crash on incompleteness, `try! {...}`. This design is more consistent with the way other conditional forms are handled, but we worry it is too subtle.
+> `try {...} else reject` could be instead `try? {...}`. Likewise `optionally {...}` could be just `try {...}`. To crash on incompleteness, `try! {...}`. This design is more consistent with the way other conditional forms are handled, but we worry it is too subtle.
 
 ### Boolean operations
-Subtext does not use Boolean values like conventional languages do for making decisions. The standard Boolean operations can be done with try-blocks instead. The `rgb?` function above was an example of a logical OR. Here is the recipe for writing boolean operations:
+Subtext does not use Boolean values like conventional languages do for making decisions. The standard Boolean operations can be done with `try` structures instead. Here is the recipe for writing boolean operations:
 ```
 // a? OR b?
 try {
@@ -491,71 +488,79 @@ check b?
 not {a?}
 ```
 
-The `not{}` block evaluates its contents, rejecting if they succeed, and succeeding if they reject (in which case the input value of the block is passed on).
-Note that `not{}` is a block, as is `try`. Only blocks catch rejections.
+The `not{}` structure evaluates its contents, rejecting if they succeed, and succeeding if they reject (in which case the input value of the structure is passed on).
+Note that `not` is a structure, as is `try`. Only structures catch rejections.
 
-> But it might be convenient to allow `not` and `assert` statements, like `check`, except they capture rejects in the following expression without the need for brackets.
+> But it might be convenient to allow `not` and `assert` item qualifiers, like `check`, capturing rejects in the item’s formula without the need for extra curly brackets.
 
 ### Assertions and tests
-The `assert{...}` block converts a rejection into a crash. This is used to detect situations that should be impossible and which therefore indicate a programming error. For example
+The `assert` structure converts a rejection into a crash. This is used to detect situations that should be impossible and which therefore indicate a programming error. For example
 ```Txt
 assert {x =? y}
 ```
 will crash if `x` and `y` are unequal.
 
-> We could also replace any `?` with a `!` to turn it into an assertion. This is more flexible, but we worry it is too subtle
+> We could also replace any `?` with a `!` to turn it into an assertion. This is more flexible and convenient, but it might be too subtle.
 
-Test blocks are used for unit tests:
+Test structures are used for unit tests:
 ```Txt
 test {
   1 polarity() =? 'positive'
 }
 ```
-Test blocks execute after edits to formulas and definitions. If a rejection occurs inside the test block then it is treated as a static error, which is a problem for the programmer to resolve, but does not prevent the document from functioning.
+All test structures in the document are executed after programmer edits that could affect them (after all edits in the prototype implementation). If a rejection occurs inside the test structure then it is treated as a static error, which is a problem for the programmer to resolve, but does not prevent the document from being used.
 
-Each test block executes inside a copy of the containing document where all data has been reset to its default state. The reset document is also the input to the test block. In this way tests are isolated and reproduceable, even if they explore changes to the document. For example:
+Each test structure executes inside a copy of the document where all data has been reset to its initial state. This reset document is also the input value to the test structure. That way tests are isolated and reproduceable, even if they explore changes to the document. For example:
 ```Txt
 x: 0
 y = x + 1
 test {
   check .x =? 0
   .x := 2
-  check .y =? 3
-  check y =? 1 // default state of y
+  check .y =? 3 // check modified state of y
+  check y =? 1 // check initial state of y
 }
 ```
 
-### TODO: Input rejection, transactions, and data constraints
+### TODO: Termination
+
+Sometimes a program takes too long to execute, or consumes too many internal resources.
+
+> Simplest solution is that doc becomes read-only while reacting to an input, and then the results are shown atomically at completion. If computation takes too long the user can terminate it, which cancels the entire input action and leaves the document in its prior state. The input action remains in the history though and can be redone later if desired. Exceeding resource quotas (like stack size) would terminate computation automatically. This is the state of the art for computational notebooks.
+
+> However it would be nicer to be able to interrupt a long-running execution, observe it’s execution so far, and resume if desired. That should probably wait till there is reasonably effective memoization of results.
+
+### TODO: Input event rejection, transactions, and constraints
 
 ## Choices
-A _choice_ block defines a set of named data fields called _options_, exactly one of which is _chosen_. Choices are like discriminated unions and sum types in conventional languages. Here is an example:
+A `choice` structure defines a set of named input items called _options_, exactly one of which is _chosen_. The options can be different kinds of items, like in a `group`. Choices are like _discriminated unions_ and _sum types_ in conventional languages. Here is an example:
 ```Txt
 expr: choice {
   literal?: 0
-  plus?: record {
+  plus?: group {
     left: expr
     right: expr
   }
 }
 ```
-The `expr` field can choose to be a `literal?` with a numeric value, or it can choose to be a `plus?`, with a value as a record containing fields `left` and `right`, both of which are recursively another `expr` value. Choices always intially choose the first option (which can’t recurse so as to prevent infinitely deep values).
+The `expr` item can choose to be a `literal?` with a numeric value, or it can choose to be a `plus?`, with a value as a group containing items `left` and `right`, both of which are recursively another `expr` value. Choices always intially choose the first option (which can’t recurse so as to prevent infinitely deep values).
 
-The names of the options have a question mark, because accessing them is conditional on their being chosen. For example `expr.literal?` will provide the numeric value of the `literal?` field if it is currently chosen by `expr`, but will reject if it isn’t chosen.
+The names of the options have a question mark, because accessing them is conditional on their being chosen. For example `expr.literal?` will provide the numeric value of the `literal?` item if it is currently chosen by `expr`, but will reject if it isn’t chosen.
 
 Choices are made with the _choice operation_ `|=`. For example:
 ```Txt
 a-literal = expr |= literal 1
 ```
-This pronounced “a-literal equals expr choosing literal one”. The `|=` expects a choice value on its left (here `expr`) and to its right the name of an option without the question mark (here `literal`), followed by an expression setting the value of that option. The expression can be left out, which will set the option to its default value (0 for `literal`):
+This pronounced “a-literal equals expr choosing literal one”. The `|=` expects a choice value on its left (`expr`) and to its right the name of an option without the question mark (`literal`), followed by a formula resulting in a value for the option. The formula can be left out, which will set the option to its default value (0 for `literal`):
 ```Txt
 a-literal = expr |= literal
 ```
-Note the similarity between the choice operation `|=` and the record set operation `:=`. As with `:=` we can use a do-block to nest choices:
+Note the similarity between the choice operation `|=` and the set operation `:=`. As with `:=` we can use a `do` structure to nest choices:
 ```Txt
 a-plus = expr |= plus do{left |= literal 2, right |= literal 2}
 ```
 
-Sometimes there is no value of interest to associate with an option — we want it to indicate just that me made the choice. This is often called an _enumeration_ in other languages. We use the special value `nil` in this case:
+Sometimes there is no value of interest to associate with an option — we want it to indicate just that we made the choice. This is called an _enumeration_ in many languages. We use the special value `nil` in this case:
 ```Txt
 color: choice {
   red?: nil
@@ -563,16 +568,16 @@ color: choice {
   green?: nil
 }
 ```
-`nil` is what is called a _unit value_, which contains no information, so we can just default when choosing:
+The value `nil` is called a _unit value_ in some languages: it contains no information, and is the sole value within its datatype. As such `nil` options are always set to their default value:
 ```Txt
 red = color |= red
 ```
 
 ### Pattern matching
 
-Languages with choice-like datatypes often also provide specialized syntax for _pattern matching_. Try-blocks combine with choices to provide pattern matching without additional syntax and semantics:
+Languages with datatypes like  a choice often also provide specialized syntax for _pattern matching_. A `try` structures combines with choices to provide pattern matching without additional syntax and semantics:
 ```Txt
-eval-expr = function {
+eval-expr = do {
   x: expr
   try {
     x.literal?
@@ -581,34 +586,34 @@ eval-expr = function {
 }
 ```
 
-Here the first try clause accesses the `literal?` option. If it was chosen, its numeric value becomes the value of the function. But if `plus?` was chosen, then the first clause will reject and the second will execute instead, recursively evaluating the `left` abd `right` fields of the `plus?` option and then adding them together. We get the equivalent of pattern matching because accessing an option makes the entire containing try clause conditional on that option having been choosen.
+Here the first try clause accesses the `literal?` option. If it was chosen, its numeric value becomes the result. But if `plus?` was chosen, then the first clause will reject and the second will execute instead, recursively evaluating the `left` and `right` items of the `plus?` option and then adding them together. We get pattern matching “for free” because accessing an option makes the entire containing try clause conditional on that option having been choosen.
 
-## Lists and tables
+## Sequences and tables
 
-A _list_ contains a sequence of zero or more _items_ containing the same fixed type of value.  A _table_ is a list containing records. The items of a table are called _rows_ , and the fields of the record are called _columns_. Every list defines a value, called it’s _template_, which sets the default value for newly created items. For example:
+So far we have discussed various kinds of structures. The other way that Subtext documents are built is with _sequences_. A sequence is an ordered set of zero or more items containing values of the same fixed type. A _text_ is a sequence of characters. A _table_ is a sequence of groups, its items are called _rows_, and the items of the group define the _columns_ of the table. Every sequence defines a value, called it’s _template_, which sets the default value for newly created items. For example:
 ```
-numbers: list {0}
+numbers: sequence {0}
 customers: table {
   name: ''
   address: ''
 }
 ```
-The list `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: list {record {...}}`. The table contain columns `name` and `address` defaulting to the empty text. 
+The sequence `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: sequence {group {...}}`. The table contains columns `name` and `address` defaulting to the empty text. 
 
-All lists are initially created as empty. Text is a list of characters with the space character as the template, so `'' =? list{space}`
+All sequences are initially created as empty. Text is a sequence of characters with the space character as the template, so `'' =? sequence{\ }`
 
-The `&` function (pronounced “and”) is used to create items in a list. For example:
+The `&` program (pronounced “and”) is used to create items in a sequence. For example:
 ```
 n = numbers & 1 & 2 & 3
 c = customers & do{.name := 'Joe', .address := 'Pleasantown, USA'}
 ```
-The `&` operator takes a list as it’s input and an item value as its argument, and results in a list equal to the input plus a new item. The default value of the argument to `&` is the template item, which provides a default value, so `&()` will create an item with the default value. In tables it is convenient to use a do-block as above to set some of the fields and let the others default.
+The `&` program takes a sequence as it’s left input and an item value as its right input, resulting in a sequence equal to the input plus a new item with that value. The default value of the item is the template of the seqence. In a table it is often convenient to use a `do` structure as above to set some of the columns and let the others default to their template values.
 
-The `&&` function concatenates lists: `list1 && list2` is a copy of `list1` with all the items from `list2` added to its end. The two lists must have the same type template.
+The `&&` program concatenates sequences: `sequence1 && sequence2` is a copy of `sequence1` with all the items from `sequence2` added to its end. The two sequences must have the same type template.
 
-The items in a list are numbered starting at 1 for the first item. This number is called the item’s _index_. The number of items (not counting the template) is called the list’s _length_, available with the `list length()` function. 
+The items in a sequence are numbered starting at 1 for the first item. This number is called the item’s _index_. The number of items (not counting the template) is called the sequence’s _length_, available by calling the `length()` program. 
 
-An item in a list can be accessed via its index using square brackets, as in:
+An item in a sequence can be accessed via its index using square brackets, as in:
 ```
 n = numbers & 1 & 2
 check n[1] =? 1
@@ -621,13 +626,13 @@ x = n[i]
 check x~index =? i
 ```
 
-The template of a list is accessed with `list[]`. The expression `list[i]` will crash if `i` is fractional or non-positive or larger than the length of the list. You can test if an index is valid with:
+The template of a sequence is accessed with `sequence[]`. The formula `sequence[i]` will crash if `i` is fractional or non-positive or larger than the length of the sequence. You can test if an index is valid with:
 ```
-list at? i 
+sequence at? i 
 ```
-which returns the item if the index is valid (and the index in `~index`), or rejects otherwise. Functions `first?()` and `last?()` will return the first and last item repectively, rejecting if the list is empty. 
+which returns the item if the index is valid (and the index in `~index`), or rejects otherwise. The programs `first?()` and `last?()` will return the first and last item repectively, rejecting if the sequence is empty. 
 
-Items in a list can be updated individually by index:
+Items in a sequence can be updated individually by index by using square brackets to the left of `:=`:
 ```
 n = numbers & 1 & 2
 test {
@@ -636,38 +641,42 @@ test {
   check .n[2] =? 2
 }
 ```
-Individual fields in a row can be updated similarly:
+Individual items in a row can be updated similarly:
 ```
 test {
   .customers[1].name := 'Joe Jr'
 }
 
 ```
-or equivalently using a do-block:
+or equivalently using a `do` structure:
 ```
 test {
   .customers[1] := do{.name := 'Joe Jr.'}
 }
 ```
 
-We can delete an item in a list with the `delete` function, which results in a list with that item removed (crashing if there is no such row):
+We can delete an item in a sequence with the `delete` program, which results in a sequence with that item removed (crashing if there is no such row):
 ```
-list delete i
+sequence delete i
 ```
 
-We can delete all items from a list with the `clear` function.
+We can delete all items from a sequence with the `clear` program.
 ```
-list clear() length() =? 0
+sequence clear() length() =? 0
 ```
 
 ### Columns
-A column of a table is a list containing the contents of one field. The columns of a table are accessed as if they were fields of the table, for example:
+A column of a table is a sequence containing the contents of one of the group items from each row. The columns of a table are accessed using `.` as if the table was a structure of columns. For example:
 
 ```
-t = table {
-  name: ''
-  amount: 0
-} & do{.name := 'joe', .amount := 100} & do{.name := 'jane', .amount := 200}
+t = do {
+  table {
+    name: ''
+    amount: 0
+  }
+  & do{.name := 'joe', .amount := 100}
+  & do{.name := 'jane', .amount := 200}
+}
 
 test {
   check .t.amount[1] =? 100
@@ -680,54 +689,67 @@ test {
   .t.amount := (clear() & 150 & 200)
 }
 ```
-A column  can only be replaced with a list of the same length as the table, otherwise it will crash. In a tracked tabled (see below) no insertions, deletion, or moves can have happened in the column.
+A column  can only be replaced with a sequence of the same length as the table, otherwise it will crash. In a tracked tabled (see below) no insertions, deletion, or moves can have happened in the column.
 
-When a table field is a conditional formula, the corresponding column will skip all items where the formula rejects. 
+When a table column is conditional, meaning the corresponding group item is a conditional output, then the column will skip all items where the item rejected. 
 
-### Sorted lists
+### Sorted sequences
 
-Normally, new items are added to the end of a list. But a list can be defined as _sorted_, which means the items will be automatically kept in order of increasing value, or _reverse sorted_, which keeps then in order of decreasing value. Tables, whose items are records, use lexicographical ordering, where the first column is the most significant. Thus
+Normally, new items are added to the end of a sequence. But a sequence can be defined as _sorted_, which means the items will be automatically kept in order of increasing value, or _reverse sorted_, which keeps then in order of decreasing value. Tables, whose items are groups, use lexicographical ordering, where the first column is the most significant. Thus
 ```
 customers: sorted table {
   name: ''
   address: ''
 }
 ```
-will order the rows alphabetically by name, and duplicate names by address.
+will order the rows alphabetically by name, and duplicate names by address. Sequences can be converted between different sortings with the programs `sorted()` `reverse-sorted()` `unsorted()`. 
 
-When a list is not sorted, new items can be inserted anywhere into the list using:
+When a sequence is not sorted, new items can be inserted anywhere into the sequence using:
 ```
-list insert(item, at: i)
+sequence insert(item, at: i)
 ```
-where 1 ≤ `i`  ≤ length + 1. The new item will then have the index `i`. An item already in the list can be moved using:
+where 1 ≤ `i`  ≤ length + 1. The new item will then have the index `i`. An item already in the sequence can be moved using:
 ```
-list move(i, at: j)
+sequence move(i, at: j)
 ```
 where 1 ≤ `j` ≤ length + 1.
 
-Two lists are considered equal by the `=?` function when they have the same number of items with equal values in the same order. The `=?` function can only be used to compare lists with templates of the same type and the same kind of sorting (it is a static error otherwise). Lists can be converted between different sortings with the functions `sorted()` `reverse-sorted()` `unsorted()`. By requiring sorting compatibility for equality, we preserve the property that calling a function with equal inputs and arguments produces equal results, specifically the `&` function creating new items.
+Two sequences are considered equal by the `=?` program when they have the same number of items with equal values in the same order. The `=?` program can only be used to compare sequences with equal templates (not just the same type!) and the same kind of sorting — it is a static error otherwise. These constraints are necessary to preserve the property that calling a program with equal inputs produces equal results, specifically the `&` program creating new items.
 
 ## Searching
-A find-block searches in a list:
-```
-joe = customers find?{check .name =? 'Joe'}
-```
-The `find?` block is evaluated repeatedly with an item as its input value, starting with the first item and continuing until it does not reject. The result is that item, with `~index` set to the index. If all the items are rejected, the entire operation rejects. The `find-last?` block does the same thing except it scans the table backwards. The `find-only?` block suceeds if there is only match, and rejects if there are none or more than one. 
 
-A useful special case is `list only?()`, resulting in the single item of the list, rejecting if the list has 0 or multiple items. Another is `find-unique?{...}` that finds all matches and rejects if there are none or they are not all equal.  
+A `find` structure searches in a sequence:
+```
+joe = customers find? {check .name =? 'Joe'}
+```
+The `find?` structure is executed like a `do` repeatedly with items from the sequence as its input value, starting with the first item and continuing until it does not reject. The result is the first non-rejected item, with `~index` set to the index. If all the items are rejected, the entire `find?` rejects (hence the suffix `?`).
+
+Note that in this example the program structure contains no input item — the input is referenced implicitly with `.name ...`. If we outline it in the UI we will see that one is created automatically to display the input value:
+```
+joe = do {
+  customers 
+  find? {
+    input: customers[] // inserted automatically
+    check .name =? 'Joe'
+  }
+}
+```
+The code is defined to input from the sequence template, and in each iteration that input item will be set from a successive item of the sequence.
+
+A `find-last?` does the same thing as `find?` except that it scans the table backwards. A `find-only?` succeeds if there is exactly one match, and rejects if there are none or more than one. A useful special case is `sequence sole?()`, resulting in the single item of the sequence, rejecting if the sequence has 0 or multiple items. Another is `find-unique?{...}` that finds all matches and rejects if there are none or they are not all equal.  
 
 ### Replacing and aggregating
 
-A _for-each_ block will evaluate a code block on each item, resulting in an unsorted list with each row replaced with the result of the code block in the same order as the input. If an item is rejected, it is left out of the result. The `for-all?` block is like `for-each` except it rejects if the code block rejects on any item, otherwise resulting in the replaced table. The `for-none?` block does the opposite, rejecting if the code block accepts any item, otherwise resulting in the input list. For example:
+A `for-each` structure will evaluate a `do` structure on each item of a sequence in order, resulting in an unsorted sequence with items containing the results in the same order. If an item is rejected, it is left out of the result. The `for-all?` structure is like `for-each` except it rejects if the code structure rejects on any item, otherwise resulting in the replaced table. The `for-none?` structure does the opposite, rejecting if the code structure accepts any item, otherwise resulting in the input sequence. For example:
 
 ```
 test {
-  l = list{0} & 1 & 2 & 3
+  l = sequence{0} & 1 & 2 & 3
   
-  // replace each item with result of block on it (like functional map)
+  // replace each item with result of structure on it (like programal map)
   check l for-each {+ 1} =? (clear() & 2 & 3 & 4)
   
-  // delete items on rejects (like functional filter)
+  // delete items on rejects (like programal filter)
   check l for-each {check not=? 2} =? (clear() & & 3)
   
   // replace and delete together
@@ -741,9 +763,9 @@ test {
 }
 ```
 
-An _aggregate function_ is used to accumulate a result by scanning a list.
+An `aggregate` structure is used to accumulate a result by scanning a sequence.
 ```
-list{0} & 1 & 2
+sequence{0} & 1 & 2
 aggregate {
   item: that
   sum: 0
@@ -751,25 +773,25 @@ aggregate {
 }
 check =? 3
 ```
-An aggregate block takes as input a list. The code block must be a function with one argument. The function is called repeatedly with inputs from the items of the input list. In this example we called the input `item`, and define it from the default template value referenced as `that`. 
-The function must have an argument (called `sum` here), which will act as an accumulator. On the first call it defaults to the defined value (0 here). On the second and subsequent calls, `sum` is set to the result of the previous call. This example is equivalent to the built-in `sum()` function that sums a list of numbers. If the function rejects an item then it will be skipped and the accumulator argument will be passed on to the next call. An aggregate function is  like a _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `l sum(100)`).
+An aggregate structure must define two input items. The structure will be executed repeatedly, like a `for-each`, feeding items from the input sequence into the first input item. In this example we called the first input `item`, and define it from the default template value referenced as `that`. 
+The second input (`sum`) acts as an accumulator. On the first call it defaults to the defined value (0). On the second and subsequent calls, `sum` is set to the result of the previous call. This example is equivalent to the built-in `sum()` program that sums a sequence of numbers. If the program rejects an item then it will be skipped and the accumulator value will be passed on to the next call. An `aggregate` is  like a conventional _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `s sum(100)`).
 
-## Tracked lists
+## Tracked sequences
 
-A list can be defined to be _tracked_. Tracked lists automatically assign a unique ID to each item when it is created. The ID is used to precisely track changes to the item. Such IDs are called _surrogate keys_ in databases. The tracking ID is hidden from the user and programmer. Tracking allows two important features:
+A sequence can be defined to be _tracked_. A tracked sequence automatically assigns a unique ID to each item when it is created. The ID is used to precisely track changes to the item. Such IDs are called _surrogate keys_ in databases. The tracking ID is hidden from the user and programmer. Tracking allows two important capabilities:
 
-1. Relationships between tracked lists can be maintained, similar to relational databases, but without requiring that every item contain a unique and immutable key.
-2. Tracked lists can be versioned and merged, similar to version control systems like git, except much more precisely. 
+1. Relationships between tracked sequences can be maintained, similar to relational databases, but without requiring that every item contain a unique and immutable key.
+2. Tracked sequences can be versioned and merged, similar to version control systems like git, except more precisely. 
 
-Two tracked lists are equal if their items are not only equal but also were created in the same relative order, including all items that were deleted. Tracked equality means that the lists not only have the same current state but also effectively the same history of changes.
+Two tracked sequences are equal if their items are not only equal but also were created in the same relative order, including all items that were deleted. Tracked equality means that the sequences not only have the same current state but also effectively the same history of changes.
 
-> Tracked lists could offer sorting by creation time, and creation-time could be used to order duplicates in a list sorted by value.
+> Tracked sequences could offer sorting by creation time, and creation-time could be used to order duplicates in a sequence sorted by value.
 
-> The IDs in tracked lists are implemented as monotonically increasing serial numbers within the list, as in an “auto-increment” field in a relational database. We are not exposing this because merging can renumber items (along with their selections).
+> The IDs in tracked sequences are implemented as monotonically increasing serial numbers within the sequence, as in an “auto-increment” item in a relational database. We are not exposing this because merging can renumber items.
 
 ### Links
 
-Links are used to store references to items from outside the list. A common scenario is what relational databases call _foreign keys_, where rows in one table reference rows in another:
+Links are used to store user-modifiable references to items from outside the sequence. A common scenario is what relational databases call _foreign keys_, where rows in one table reference rows in another:
 
 ```
 customers: tracked table {
@@ -782,29 +804,29 @@ orders: tracked table {
 }
 ```
 
-The `customer` field of `orders` rows is a _link_. Links designate a list they reference into (called the _target_), and a constraint on the number of linked items they permit. In this example, exactly one customer must be linked. The number of linked items can be constrained in several ways:
+The `customer` item of `orders` rows is a _link_. Links designate a sequence they reference into (called the _target_), and a constraint on the number of linked items they permit. In this example, exactly one customer must be linked. The number of linked items can be constrained in several ways:
 ```
-one in customers         // exactly 1 row
-maybe one in customers   // 0 or 1 rows
-some in customers        // 1 or more rows
-maybe some in customers  // 0 or more rows
-```
-
-A link stores a subset of the IDs in its target list. Links are equal when their target lists are equal and they link the same items. A link is edited in the UI with something like a pick-list of the items in the target list (radio buttons for a singular link). Links can be modified with several functions that produce modified links:
-```
-l link i              // add link to item with index i in target
-l unlink i            // unlink item with index i in target
-l links? i            // rejects if target index i is not linked
-l clear()             // unlink everything
-l link-all list       // link all IDs from another list or link
-l unlink-all list     // unlink all IDs from another list or link
-l copy list           // clear and link-all
+one in customers         // exactly 1 item
+maybe one in customers   // 0 or 1 items
+some in customers        // 1 or more items
+maybe some in customers  // 0 or more items
 ```
 
-Links act in some ways as if they were a list containing the linked items in their order in the target list, for example they can be indexed with `[...]` and searched with `find?{...}`. But note the indexes used in those examples are the index within the links, not the index in the target list. We can access the underlying target list with:
+A link records a subset of the IDs in its target sequence. Links are equal when their target sequences are equal and they link the same items. A link is edited in the UI with something like a pick-list of the items in the target sequence (and radio buttons for a singular link). Links can be modified with several programs that produce modified links:
+```
+l link i                  // add link to item with index i in target
+l unlink i                // unlink item with index i in target
+l links? i                // rejects if target index i is not linked
+l clear()                 // unlink everything
+l link-all sequence       // link all IDs from another sequence or link
+l unlink-all sequence     // unlink all IDs from another sequence or link
+l copy sequence           // clear and link-all
+```
+
+Links act in some ways as if they were a sub-sequence containing the linked items in their order in the target sequence, for example they can be indexed with `[...]` and searched with `find?{...}`. But note the indexes used in those examples are the index within the links, not the index in the target sequence. We can access the underlying target sequence with:
 
 ```
-l target()        // copy of the target list
+l target()        // copy of the target sequence
 l target-index i  // converts index within links to index in target
 ```
 
@@ -821,7 +843,7 @@ orders: tracked table {
   customer: one in customers reflecting orders
 }
 ```
-Note that each link names the field within the opposite table that contains its reflection.
+Note that each link names the item within the opposite table that contains its reflection.
 
 Reflected links can also be declared as _unique_, _complete_, or _paired_, corresponding to injective (into), surjective (onto), and bijective (1-1) mappings.
 
@@ -838,19 +860,19 @@ customers: table {
 
 
 ### TODO: Nested links
-Links can target nested lists, linking to a path of IDs. Reflecting links can cross multiple layers of containing lists. Cardinality constraints are specified seperately for each level of nesting. 
+Links can target nested sequences, linking to a path of IDs. Reflecting links can cross multiple layers of containing sequences. Cardinality constraints are specified seperately for each level of nesting. 
 
 ### TODO: link updates and referential integrity
 
 ### Merging
 
-Copies happen. Documents get shared as email attachments. Documents get imported into other documents. Inevitably, both the copy and the original change. Tracking allows such changes to be later sent to the other version without wiping out all the changes that have happened to it in the meantime. This is called _merging_. 
+Copies happen. Documents get shared as email attachments. Documents get imported into other documents. Inevitably both the copy and the original change. Tracking allows such changes to be later sent to the other version without wiping out all the changes that have happened to it in the meantime. This is called _merging_. 
 
-Two copies of a tracked list can be compared to see exactly how they have diverged. The IDs in tracked lists allow changes made to an item to be tracked despite any changes made to its value or location. Deletions and creations are also known exactly. Tracking provides more precise information than text-based version control systems like git. 
+Two copies of a tracked sequence can be compared to see exactly how they have diverged. The IDs in tracked sequences allow changes made to an item to be tracked despite any changes made to its value or location. Deletions and creations are also known exactly. Tracking provides more precise information than text-based version control systems like git. 
 
-Changes made to one copy can be merged into the other. If changes are merged in both directions the two copies become equal again. Sometimes changes made to both copies are such that merging must lose some information, for example if the same field in the same item is changed to be two different numbers. Merging can be done using an automatic policy to resolve such conflicts, or human intervention can be requested, either immediately in the UI when performing the merge, or later by reifying such conflicts into the document itself (but without breaking the document as textual version-control does).
+Changes made to one copy can be merged into the other. If changes are merged in both directions the two copies become equal again. Sometimes changes made to both copies are such that merging must lose some information, for example if the same item in the same item is changed to be two different numbers. Merging can be done using an automatic policy to resolve such conflicts, or human intervention can be requested, either immediately in the UI when performing the merge, or later by reifying such conflicts into the document itself (but without breaking the document as textual version-control does).
 
-Merging can be done across copies of entire documents. Merging can also apply to documents included inside another document (see _include_ and _variant_). Merging applies to all tracked lists and links within a document. Non-tracked lists (including text) are treated as atomic values that change as a whole.
+Merging can be done across copies of entire documents. Merging can also apply to documents included inside another document (see _include_ and _variant_). Merging applies to all tracked sequences and links within a document. Non-tracked sequences (including text) are treated as atomic values that change as a whole.
 
 TODO: details.
 
@@ -858,26 +880,26 @@ TODO: details.
 
 It is common to need to find and operate on patterns in text. The traditional solutions involve specialized languages with radically different syntax and semantics, such as _regular expressions_ or _parser generators_. Subtext provides these capabilities without the need to learn a specialized sub-language.
 
-A _selection_ is a list that has been divided into three parts, called _before_, _selected_, and _after_. Any of these parts can be empty. We can define a selection to be a list plus two indices `begin` and `end` where `1 ≤ begin ≤ end ≤ length + 1`. A selection is created from a list with
+A _selection_ is a sequence that has been divided into three parts, called _before_, _selected_, and _after_. Any of these parts can be empty. We can think of a selection as a sequence plus two indices `begin` and `end` where `1 ≤ begin ≤ end ≤ length + 1`. A selection is created from a sequence with
 ```
-list selection(.begin := i, .end := j)
+sequence selection(.begin := i, .end := j)
 ```
 where the begin and end indexes default to 1.
 
-Two selections are equal if they are equal as lists and have equal begin and end indexes. A selection is equal to a list if its begin and end indexes are both 1 and the after part is equal to the list. The UI displays a text selection with the selected part highlighted as in a text region selection. If the selection is empty, the UI displays it as a text cursor between two characters, or at the beginning or end. When a text selection is edited, changes to the cursor/selection state in the UI are saved.
+Two selections are equal if they are equal as sequences and have equal begin and end indexes. A selection is equal to a sequence if its begin and end indexes are both 1 and the after part is equal to the sequence. The UI displays a text selection with the selected part highlighted as in a text region selection. If the selection is empty, the UI displays it as a text cursor between two characters, or at the beginning or end. When a text selection is edited, changes to the cursor/selection state in the UI are saved.
 
-Selections are useful when attempting to recognize various patterns in text (or any kind of list, but we focus on text in the following discussion). This process is called _matching_. The most basic matching function is `match?`, which will check that the front of the input text equals the argument text, rejecting otherwise. So:
+Selections are useful when attempting to recognize various patterns in text (or any kind of sequence, but we focus on text in the following discussion). This process is called _matching_. The most basic matching program is `match?`, which will check that the front of the input text equals the second input text, rejecting otherwise. So:
 ```
 'foobar' match? 'foo'
 not{'foobar' match? 'bar'}
 ```
-All matching functions result in selecting the matched portion of the input, so:
+All matching programs result in selecting the matched portion of the input, so:
 ```
 'foobar' match? 'foo'
 check selected() =? 'foo'
 check after() =? 'bar'
 ```
-The input to a matching function can be text or a selection in a text — if it is a selection then matching is done against the **after** part. In that way a sequence of matches will look for a sequence of patterns:
+The input to a matching program can be text or a selection in a text — if it is a selection then matching is done against the **after** part. In that way a sequence of matches will look for a sequence of patterns:
 ```
 'foobar' match? 'foo'
 check selected() =? 'foo'
@@ -895,7 +917,7 @@ Sometimes when matching sequential patterns like this we want to combine the ent
 check selected() =? 'foobar'
 ```
 
-Another useful matching function is `match-number?` which matches a numeric text and returns its numeric value as an extra result `value`. For example:
+Another useful matching program is `match-number?` which matches a numeric text and returns its numeric value as an extra result `~value`. For example:
 ```
 '123foo' 
 match-number?()
@@ -903,7 +925,7 @@ check after() =? 'foo'
 check ~value =? 123
 ```
 
-When a matching function does not see the expected pattern in the input, it rejects. This means it is easy to use try-blocks to test for alternative patterns. Here is a classic example of matching a little languge of addition expressions:
+When a matching program does not see the expected pattern in the input, it rejects. This means it is easy to use `try` structures to test for alternative patterns. Here is a classic textbook example of matching a little languge of addition formulas:
 
 ```
 match-expr? = '' try {
@@ -920,21 +942,21 @@ match-expr? = '' try {
 '(1+(2+3))' match-expr?()
 not{'1+2' match-expr?()}
 ```
-Note how in this example, if one clause of the try-block rejects then the next one is evaluated using the original input selection, which is sometimes called _backtracking_.
+Note how in this example, if one clause of the `try` structure rejects then the next one is evaluated using the original input selection, which is sometimes called _backtracking_.
 
 ### Syntax trees
 
-Recall the `eval-expr` example that evaluated simple arithmetic expressions encoded as a recursive choice `expr`:
+Recall the `eval-expr` example that evaluated simple arithmetic formulas encoded as a recursive choice `expr`:
 ```Txt
 expr: choice {
   literal?: 0
-  plus?: record {
+  plus?: group {
     left: expr
     right: expr
   }
 }
 
-eval-expr = function {
+eval-expr = program {
   x: expr
   try {
     x.literal?
@@ -958,7 +980,7 @@ match-expr? = try literal? = {
   extra right = ~ 
 } else reject
 
-eval-expr = function {
+eval-expr = program {
   ast: match-expr~
   try {
     ast.literal?
@@ -971,11 +993,11 @@ test {
 }
 ```
 
-The extra result of a try-block is a choice, and the extra result of a recursive try-block is a recursive choice. So the extra result of `match-expr` is an AST. The clauses of the try-block are labeled `literal?` and `plus?` like in the `expr` choice. Completing the correspondence, the matched number is returned as the extra result of the `literal?` clause, and the left and right ASTs are returned as named extra results of the `plus?` clause. So the extra result of `match-expr` matches the earlier definition of `expr`.  In `eval-expr`, `ast: match-expr~` says the input of the function must be the extra result of `match-expr`. The rest of the code is identical to `eval-expr`.
+The extra result of a `try` structure is a choice, and the extra result of a recursive `try` structure is a recursive choice. So the extra result of `match-expr` is an AST. The clauses of the `try` structure are labeled `literal?` and `plus?` like in the `expr` choice. Completing the correspondence, the matched number is returned as the extra result of the `literal?` clause, and the left and right ASTs are returned as named extra results of the `plus?` clause. So the extra result of `match-expr` matches the earlier definition of `expr`.  In `eval-expr`, `ast: match-expr~` says the input of the program must be the extra result of `match-expr`. The rest of the code is identical to `eval-expr`.
 
 ### Repeats
 
-Often we want to match a repeating pattern. Here is an example that matches a CSV (comma separated values) text:
+Often we want to match a repeating pattern. Here is an example that matches a CSV (Comma Separated Values) text:
 
 ```
 '1,2,3foo'
@@ -989,24 +1011,24 @@ repeat {
 check =? 'foo'
 ```
 
-This example uses a _repeat-block_, which is Subtext’s form of looping. Unlike traditional loop mechanisms, repeat-blocks are expressed as a _tail recursive_ function: The special call `continue?()` recursively calls the containing repeat block. Like any other call it takes an input value on the left, and arguments if they are defined. But it may only be used where its result will immediately become the result of the whole function (_tail position_).
+This example uses a `repeat` structure, which is Subtext’s form of looping. Unlike traditional loop mechanisms, `repeat` structures are expressed as a _tail recursive_ program: The special call `continue?()` recursively calls the containing repeat structure. Like any other call it takes an input value on the left, and optionally other inputs on the right. But it may only be used where its result will immediately become the result of the whole program (_tail position_).
 
-Tail recursive functions are equivalent to loops, and repeat blocks are actually implemented that way, as a list of calls. In the UI they will be displayed as a list rather than the nesting used for normal function calls. However, unlike traditional loops, repeat blocks do not involve mutable variables — that is replaced by passing new input and argument values to the next iteration. We hypothesize that this is the best of both worlds: the simple iterative semantics of loops, with the clean value semantics of recursion.
+Tail recursive programs are equivalent to loops, and repeat structures are actually implemented that way, as a sequence of calls. In the UI they will be displayed as a sequence rather than the nested inlining used for normal program calls. Unlike traditional loops, repeat structures do not involve mutable variables — that is replaced by passing new input values to the next iteration. We hypothesize that this is the best of both worlds: the simple iterative semantics of loops, with the clean value semantics of recursion.
 
-The recursive call `continue?()` has a question mark because the repeat block can reject. An unconditional `continue()` would be used in an unconditional repeat.
+The recursive call `continue?()` has a question mark because the repeat structure can reject. An unconditional `continue()` would be used in an unconditional repeat.
 
-> Maybe the `continue` call should default all arguments to their value in the current iteration, not the original definition. That would more closely emulate mutable loop variables, and allow forms like `continue(count := + 1)`.
-> 
+> Maybe the `continue` call should default secondary inputs to their value in the current iteration, not the original definition. That would more closely emulate mutable loop variables, and allow forms like `continue(count := + 1)`.
+ 
 > Maybe `continue` should do an early exit to guarantee tail position and simplify conditional structure. 
 > 
-> When repeats are nested it may be useful to have continue specify a name of the block as in `continue foo-loop()`. 
+> When repeats are nested it may be useful to have continue specify a name of the structure as in `continue foo-loop()`. 
 
-> Perhaps a `visit` block that can be multiply-recursive, and collects the extra results in the order of execution, concatenating them as in a “flat map”. Combined with skipping of conditional extras, this allows arbitrary search algorithms to be easily written.
+> Perhaps a `visit` structure that can be multiply-recursive, and collects the extra results in the order of execution, concatenating them as in a “flat map”. Combined with skipping of conditional extras, this allows arbitrary search algorithms to be easily written.
 
  
 ## Repeated extra results
 
-When we parse a CSV we typically want to produce a list of the numeric values. We can do that by adding an extra result:
+When we parse a CSV we typically want to produce a sequence of the numeric values. We can do that by adding an extra result:
 
 ```
 '1,2,3'
@@ -1019,14 +1041,14 @@ csv = repeat {
   }
 }
 
-check csv~ =? (list{0} & 1 & 2 & 3)
+check csv~ =? (sequence{0} & 1 & 2 & 3)
 ```
 
-Recall that the extra result of a do-block is a record, and the extra result of a try-block is a choice. The extra result of a repeat-block is a list, with each item containing the extra result of an iteration of the code block. The statement `extra ~value` declares the result of the block to be the numeric value from the prior call to `match-number?()`. So the extra result of the entire repeat is a list of matched numbers. 
+Recall that the extra result of a `do` structure is a group, and the extra result of a `try` structure is a choice. The extra result of a `repeat` structure is a sequence, with each item containing the extra result of an iteration of the code structure. The statement `extra ~value` declares the result of the structure to be the numeric value from the prior call to `match-number?()`. So the extra result of the entire repeat is a sequence of matched numbers. 
 
 ### Scanning
 
-A scan-block can be used to search for a pattern in text. For example:
+A `scan?` structure can be used to search for a pattern in text. For example:
 ```
 'foo123'
 scan? {match-number?()}
@@ -1034,7 +1056,7 @@ check before() =? 'foo'
 check selected() =? '123'
 check ~value =? 123
 ```
-A scan-block will repeatedly execute the enclosed block until it succeeds. At first the input text or selection is passed to the code in the block, and if it succeeds nothing further is done. But if it fails the block is reexecuted with a selection that skips one character (or item) in the input. This is done by moving the selected part to the before part, and then moving the first item of the after part to the before part. One character at a time is skipped this way until the match succeeds or the end of the text is hit (which causes a reject).
+A `scan?` structure repeatedly executes. At first the input text or selection is passed to the code in the structure, and if it succeeds nothing further is done. But if it fails the structure is re-executed with a selection that skips one character (item) in the input. This is done by moving the selected part to the before part, and then moving the first item of the after part to the before part. One character at a time is skipped this way until the match succeeds or the end of the text is hit (which causes a reject).
 
 Scanning can be combined with replacing text:
 ```
@@ -1048,23 +1070,23 @@ repeat {
 }
 combined() =? 'Some snake-people attacking other snake-people'
 ```
-The `replace-selection` replaces the selected part of the input with the argument text. Note that replacing the selection does not affect subsequent matches, which work on the after-part, so replacement can be done “on the fly”. The `combined()` function at the end converts the final selection back into a plain text by concatenating the before, selected, and after parts.
+The `replace-selection` replaces the selected part of the left-hand input with the right-hand text. Note that replacing the selection does not affect subsequent matches, which work on the after-part, so replacement can be done “on the fly”. The `combined()` call at the end converts the final selection back into a plain text by concatenating the before, selected, and after parts.
 
 ## Missing values
-Nulls are a perennial controversy in PL and DB design. The idea is to add a special value Null to all types of values in order to represent a “missing” or “unknown” value. Unfortunately Null adds complexity and more ways for code to break, or more language features to avoid breaking. FP languages avoid Null values by using Option wrappers (like Subtext choices), but at the cost of continually wrapping and unwrapping values.  NULL in SQL is an acknowledged disaster. We want to avoid this whole mess if possible.
+_Nulls_ are a perennial controversy in PL and DB design. The idea is to add a special value Null to all types of values in order to represent a “missing” or “unknown” value. Unfortunately Null adds complexity and more ways for code to break, or more language features to avoid breaking. FP languages avoid Null values by using Option wrappers (like Subtext choices), but at the cost of continually wrapping and unwrapping values.  NULL in SQL is a widely acknowledged disaster. We want to avoid this whole mess if possible.
 
 We propose a simple solution for missing values that visualizes naturally in the UI:
 
-1. There is a special number called `_number_` that corresponds to an empty numeric field in the UI. Numeric functions treat `_number_` as a special case, as Excel does with empty cells. Unlike IEEE NaN, `_number_` is equal to itself.
+1. There is a special number called `_number_` that corresponds to an empty numeric item in the UI. Numeric programs treat `_number_` as a special case, as Excel does with empty cells. Unlike IEEE NaN, `_number_` is equal to itself.
 2. The empty text represents a missing text.
 3. There are predefined missing values for each media type that serve as placeholders.
-4. The missing value for a record is when all its data fields are missing.
-5. The missing value for a list is when it is empty.
-6. There is no predefined missing value for choices. However as their first option is the default, it can be defined to be something like `NA?: nil` to serve as a missing value if desired. Also see maybe-blocks below.
+4. The missing value for a group is when all its data items are missing.
+5. The missing value for a sequence is when it is empty.
+6. There is no predefined missing value for choices. However as their first option is the default, it can be defined to be something like `NA?: nil` to serve as a missing value if desired. Also see `maybe` structures below.
 
-The `required` constraint (see _Constraints_) checks that a data field does not contain one of the above missing values.
+The `required` constraint (see _Constraints_) checks that a data item does not contain one of the above missing values.
 
-Sometimes we really do need to have a special missing value. The _maybe_ block converts a conditional expression into a choice, like a conventional Option type. For example `maybe{x?}` produces the choice:
+Sometimes we really do need to have a special missing value. The `maybe` structure converts a conditional formula into a choice, like a conventional Option type. For example `maybe{x?}` produces the choice:
 ```Txt
 choice {
   no?: nil
@@ -1073,67 +1095,33 @@ choice {
 ```
 where the the `no?` option is chosen if `x?` rejects, and the `yes?` option is chosen and set to the value of `x?` if it succeeds.
 
-A maybe block is often useful in cases where we would like to set a data field with a conditional expression (which is illegal). For example we might want to use a conditional expression as a function argument so that, instead of rejecting the call, the function itself gets to decide what to do. Wrapping the conditional expression in a maybe block permits that.
+A `maybe` structure is often useful in cases where we would like to set an input item with a conditional formula (which is illegal). For example we might want to use a conditional formula as a program input so that, instead of rejecting the call, the program itself gets to decide what to do. Wrapping the conditional formula in a `maybe` structure permits that. 
 
 ## Types
 
-Subtext has no syntax for describing types: programs only talk about values. All states are defined with a default value, so no type need be specified. For example in the definition `foo: _number_`, `_number_` is not the name of a type — it is just the name of the special missing number. Likewise error messages never talk about types — instead they point to a type mismatch between values at two code locations, additionally referencing the code locations where their types were defined.
+Subtext has no syntax for describing types: programs only talk about values. All inputs are defined with a default value, so no type needs be specified. For example in the definition `foo: _number_`, `_number_` is not the name of a type — it is just the name of the special missing number. Likewise error messages never talk about types — instead they point to a type mismatch between values at two code locations, additionally referencing the code locations where their types were defined.
 
 We believe that type systems are an essential formalism for language theoreticians and designers, but that many language users would prefer to obtain their benefits without having to know about them and write about them.
 
-Field names are nominal, which ironically means that their names are irrelevant (unlike structural systems where the spelling of a field’s name identifies it). Every time a field is defined a globally unique ID is assigned to it. There is a document-wide dictionary that maps these field IDs to their current names. Renaming a field just changes that dictionary entry. So the following two definitions look similar but define two different `a` fields.
-```
-x: data {a: 0}
-y: data {a: 1}
-check x not=? y	// type error!
-```
-If we want `x` and `y` to be the same type, we would say instead:
-```
-x: data {a: 0}
-y: x do{a: 1}
-check x not=? y
-```
-Here the use of `a` in the second line is “bound” to the ID of `a` defined in the first line.
+In PL theory terms, Subtext mixes aspects of structural and nominal type systems. It is structural in that `x = sequence{0}` and `y = sequence{1}` have the same type. It is nominal in that `x = group {a: 0}` and `y = group {a: 0}` have different types. Every time an item is defined a globally unique ID is assigned to it. There is a document-wide dictionary that maps these item IDs to their current names. Renaming an item just changes that dictionary entry. Type equality requires that item IDs be equal, not that their names are currently spelled the same.
 
-We don’t have function types or higher-order values. Two values have the same type if they have the same data type and all embedded code is equal (modulo internal paths). Value equality requires type equality, so equal values are behaviorally equivalent, i.e. referentially transparent.
+> TODO: To share item definitions across different types of structures we can use a traits-like mechanism that merges and restricts structures. Defer until we have the need.
 
-> TODO: To share common field definitions across different types of blocks we can use a traits-like mechanism that merges and restricts blocks. Defer until we have the need.
+Subtext doesn’t have function types or higher-order values. Two values have the same type if they have the same data type and all embedded code is equal (modulo internal paths). Value equality requires type equality, so equal values are behaviorally equivalent, i.e. referentially transparent.
 
-Generic (parametrically typed) functions are defined with the `generic{...}` code block. For example the `&` function to add rows to a table has the signature:
+Generic (parametrically typed) programs are defined with inputs using the special top value `anything`. For example the `&` program to add items to a sequence has the signature:
 
 ```
-& ()= table of {} generic {
-  assert $ table?()  // subject must be a table
-  row: $ template()  // argument must be type of table template
+& = do {
+  input: sequence {anything} // input must be a sequence
+  item: input[]              //  item must match sequence template
 }
-table of 0 & 1      // this is OK
-table of 0 & ''		// this will report a static type mismatch error
-table of 0 & ()     // this uses the default template value of the subject
+sequence{0} & 1      // this will insert 1
+sequence{0} & ''	 // this will report a type mismatch static error
+sequence{0} &()      // this will insert 0
 ```
 
-A generic function can be called with a subject of any type value. Every call of a generic function will recompute the argument default values based on the actual subject type and value. Arguments to the call are type-checked against those new defaults. Note that type checking is still static: every call to a generic function gets statically checked — types can not vary dynamically, only across different calls. In PL theoretic terms, generic functions are parametric in the type of the subject at each call site. It is notable that we acheive this without introducing an explicitly parametric type system with type variables like `<T>`, which is notoriously baffling to beginners. Yet unlike template meta-programming, we retain static type checking at call sites for understandable errors.
-
-As a consequence of the above semantics, all functions (whether or not generic) have _dynamic defaults_. The expression defining the default value of an argument is recomputed from the actual value of the subject. If those default expressions make reference to locations outside the function, then their current value will be used.
-
-## Semantics
-
-In PL terms, code blocks are pure on the outside but imperative on the inside. While they can be seen as internally mutating locations within their subject, they have no effect on any state outside themselves. All they can do is return a changed subject value, which their caller may in turn use to mutate its own subject value.
-
-
-The subject of a code block can be the entire document, and in fact the document history is exactly that: a record of all actions performed on the document, with the changing document state passed as the subject between commands. Every time a user performs an action a new command executing it is added to be end of the history block. The current state of the document is the final result of the history block. Changes to the document, which appear to be stateful global effects, are really local changes within the document history. So while code blocks have no external effects, we still see changes happening because we are living inside a code block.
-
-> FIXME: Steve says above confusing. “code feels like you are mutating”. Make imperative code functional instead of vice-versa. Explain interaction model better.
-
-
-### Determinism
-Subtext is deterministic: every code block’s end value is purely a function of its input subject, arguments, and the prior state of the document. History is also deterministic, because it records all user actions and external inputs (including sources of randomness) that affect the state of the document. Thus the current and prior states of the document can be exactly reproduced by replaying history.
-
-### Termination
-Sometimes code takes too long to execute, or consumes too many internal resources.
-
-> TBD. Simplest solution is that doc becomes read-only while reacting to an input, and then the results are shown atomically at completion. If computation takes too long the user can terminate it, which cancels the entire input action and leaves the document in its prior state. The input action remains in the history though and can be redone later if desired. Exceeding resource quotas (like stack size) would also terminate computation. However it would be nicer to be able to interrupt a long-running execution, observe it’s execution so far, and resume if desired.
-
-
+A generic program is one with an input containing `anything`. The program can be called with any input value where the `anything` occurs. Every call of a generic program will recompute the input default values based on the actual input values before setting value from the call. Inputs to the call are type-checked against those new defaults. Note that type checking is still static: every call to a generic program gets statically checked — types can not vary dynamically, only across different call-sites. It is notable that we acheive parametric types without introducing an explicitly parametric type system with type variables like `<T>`, which are notoriously baffling to beginners. Yet unlike template meta-programming, we retain static type checking at call sites for comprehensible errors.
 
 # Appendix: Glossary
 
@@ -1156,17 +1144,17 @@ Label := Name | Operator | Ordinal
 Name := [a-z A-Z] ([a-z A-Z 0-9 _ \-]* [[a-z A-Z 0-9])? '?'?
 // names can't be keywords
 // underscore renders as space in UI
-Ordinal := [1-9][0-9]*		// positional field access - internal use only
+Ordinal := [1-9][0-9]*		// positional item access - internal use only
 Operator := '+'|'-'|'*'|'/'|'=?'|'not=?'|'>?'|'>=?'|'<?'|'<=?'|'&'
 
-Doc := Field*
+Doc := item*
 
-Field := Statement Sep
+item := Statement Sep
 
 Statement :=
 	| Name ':' Qualifier* Expr				// state - 'name is'
 	| Name '=' Qualifier* Expr				// formula - 'name equals'
-	| Name '()=' Expr						// function - 'name of'
+	| Name '()=' Expr						// program - 'name of'
 	| (Name '=')? Path? ':=' ContextExpr	// 'set to'
 	| (Name '=')? Check Expr ('error' text)?
 	| 'assert' ContextExpr
@@ -1174,7 +1162,7 @@ Statement :=
 
 Check := 'check' | 'not'
 
-// field/argument seaparated by comma or new-line
+// item/argument seaparated by comma or new-line
 Sep := ',' | '\n'
 
 Qualifier :=
@@ -1194,22 +1182,22 @@ ContextExpr := Value? Op*
 Value :=
 	| Atom
 	| Path
-	| '$'					// subject of containing code block
+	| '$'					// subject of containing code structure
 	| '_'					// default subject: current value on LHS of :=
-	| 'input'				// Input subject of containing expression?
-	| 'data' Block
-	| 'choice' Block
-	| 'table' Block
+	| 'input'				// Input subject of containing formula?
+	| 'data' structure
+	| 'choice' structure
+	| 'table' structure
 	| 'table' 'of' Value
 	| 'maybe'? ('one' | 'some') 'in' Path ('reflecting' Name)?
 
-Block := '{' Field+ '}'
+structure := '{' item+ '}'
 
 Op :=
-	| Path (Value | Arguments)		// function call
+	| Path (Value | Arguments)		// program call
 	| Step*							// path following
 	| Conditional
-	| Control Block
+	| Control structure
 
 Arguments := '(' Argument* ')' '~'?
 Argument := (Label ':=')?  ContextExpr Sep
@@ -1231,15 +1219,15 @@ Control :=
 	| 'selecting'
 
 Conditional := 'try' FirstClause ElseClause* LastClause?
-FirstClause := ( Name '=' )? Block
-ElseClause := ( Name '=' )? 'else' Block
+FirstClause := ( Name '=' )? structure
+ElseClause := ( Name '=' )? 'else' structure
 LastClause := ( Name '=' )? 'else' ( 'ok' | 'reject)
 
 Path := Label? Step*
 Step :=
 	| '.' Label				// data
 	| '~' Label				// associated result
-	| '~'					// expression body
+	| '~'					// formula body
 	| '^' Label				// metadata - internal use only
 	| '[' ContextExpr ']'	// Index
 ```
