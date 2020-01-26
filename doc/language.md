@@ -19,7 +19,7 @@ These goals require changing not just the programming language but the entire pr
 
 This section summarizes the notable programming language features of Subtext.
 
-* The traditional terminology of programming languages and software development is rejected in favor of plain English, though we continue to use the old words in this sequence.
+* The traditional terminology of programming languages and software development is rejected in favor of plain English. We continue to use traditional terminology in this section.
 * Subtext specifies how to pronounce its syntax.
 * Code and data are combined into autonomous documents that provide reproduceability, collaboration, version control, and schema change. Documents change both through direct manipulation by users and executing code within the document.
 * Everything is nestable: programs, databases, and documents can all be nested inside each other. A Subtext document is a tree.
@@ -27,15 +27,15 @@ This section summarizes the notable programming language features of Subtext.
 * Subtext is both a PL and a DB: data is either persistent and transactional, or determinstically computed from such persistent data.
 * What a user can do by direct manipulation of data and what code can do when executed are similar. The recorded history of user interactions and external inputs is in fact a program that can replay that history, or be used as raw material for Programming by Demonstration.  Conversely, a program can be understood as a script that a user could follow to perform the same operations. The language syntax and semantics have been designed to make these connections as direct as possible. For example, the syntax for replacing a value at a path within a tree, which looks like an assignment statement, is used to record user edits in the history.
 * All code is strict, pure, and referentially transparent.
-* Program execution is materialized as data, completely visible to the programmer using the same UI as for data. Materialized execution takes the LISP idea that _syntax is data_ and applies it to semantics: _execution is data_. Straight-line code is a record, loops are sequences, and conditionals are discriminated unions. Calling is inlining.
+* Program execution is materialized as data, completely visible to the programmer using the same UI as for data. Materialized execution takes the LISP idea that _syntax is data_ and applies it to semantics: _execution is data_. Straight-line code is a record, loops are lists, and conditionals are discriminated unions. Calling is inlining.
 * Materialized execution has an unconventional semantics: rather than seeing programs as _reducing to results_, they are seen as _expanding to traces_.
 * One IF to rule them all: there is a single mechanism of conditionality: partial programs which either return a result or reject their input. Inspired by SNOBOL, this single mechanism provides conventional control structures, backtracking logic, pattern matching, assertions, and data invariants.
 * Programs are not abstract entities, defined in one place then used in others. Instead programs, sometimes represented as formulas, compute a result from concrete inputs. Any such computation can be reused, with a conventional-looking call syntax, optionally replacing its input values. All programs are continuously executing on concrete input values. Programs can be edited live, immediately seeing the execution results, as in a spreadsheet.
 * Calling a program is materialized as inlining a copy of it. Lexical closures fall out of the way that relative paths within a subtree are mapped through copies.
-* programs can have extra results, which do not need to be captured at the call site as in conventional approaches. The extra results of a program are a record. Extra results of conditional clauses are combined into a discriminated union. The extra results of a loop are collected into a sequence.
+* programs can have extra results, which do not need to be captured at the call site as in conventional approaches. The extra results of a program are a record. Extra results of conditional clauses are combined into a discriminated union. The extra results of a loop are collected into a list.
 * Subtext is statically (parametrically) typed, but types are not mentioned in the language nor error messages. Concrete values serve as witnesses of types. 
-* There is one kind of sequential collection, which when containing records serves as a table.
-* Sequences can be tracked by automatically assigning hidden unique IDs to their items. Tracking supports stable links into sequences that serve as foreign keys in databases. Tracking also supports precise document versioning and mergeing. 
+* Lists are homogeneuoulst typed. Lists of records serve as a table.
+* Lists can be tracked by automatically assigning hidden unique IDs to their items. Tracking supports stable links into lists that act like database foreign keys with referential ingegrit maintenance. Tracking also supports precise document versioning and mergeing. 
 
 ### Intentionally excluded features
 
@@ -49,20 +49,20 @@ This section summarizes the notable programming language features of Subtext.
 The artifact that Subtext mediates is called a _document_. It is somewhat like a spreadsheet (e.g. Excel) in that it presents both data and formulas in a visual metaphor that is easy to learn. It is somewhat like a notebook (e.g. Jupyter) in that it offers the full power of a programming language. These artifacts are characterized by their geometry: notebooks are a linear sequence of cells; spreadsheets are a 2-dimensional grid of cells; Subtext documents are a tree of nested cells called _items_. There are many types of items, explained in the following:
 
 - Items are a holder for a value of some type
-- The value of an item is either an _atom_, a _structure_, or a _sequence_
+- The value of an item is either an _atom_, a _structure_, or a _series_
 - Atoms can be one of several types of basic values: numbers, characters, times, images, etc. Atoms do not contain any other items, and occupy the bottom of the document tree
-- Structures and sequences are built out of other items, called their contents. They differ on how the contents are organized. 
-- Structures contain a fixed set of items, like conventional records, structs, or objects. Each item defines the type of it’s value. Often the items of a structure are given unique names, but when used as intermediate computations they may be left anonymous. The top item of a document is a _head_ structure. The _history_ of a document is a structure containing heads.
-- Sequences contain a variable number of items all of the same type in a linear order, like conventional arrays or lists. _Text_ is a sequence of _characters_. A sequence of structures is called a _table_.
+- Structures and series are built out of other items, called their contents. They differ on how the contents are organized. 
+- A structure contains a fixed set of items, like conventional records, structs, or objects. Each item has a fixed type of value. Often the items of a structure are given unique names, but when used as intermediate computations they may be left anonymous. The top item of a document is a _head_ structure. The _history_ of a document is a structure containing heads.
+- A series contains a variable number of items all of the same type in a linear order, like conventional arrays or lists. _Text_ is a series of _characters_. A series of structures is called a _table_.
 
 The tree structure of Subtext documents strikes a balance: they are more flexible and dynamic than the grid of a spreadsheet, yet simpler and more visualizable than the graph-structured data of imperative programming languages. They are somewhat like the tree-structured values of programal programming languages, except that:
 
 - Items (called _inputs_) can be changed by the user and programs.
 - Items (called _outputs_) can be automatically derived from the state of other portions of the document as they change.
 - The same structures are used to represent data and programs (as in LISP), but they also represent the execution of programs for inspection by the developer.
-- There are cross-references within the tree. Cross-references can be dynamic only to the extent of selecting different items within a specific sequence — other than that, cross-references are static.
+- There are cross-references within the tree. Cross-references can be dynamic only to the extent of selecting different items within a specific series — other than that, cross-references are static.
 
-Subtext is statically typed, which conventionally means that the code and the types of values are fixed at _compile time_ and do not vary at _run time_. But there is no such thing as compile time in Subtext documents, which are always running and fully editable with their state stored persistently in a file. Subtext distinguishes between two kinds of changes: modifying data and editing the definitions of prgrams and data. It is possible to lock a document so that only data modifications are allowed — this is called _user mode_. In user mode data changes are highly constrained: data types are fixed. For example a number can’t be changed into text, and a newly created item in a sequence will have the same type as all the others. Only certain kinds of errors can occur in user mode. In _programming mode_ anything can be changed, which can lead to various sorts of inconsistencies called _static errors_, corresponding to the errors a traditional compiler might report. Static errors are reported to the programmer as problems in the document to be resolved, but unlike compiled languages, the document continues to program outside the implicated parts.
+Subtext is statically typed, which conventionally means that the code and the types of values are fixed at _compile time_ and do not vary at _run time_. But there is no such thing as compile time in Subtext documents, which are always running and fully editable with their state stored persistently in a file. Subtext distinguishes between two kinds of changes: modifying data and editing the definitions of prgrams and data. It is possible to lock a document so that only data modifications are allowed — this is called _user mode_. In user mode data changes are highly constrained: data types are fixed. For example a number can’t be changed into text, and a newly created item in a series will have the same type as all the others. Only certain kinds of errors can occur in user mode. In _programming mode_ anything can be changed, which can lead to various sorts of inconsistencies called _static errors_, corresponding to the errors a traditional compiler might report. Static errors are reported to the programmer as problems in the document to be resolved, but unlike compiled languages, the document continues to program outside the implicated parts.
 
 Although Subtext is statically typed in the above sense, there is no mention of types in the language syntax or error messages, because concrete values serve as witnesses of their types (see _Types_).
 
@@ -84,7 +84,7 @@ Subtext provides several kinds of values out of which documents are built:
 
 ## Structures, formulas, and programs
 
-One way Subtext documents are constructed is with _structures_ (the other is _sequences_) . A structure contains a fixed set of items with (optional) names. Structures are defined in the syntax with curly brackets preceded by a keyword indicating the kind of structure. Structures are used for both data and programs. A common data structure is the _record_, which is like a struct or object in other languages, and like a row in a relational databases. For example:
+One way Subtext documents are constructed is with a _structure_ (the other is a _series_) . A structure contains a fixed set of items with (optional) names. Structures are defined in the syntax with curly brackets preceded by a keyword indicating the kind of structure. Structures are used for both data and programs. A common data structure is the _record_, which is like a struct or object in other languages, and like a row in a relational databases. For example:
 ```
 b: record {
   x: 0
@@ -424,7 +424,7 @@ polarity = do {
 }
 x = 1 polarity() // = 'positive'
 ```
-A `try` structure contains a sequence of `do` structures called _clauses_, separated by the `else` keyword. The first clause is executed, and if it succeeds its result becomes the result of the entire `try` structure, skipping all the other clauses. But if the first clause rejects, then the second clause will be executed, and if it succeeds it supplies the result of the `try` structure and skips the rest. Successive clauses are executed until one succeeds. The results of all the clauses must be the same type of value, otherwise it is a static error (except maybe this isn’t an error for `check try`)
+A `try` structure contains `do` structures called _clauses_, separated by the `else` keyword. The first clause is executed, and if it succeeds its result becomes the result of the entire `try` structure, skipping all the other clauses. But if the first clause rejects, then the second clause will be executed, and if it succeeds it supplies the result of the `try` structure and skips the rest. Successive clauses are executed until one succeeds. The results of all the clauses must be the same type of value, otherwise it is a static error (except maybe this isn’t an error for `check try`)
 
 If none of the clauses succeeds the `try` structure crashes. This is considered a programming error: a `try` structure must exhaustively test all possible cases.  _In the future we will try to infer exhaustiveness statically, but for now it is a dynamic check._ To reject instead of crashing, the statement `else reject` can be placed at the end of the `try` structure. For example:
 
@@ -588,32 +588,32 @@ eval-expr = do {
 
 Here the first try clause accesses the `literal?` option. If it was chosen, its numeric value becomes the result. But if `plus?` was chosen, then the first clause will reject and the second will execute instead, recursively evaluating the `left` and `right` items of the `plus?` option and then adding them together. We get pattern matching “for free” because accessing an option makes the entire containing try clause conditional on that option having been choosen.
 
-## Sequences and tables
+## Series and tables
 
-So far we have discussed various kinds of structures. The other way that Subtext documents are built is with _sequences_. A sequence is an ordered set of zero or more items containing values of the same fixed type. A _text_ is a sequence of characters. A _table_ is a sequence of structures (typically records), its items are called _rows_, and the items of the structure define the _columns_ of the table. Every sequence defines a value, called it’s _template_, which sets the default value for newly created items. For example:
+So far we have discussed various kinds of structures. The other way that Subtext documents are built is with _series_. A series is an ordered set of zero or more items containing values of the same fixed type. A _text_ is a series of characters. A _table_ is a series of structures (typically records), its items are called _rows_, and the items of the structure define the _columns_ of the table. Every series defines a value, called it’s _template_, which sets the default value for newly created items. For example:
 ```
-numbers: sequence {0}
+numbers: series {0}
 customers: table {
   name: ''
   address: ''
 }
 ```
-The sequence `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: sequence {record {...}}`. The table contains columns `name` and `address` defaulting to the empty text. 
+The series `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: series {record {...}}`. The table contains columns `name` and `address` defaulting to the empty text. 
 
-All sequences are initially created as empty. Text is a sequence of characters with the space character as the template, so `'' =? sequence{\ }`
+A series is initially created as empty. Text is a series of characters with the space character as the template, so `'' =? series{\ }`
 
-The `&` program (pronounced “and”) is used to create items in a sequence. For example:
+The `&` program (pronounced “and”) is used to add items to a series. For example:
 ```
 n = numbers & 1 & 2 & 3
 c = customers & do{.name := 'Joe', .address := 'Pleasantown, USA'}
 ```
-The `&` program takes a sequence as it’s left input and an item value as its right input, resulting in a sequence equal to the input plus a new item with that value. The default value of the item is the template of the seqence. In a table it is often convenient to use a `do` structure as above to set some of the columns and let the others default to their template values.
+The `&` program takes a series as it’s left input and an item value as its right input, resulting in a series equal to the input plus a new item with that value. The default value of the item is the template of the seqence. In a table it is often convenient to use a `do` structure as above to set some of the columns and let the others default to their template values.
 
-The `&&` program concatenates sequences: `sequence1 && sequence2` is a copy of `sequence1` with all the items from `sequence2` added to its end. The two sequences must have the same type template.
+The `&&` program concatenates two seriess: `series1 && series2` is a copy of `series1` with all the items from `series2` added to its end. The two series must have the same type template.
 
-The items in a sequence are numbered starting at 1 for the first item. This number is called the item’s _index_. The number of items (not counting the template) is called the sequence’s _length_, available by calling the `length()` program. 
+The items in a series are numbered starting at 1 for the first item. This number is called the item’s _index_. The number of items in a series (not counting the template) is called its _length_, available by calling the `length()` program. 
 
-An item in a sequence can be accessed via its index using square brackets, as in:
+An item in a series can be accessed via its index using square brackets, as in:
 ```
 n = numbers & 1 & 2
 check n[1] =? 1
@@ -626,13 +626,13 @@ x = n[i]
 check x~index =? i
 ```
 
-The template of a sequence is accessed with `sequence[]`. The formula `sequence[i]` will crash if `i` is fractional or non-positive or larger than the length of the sequence. You can test if an index is valid with:
+The template of a series is accessed with `series[]`. The formula `series[i]` will crash if `i` is fractional or non-positive or larger than the length of the series. You can test if an index is valid with:
 ```
-sequence at? i 
+series at? i 
 ```
-which returns the item if the index is valid (and the index in `~index`), or rejects otherwise. The programs `first?()` and `last?()` will return the first and last item repectively, rejecting if the sequence is empty. 
+which returns the item if the index is valid (and the index in `~index`), or rejects otherwise. The programs `first?()` and `last?()` will return the first and last item repectively, rejecting if the series is empty. 
 
-Items in a sequence can be updated individually by index by using square brackets to the left of `:=`:
+Items in a series can be updated individually by index by using square brackets to the left of `:=`:
 ```
 n = numbers & 1 & 2
 test {
@@ -655,18 +655,18 @@ test {
 }
 ```
 
-We can delete an item in a sequence with the `delete` program, which results in a sequence with that item removed (crashing if there is no such row):
+We can delete an item in a series with the `delete` program, which results in a series with that item removed (crashing if there is no such row):
 ```
-sequence delete i
+series delete i
 ```
 
-We can delete all items from a sequence with the `clear` program.
+We can delete all items from a series with the `clear` program.
 ```
-sequence clear() length() =? 0
+series clear() length() =? 0
 ```
 
 ### Columns
-A column of a table is a sequence containing the contents of one of the structure items from each row. The columns of a table are accessed using `.` as if the table was a structure containing the columns. For example:
+A column of a table is a series containing the contents of one of the structure items from each row. The columns of a table are accessed using `.` as if the table was a structure containing the columns. For example:
 
 ```
 t = do {
@@ -689,40 +689,42 @@ test {
   .t.amount := (clear() & 150 & 200)
 }
 ```
-A column  can only be replaced with a sequence of the same length as the table, otherwise it will crash. In a tracked tabled (see below) no insertions, deletion, or moves can have happened in the column.
+A column  can only be replaced with a series of the same length as the table, otherwise it will crash. In a tracked tabled (see below) no insertions, deletion, or moves can have happened in the column.
 
 When a table column is conditional, meaning the corresponding structure item is a conditional output, then the column will skip all items where the item rejected. 
 
-### Sorted sequences
+### Sorted series
 
-Normally, new items are added to the end of a sequence. But a sequence can be defined as _sorted_, which means the items will be automatically kept in order of increasing value, or _reverse sorted_, which keeps then in order of decreasing value. Tables, whose items are structures, use lexicographical ordering, where the first column is the most significant. Thus
+Normally, items are added to the end of a series. But a series can be defined as _sorted_, which means the items will be automatically kept in order of increasing value, or _reverse sorted_, which keeps then in order of decreasing value. Tables, whose items are structures, use lexicographical ordering, where the first column is the most significant. Thus
 ```
 customers: sorted table {
   name: ''
   address: ''
 }
 ```
-will order the rows alphabetically by name, and duplicate names by address. Sequences can be converted between different sortings with the programs `sorted()` `reverse-sorted()` `unsorted()`. 
+will order the rows alphabetically by name, and duplicate names by address. A series can be converted into one with the same items but sorted differently with the programs `sorted()` `reverse-sorted()` `unsorted()`. 
 
-When a sequence is not sorted, new items can be inserted anywhere into the sequence using:
+When a series is not sorted, new items can be inserted at any position using:
 ```
-sequence insert(item, at: i)
+series insert(item, at: i)
 ```
-where 1 ≤ `i`  ≤ length + 1. The new item will then have the index `i`. An item already in the sequence can be moved using:
+where 1 ≤ `i`  ≤ length + 1. The new item will then have the index `i`. An item already in the series can be moved using:
 ```
-sequence move(i, at: j)
+series move(i, at: j)
 ```
 where 1 ≤ `j` ≤ length + 1.
 
-Two sequences are considered equal by the `=?` program when they have the same number of items with equal values in the same order. The `=?` program can only be used to compare sequences with equal templates (not just the same type!) and the same kind of sorting — it is a static error otherwise. These constraints are necessary to preserve the property that calling a program with equal inputs produces equal results, specifically the `&` program creating new items.
+Two series are considered equal by the `=?` program when they have the same number of items with equal values in the same order, and their templates are equal. The `=?` program can only be used to compare series with templates of the same type and the same kind of sorting — it is a static error otherwise. These constraints are necessary to preserve the property that calling a program with equal inputs produces equal results, specifically the `&` program creating new items.
+
+> Maybe we need `currently=?` to compare ignoring the values of the templates, which only affect new insertions.
 
 ## Searching
 
-A `find` structure searches in a sequence:
+A `find` structure searches in a series:
 ```
 joe = customers find? {check .name =? 'Joe'}
 ```
-The `find?` structure is executed like a `do` repeatedly with items from the sequence as its input value, starting with the first item and continuing until it does not reject. The result is the first non-rejected item, with `~index` set to the index. If all the items are rejected, the entire `find?` rejects (hence the suffix `?`).
+The `find?` structure is executed like a `do` repeatedly with items from the series as its input value, starting with the first item and continuing until it does not reject. The result is the first non-rejected item, with `~index` set to the index. If all the items are rejected, the entire `find?` rejects (hence the suffix `?`).
 
 Note that in this example the program structure contains no input item — the input is referenced implicitly with `.name ...`. If we outline it in the UI we will see that one is created automatically to display the input value:
 ```
@@ -734,17 +736,17 @@ joe = do {
   }
 }
 ```
-The code is defined to input from the sequence template, and in each iteration that input item will be set from a successive item of the sequence.
+The code is defined to input from the series template, and in each iteration that input item will be set from a successive item of the series.
 
-A `find-last?` does the same thing as `find?` except that it scans the table backwards. A `find-only?` succeeds if there is exactly one match, and rejects if there are none or more than one. A useful special case is `sequence sole?()`, resulting in the single item of the sequence, rejecting if the sequence has 0 or multiple items. Another is `find-unique?{...}` that finds all matches and rejects if there are none or they are not all equal.  
+A `find-last?` does the same thing as `find?` except that it scans the table backwards. A `find-only?` succeeds if there is exactly one match, and rejects if there are none or more than one. A useful special case is `series sole?()`, resulting in the single item of the series, rejecting if the series has 0 or multiple items. Another is `find-unique?{...}` that finds all matches and rejects if there are none or they are not all equal.  
 
 ### Replacing and aggregating
 
-A `for-each` structure will evaluate a `do` structure on each item of a sequence in order, resulting in an unsorted sequence with items containing the results in the same order. If an item is rejected, it is left out of the result. The `for-all?` structure is like `for-each` except it rejects if the code structure rejects on any item, otherwise resulting in the replaced table. The `for-none?` structure does the opposite, rejecting if the code structure accepts any item, otherwise resulting in the input sequence. For example:
+A `for-each` structure will evaluate a `do` structure on each item of a series in order, resulting in an unsorted series with items containing the results in the same order. If an item is rejected, it is left out of the result. The `for-all?` structure is like `for-each` except it rejects if the code structure rejects on any item, otherwise resulting in the replaced table. The `for-none?` structure does the opposite, rejecting if the code structure accepts any item, otherwise resulting in the input series. For example:
 
 ```
 test {
-  l = sequence{0} & 1 & 2 & 3
+  l = series{0} & 1 & 2 & 3
   
   // replace each item with result of structure on it (like programal map)
   check l for-each {+ 1} =? (clear() & 2 & 3 & 4)
@@ -763,9 +765,9 @@ test {
 }
 ```
 
-An `aggregate` structure is used to accumulate a result by scanning a sequence.
+An `aggregate` structure is used to accumulate a result by scanning a series.
 ```
-sequence{0} & 1 & 2
+series{0} & 1 & 2
 aggregate {
   item: that
   sum: 0
@@ -773,25 +775,25 @@ aggregate {
 }
 check =? 3
 ```
-An aggregate structure must define two input items. The structure will be executed repeatedly, like a `for-each`, feeding items from the input sequence into the first input item. In this example we called the first input `item`, and define it from the default template value referenced as `that`. 
-The second input (`sum`) acts as an accumulator. On the first call it defaults to the defined value (0). On the second and subsequent calls, `sum` is set to the result of the previous call. This example is equivalent to the built-in `sum()` program that sums a sequence of numbers. If the program rejects an item then it will be skipped and the accumulator value will be passed on to the next call. An `aggregate` is  like a conventional _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `s sum(100)`).
+An aggregate structure must define two input items. The structure will be executed repeatedly, like a `for-each`, feeding items from the input series into the first input item. In this example we called the first input `item`, and define it from the default template value referenced as `that`. 
+The second input (`sum`) acts as an accumulator. On the first call it defaults to the defined value (0). On the second and subsequent calls, `sum` is set to the result of the previous call. This example is equivalent to the built-in `sum()` program that sums a series of numbers. If the program rejects an item then it will be skipped and the accumulator value will be passed on to the next call. An `aggregate` is  like a conventional _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `s sum(100)`).
 
-## Tracked sequences
+## Tracked series
 
-A sequence can be defined to be _tracked_. A tracked sequence automatically assigns a unique ID to each item when it is created. The ID is used to precisely track changes to the item. Such IDs are called _surrogate keys_ in databases. The tracking ID is hidden from the user and programmer. Tracking allows two important capabilities:
+A series can be defined to be _tracked_. A tracked series automatically assigns a unique ID to each item when it is created. The ID is used to precisely track changes to the item. Such IDs are called _surrogate keys_ in databases. The tracking ID is hidden from the user and programmer. Tracking allows two important capabilities:
 
-1. Relationships between tracked sequences can be maintained, similar to relational databases, but without requiring that every item contain a unique and immutable key.
-2. Tracked sequences can be versioned and merged, similar to version control systems like git, except more precisely. 
+1. Relationships between tracked series can be maintained, similar to relational databases, but without requiring that every item contain a unique and immutable key.
+2. Tracked series can be versioned and merged, similar to version control systems like git, except more precisely. 
 
-Two tracked sequences are equal if their items are not only equal but also were created in the same relative order, including all items that were deleted. Tracked equality means that the sequences not only have the same current state but also effectively the same history of changes.
+Two tracked series are equal if their items are not only equal but also were created in the same relative order, including all items that were deleted. Tracked equality means that the series not only have the same current state but also effectively the same history of changes.
 
-> Tracked sequences could offer sorting by creation time, and creation-time could be used to order duplicates in a sequence sorted by value.
+> Tracked series could offer sorting by creation time, and creation-time could be used to order duplicates in a series sorted by value.
 
-> The IDs in tracked sequences are implemented as monotonically increasing serial numbers within the sequence, as in an “auto-increment” item in a relational database. We are not exposing this because merging can renumber items.
+> The IDs in tracked series are implemented as monotonically increasing serial numbers within the series, as in an “auto-increment” item in a relational database. We are not exposing this because merging can renumber items.
 
 ### Links
 
-Links are used to store user-modifiable references to items from outside the sequence. A common scenario is what relational databases call _foreign keys_, where rows in one table reference rows in another:
+Links are used to store user-modifiable references to items from outside the series. A common scenario is what relational databases call _foreign keys_, where rows in one table reference rows in another:
 
 ```
 customers: tracked table {
@@ -804,7 +806,7 @@ orders: tracked table {
 }
 ```
 
-The `customer` item of `orders` rows is a _link_. Links designate a sequence they reference into (called the _target_), and a constraint on the number of linked items they permit. In this example, exactly one customer must be linked. The number of linked items can be constrained in several ways:
+The `customer` item of `orders` rows is a _link_. Links designate a series they reference into (called the _target_), and a constraint on the number of linked items they permit. In this example, exactly one customer must be linked. The number of linked items can be constrained in several ways:
 ```
 one in customers         // exactly 1 item
 maybe one in customers   // 0 or 1 items
@@ -812,21 +814,21 @@ some in customers        // 1 or more items
 maybe some in customers  // 0 or more items
 ```
 
-A link records a subset of the IDs in its target sequence. Links are equal when their target sequences are equal and they link the same items. A link is edited in the UI with something like a pick-list of the items in the target sequence (and radio buttons for a singular link). Links can be modified with several programs that produce modified links:
+A link records a subset of the IDs in its target series. Links are equal when their target series are equal and they link the same items. A link is edited in the UI with something like a pick-list of the items in the target series (and radio buttons for a singular link). Links can be modified with several programs that produce modified links:
 ```
 l link i                  // add link to item with index i in target
 l unlink i                // unlink item with index i in target
 l links? i                // rejects if target index i is not linked
 l clear()                 // unlink everything
-l link-all sequence       // link all IDs from another sequence or link
-l unlink-all sequence     // unlink all IDs from another sequence or link
-l copy sequence           // clear and link-all
+l link-all series         // link all IDs from another series or link
+l unlink-all series       // unlink all IDs from another series or link
+l copy series             // clear and link-all
 ```
 
-Links act in some ways as if they were a sub-sequence containing the linked items in their order in the target sequence, for example they can be indexed with `[...]` and searched with `find?{...}`. But note the indexes used in those examples are the index within the links, not the index in the target sequence. We can access the underlying target sequence with:
+Links act in some ways as if they were a sub-series containing the linked items in their order in the target series, for example they can be indexed with `[...]` and searched with `find?{...}`. But note the indexes used in those examples are the index within the links, not the index in the target series. We can access the underlying target series with:
 
 ```
-l target()        // copy of the target sequence
+l target()        // copy of the target series
 l target-index i  // converts index within links to index in target
 ```
 
@@ -860,7 +862,7 @@ customers: table {
 
 
 ### TODO: Nested links
-Links can target nested sequences, linking to a path of IDs. Reflecting links can cross multiple layers of containing sequences. Cardinality constraints are specified seperately for each level of nesting. 
+Links can target nested series, linking to a path of IDs. Reflecting links can cross multiple layers of containing series. Cardinality constraints are specified seperately for each level of nesting. 
 
 ### TODO: link updates and referential integrity
 
@@ -868,11 +870,11 @@ Links can target nested sequences, linking to a path of IDs. Reflecting links ca
 
 Copies happen. Documents get shared as email attachments. Documents get imported into other documents. Inevitably both the copy and the original change. Tracking allows such changes to be later sent to the other version without wiping out all the changes that have happened to it in the meantime. This is called _merging_. 
 
-Two copies of a tracked sequence can be compared to see exactly how they have diverged. The IDs in tracked sequences allow changes made to an item to be tracked despite any changes made to its value or location. Deletions and creations are also known exactly. Tracking provides more precise information than text-based version control systems like git. 
+Two copies of a tracked series can be compared to see exactly how they have diverged. The IDs in a tracked series allow changes made to an item to be tracked despite any changes made to its value or location. Deletions and creations are also known exactly. Tracking provides more precise information than text-based version control systems like git. 
 
 Changes made to one copy can be merged into the other. If changes are merged in both directions the two copies become equal again. Sometimes changes made to both copies are such that merging must lose some information, for example if the same item in the same item is changed to be two different numbers. Merging can be done using an automatic policy to resolve such conflicts, or human intervention can be requested, either immediately in the UI when performing the merge, or later by reifying such conflicts into the document itself (but without breaking the document as textual version-control does).
 
-Merging can be done across copies of entire documents. Merging can also apply to documents included inside another document (see _include_ and _variant_). Merging applies to all tracked sequences and links within a document. Non-tracked sequences (including text) are treated as atomic values that change as a whole.
+Merging can be done across copies of entire documents. Merging can also apply to documents included inside another document (see _include_ and _variant_). Merging applies to all tracked series and links within a document. Non-tracked series (like text) are treated as atomic values that change as a whole.
 
 TODO: details.
 
@@ -880,15 +882,15 @@ TODO: details.
 
 It is common to need to find and operate on patterns in text. The traditional solutions involve specialized languages with radically different syntax and semantics, such as _regular expressions_ or _parser generators_. Subtext provides these capabilities without the need to learn a specialized sub-language.
 
-A _selection_ is a sequence that has been divided into three parts, called _before_, _selected_, and _after_. Any of these parts can be empty. We can think of a selection as a sequence plus two indices `begin` and `end` where `1 ≤ begin ≤ end ≤ length + 1`. A selection is created from a sequence with
+A _selection_ is a series that has been divided into three parts, called _before_, _selected_, and _after_. Any of these parts can be empty. We can think of a selection as a series plus two indices `begin` and `end` where `1 ≤ begin ≤ end ≤ length + 1`. A selection is created from a series with
 ```
-sequence selection(.begin := i, .end := j)
+series selection(.begin := i, .end := j)
 ```
 where the begin and end indexes default to 1.
 
-Two selections are equal if they are equal as sequences and have equal begin and end indexes. A selection is equal to a sequence if its begin and end indexes are both 1 and the after part is equal to the sequence. The UI displays a text selection with the selected part highlighted as in a text region selection. If the selection is empty, the UI displays it as a text cursor between two characters, or at the beginning or end. When a text selection is edited, changes to the cursor/selection state in the UI are saved.
+Two selections are equal if they are equal as series and have equal begin and end indexes. A selection is equal to a series if its begin and end indexes are both 1 and the after part is equal to the series. The UI displays a text selection with the selected part highlighted as in a text region selection. If the selection is empty, the UI displays it as a text cursor between two characters, or at the beginning or end. When a text selection is edited, changes to the cursor/selection state in the UI are saved.
 
-Selections are useful when attempting to recognize various patterns in text (or any kind of sequence, but we focus on text in the following discussion). This process is called _matching_. The most basic matching program is `match?`, which will check that the front of the input text equals the second input text, rejecting otherwise. So:
+Selections are useful when attempting to recognize various patterns in text (or any kind of series, but we focus on text in the following discussion). This process is called _matching_. The most basic matching program is `match?`, which will check that the front of the input text equals the second input text, rejecting otherwise. So:
 ```
 'foobar' match? 'foo'
 not{'foobar' match? 'bar'}
@@ -1013,7 +1015,7 @@ check =? 'foo'
 
 This example uses a `repeat` structure, which is Subtext’s form of looping. Unlike traditional loop mechanisms, `repeat` structures are expressed as a _tail recursive_ program: The special call `continue?()` recursively calls the containing repeat structure. Like any other call it takes an input value on the left, and optionally other inputs on the right. But it may only be used where its result will immediately become the result of the whole program (_tail position_).
 
-Tail recursive programs are equivalent to loops, and repeat structures are actually implemented that way, as a sequence of calls. In the UI they will be displayed as a sequence rather than the nested inlining used for normal program calls. Unlike traditional loops, repeat structures do not involve mutable variables — that is replaced by passing new input values to the next iteration. We hypothesize that this is the best of both worlds: the simple iterative semantics of loops, with the clean value semantics of recursion.
+Tail recursive programs are equivalent to loops, and repeat structures are actually implemented that way, as a sequence of calls. In the UI they will be displayed as a series rather than the nested inlining used for normal program calls. Unlike traditional loops, repeat structures do not involve mutable variables — that is replaced by passing new input values to the next iteration. We hypothesize that this is the best of both worlds: the simple iterative semantics of loops, with the clean value semantics of recursion.
 
 The recursive call `continue?()` has a question mark because the repeat structure can reject. An unconditional `continue()` would be used in an unconditional repeat.
 
@@ -1028,7 +1030,7 @@ The recursive call `continue?()` has a question mark because the repeat structur
  
 ## Repeated extra results
 
-When we parse a CSV we typically want to produce a sequence of the numeric values. We can do that by adding an extra result:
+When we parse a CSV we typically want to produce a series of the numeric values. We can do that by adding an extra result:
 
 ```
 '1,2,3'
@@ -1041,10 +1043,10 @@ csv = repeat {
   }
 }
 
-check csv~ =? (sequence{0} & 1 & 2 & 3)
+check csv~ =? (series{0} & 1 & 2 & 3)
 ```
 
-Recall that the extra result of a `do` structure is a record, and the extra result of a `try` structure is a choice. The extra result of a `repeat` structure is a sequence, with each item containing the extra result of an iteration of the structure. The statement `extra ~value` declares the result of the structure to be the numeric value from the prior call to `match-number?()`. So the extra result of the entire `repeat` is a sequence of matched numbers. 
+Recall that the extra result of a `do` structure is a record, and the extra result of a `try` structure is a choice. The extra result of a `repeat` structure is a series, with each item containing the extra result of an iteration of the structure. The statement `extra ~value` declares the result of the structure to be the numeric value from the prior call to `match-number?()`. So the extra result of the entire `repeat` is a series of matched numbers. 
 
 ### Scanning
 
@@ -1081,7 +1083,7 @@ We propose a simple solution for missing values that visualizes naturally in the
 2. The empty text represents a missing text.
 3. There are predefined missing values for each media type that serve as placeholders.
 4. The missing value for a structure is when all its input items are missing.
-5. The missing value for a sequence is when it is empty.
+5. The missing value for a series is when it is empty.
 6. There is no predefined missing value for choices. However as their first option is the default, it can be defined to be something like `NA?: nil` to serve as a missing value if desired. Also see `maybe` structures below.
 
 The `required` constraint (see _Constraints_) checks that an input item does not contain one of the above missing values.
@@ -1103,22 +1105,22 @@ Subtext has no syntax for describing types: programs only talk about values. All
 
 We believe that type systems are an essential formalism for language theoreticians and designers, but that many language users would prefer to obtain their benefits without having to know about them and write about them.
 
-In PL theory terms, Subtext mixes aspects of structural and nominal type systems. It is structural in that `x = sequence{0}` and `y = sequence{1}` have the same type. It is nominal in that `x = record {a: 0}` and `y = record {a: 0}` have different types. Every time a structure item is defined a globally unique ID is assigned to it. There is a document-wide dictionary that maps these item IDs to their current names. Renaming a structure item just changes that dictionary entry. Type equality requires that structure item IDs be equal, not that their names are currently spelled the same.
+In PL theory terms, Subtext mixes aspects of structural and nominal type systems. It is structural in that `x = series{0}` and `y = series{1}` have the same type. It is nominal in that `x = record {a: 0}` and `y = record {a: 0}` have different types. Every time a structure item is defined a globally unique ID is assigned to it. There is a document-wide dictionary that maps these item IDs to their current names. Renaming a structure item just changes that dictionary entry. Type equality requires that structure item IDs be equal, not that their names are currently spelled the same.
 
 > TODO: To share item IDs across different types of structures we can use a traits-like mechanism that merges and restricts structures. Deferred until we have the need.
 
 Subtext doesn’t have function types or higher-order values. Two values have the same type if they have the same data type and all embedded code is equal (modulo internal paths). Value equality requires type equality, so equal values are behaviorally equivalent, i.e. referentially transparent.
 
-Generic (parametrically typed) programs are defined with inputs using the special top value `anything`. For example the `&` program to add items to a sequence has the signature:
+Generic (parametrically typed) programs are defined with inputs using the special top value `anything`. For example the `&` program to add items to a series has the signature:
 
 ```
 & = do {
-  input: sequence {anything} // input must be a sequence
-  item: input[]              //  item must match sequence template
+  input: series {anything}   // input must be a series
+  item: input[]              //  item must match series template
 }
-sequence{0} & 1      // this will insert 1
-sequence{0} & ''	 // this will report a type mismatch static error
-sequence{0} &()      // this will insert 0
+series{0} & 1      // this will insert 1
+series{0} & ''	   // this will report a type mismatch static error
+series{0} &()      // this will insert 0
 ```
 
 A generic program is one with an input containing `anything`. The program can be called with any input value where the `anything` occurs. Every call of a generic program will recompute the input default values based on the actual input values before setting value from the call. Inputs to the call are type-checked against those new defaults. Note that type checking is still static: every call to a generic program gets statically checked — types can not vary dynamically, only across different call-sites. It is notable that we acheive parametric types without introducing an explicitly parametric type system with type variables like `<T>`, which are notoriously baffling to beginners. Yet unlike template meta-programming, we retain static type checking at call sites for comprehensible errors.
