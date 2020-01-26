@@ -1,0 +1,8 @@
+*.plist
+.UlyssesRoot
+.DS_Store
+*.code-workspace
+npm-debug.log*
+node_modules/
+dist/
+report.*.json
