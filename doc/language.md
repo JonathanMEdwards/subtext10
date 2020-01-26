@@ -72,10 +72,10 @@ Subtext provides several kinds of values out of which documents are built:
 
 - _number_: double float using JavaScript syntax, and the special value `_number_` not equal to any other number (except itself)
 - TODO: infinite precision rationals
-- `nil`, the unit value, useful in enumerations (see _Choices_)
-- `anything`, the top value used to define generic programs (see _Types_)
 - _text_: JavaScript string literal using single quotes: `'hello'`
 - _character_: a unicode character, using JavaScript escape sequences like `\a` or `\u0021`
+- `nil`, the unit value, useful in enumerations (see _Choices_)
+- `anything`, the top value used to define generic programs (see _Types_)
 - TODO: fancy text with fonts and formating
 - TODO: date-times and calendars
 - TODO: media (MIME-typed blobs)
@@ -84,29 +84,29 @@ Subtext provides several kinds of values out of which documents are built:
 
 ## Structures, formulas, and programs
 
-One way Subtext documents are constructed is with _structures_ (the other is _sequences_) . A structure contains a fixed set of items with (optional) names. Structures are defined in the syntax with curly brackets preceded by a keyword indicating the kind of structure. A common structure is a _group_, which is like a record or struct or object in other languages, and like a row in a relational databases. For example:
+One way Subtext documents are constructed is with _structures_ (the other is _sequences_) . A structure contains a fixed set of items with (optional) names. Structures are defined in the syntax with curly brackets preceded by a keyword indicating the kind of structure. Structures are used for both data and programs. A common data structure is the _record_, which is like a struct or object in other languages, and like a row in a relational databases. For example:
 ```
-b: group {
+b: record {
   x: 0
-  y: group {
+  y: record {
     i: 0
     j: 1
     k: 2
   }
 }
 ```
-This group contains two items, one named `x` which has the value `0`, and one named `y`, whose value is a nested group with numeric items named `i` and `j` with values `0` and `1` respectively. The names of the items within a structure must be different. When we _refer_ to nested items we use a _path_ like `b.y.i`.
+This record contains two items, one named `x` which has the value `0`, and one named `y`, whose value is a nested record with numeric items named `i` and `j` with values `0` and `1` respectively. The names of the items within a structure must be different. When we _refer_ to nested items we use a _path_ like `b.y.i`.
 
 The subtext UI offers two views of any item: as a single _line_ or as a multi-line _outline_. The above syntax example approximates what an outline looks like in the UI, except there are no curly brackets. An outline uses indentation to show nesting of structures. The corresponding single-line representation looks like the following syntax, where brackets indicate nesting and semicolons separate items:
 ```
-b: group {x: 0; y: group {i: 0; j: 1; k: 2}}
+b: record {x: 0; y: record {i: 0; j: 1; k: 2}}
 ```
 The UI lets you flip between line and outline presentations.
 
 ### Inputs and outputs
 Every item is either an input or output. For example,
 ```
-group {
+record {
   x: 0
   y = x + 1
 }
@@ -117,7 +117,7 @@ This is like a spreadsheet: cells containing a formula are outputs, and cells co
 
 Note that the terms input and output mean different things in computational notebooks like Jupyter, where an input is a formula and the paired output is its value. Notebooks do not let the user directly edit a value as can be done with non-formula cells in a spreadsheet and input items in Subtext.
 
-Subtext specifies how to pronounce its syntax. The above example syntax is pronounced “group of, x set 0, y equals x plus 1”. A `{` is pronounced “of”, `:` is pronounced “set”, and `=` is pronounced “equals”. Note that, unlike imany programming languages, `=` means the same thing as in mathematics — the left and right sides have the same value. The ':' means the left hand side originally had the same value as the right-hand side.
+Subtext specifies how to pronounce its syntax. The above example syntax is pronounced “record of, x set 0, y equals x plus 1”. A `{` is pronounced “of”, `:` is pronounced “set”, and `=` is pronounced “equals”. Note that, unlike imany programming languages, `=` means the same thing as in mathematics — the left and right sides have the same value. The ':' means the left hand side originally had the same value as the right-hand side.
 
 > The distinction between `:` and `=` may be too subtle, but we haven’t come up with a better alternative.
 
@@ -244,9 +244,9 @@ the value of `plus` is just 1, the result of executing the program, not a specia
 > In fact programs really are “first-class” values, accessible via special metadata references, but they are only used in the UI and planned metaprogramming capabilities.
 
 ### Structure modification
-So far all of the examples have used arithmetic. But it is very common to work with structures, particularly groups,  as they are often the rows of tables. Take the group:
+So far all of the examples have used arithmetic. But it is very common to work with structures, particularly records,  as they are often the rows of tables. Take the record:
 ```
-x: group {
+x: record {
   name: ''
   number: 0
 }
@@ -279,10 +279,10 @@ The update to `name` is lost because the update to `number` goes back to the ori
 
 Set operations can delve into nested structures by using a dotted path to the left of the `:=`
 ```
-x: group {
+x: record {
   name: ''
   number: 0
-  address: group {
+  address: record {
     street: ''
     city: ''
 }
@@ -353,7 +353,7 @@ Skipping to the definition of `x`, we see that it calls the program `integral-di
 6. The `extra` statement acts like a `let`, passing on the previous value, so `ratio` becomes the final result of the program. 
 7. After the call, the item `y` references `x~remainder`, which is the extra result `remainder` produced in the computation of `x`.
 
-What is going on here is that `x~` accesses the _extra result_ of the program that computed the value of `x`. The extra result of a `do` structure is a group containing the values of the outputs prefaced with `extra`. The extra result `remainder` can be accessed as `x~.remainder`, or `x~remainder` for short. We also could have equivalently said `y = ~remainder` to access the extra result of the previous item without naming it.
+What is going on here is that `x~` accesses the _extra result_ of the program that computed the value of `x`. The extra result of a `do` structure is a record containing the values of the outputs prefaced with `extra`. The extra result `remainder` can be accessed as `x~.remainder`, or `x~remainder` for short. We also could have equivalently said `y = ~remainder` to access the extra result of the previous item without naming it.
 
 Note that in the example above, `x` is defined as `5 integral-divide 3`, which is equivalent to the `do` structure: `do {5; integral-divide 3}`. There are no `extra` statements in this `do` structure. In that case, the extra result of the last item (the call to `integral-divide`) is promoted to be the extra result of the whole structure. That allows us to say `x~remainder`. You can also declare a single value to be the extra result of the entire structure explicitly with a statement `extra ...` that does not name the result, and which is only allowed if there are no other `extra` statements in the structure. 
 So when there are no `extra` statements, there is an implicit `extra ~` at the end of the structure exporting the extra results of the final item.
@@ -537,13 +537,13 @@ A `choice` structure defines a set of named input items called _options_, exactl
 ```Txt
 expr: choice {
   literal?: 0
-  plus?: group {
+  plus?: record {
     left: expr
     right: expr
   }
 }
 ```
-The `expr` item can choose to be a `literal?` with a numeric value, or it can choose to be a `plus?`, with a value as a group containing items `left` and `right`, both of which are recursively another `expr` value. Choices always intially choose the first option (which can’t recurse so as to prevent infinitely deep values).
+The `expr` item can choose to be a `literal?` with a numeric value, or it can choose to be a `plus?`, with a value as a record containing items `left` and `right`, both of which are recursively another `expr` value. Choices always intially choose the first option (which can’t recurse so as to prevent infinitely deep values).
 
 The names of the options have a question mark, because accessing them is conditional on their being chosen. For example `expr.literal?` will provide the numeric value of the `literal?` item if it is currently chosen by `expr`, but will reject if it isn’t chosen.
 
@@ -590,7 +590,7 @@ Here the first try clause accesses the `literal?` option. If it was chosen, its 
 
 ## Sequences and tables
 
-So far we have discussed various kinds of structures. The other way that Subtext documents are built is with _sequences_. A sequence is an ordered set of zero or more items containing values of the same fixed type. A _text_ is a sequence of characters. A _table_ is a sequence of structures (typically groups), its items are called _rows_, and the items of the structure define the _columns_ of the table. Every sequence defines a value, called it’s _template_, which sets the default value for newly created items. For example:
+So far we have discussed various kinds of structures. The other way that Subtext documents are built is with _sequences_. A sequence is an ordered set of zero or more items containing values of the same fixed type. A _text_ is a sequence of characters. A _table_ is a sequence of structures (typically records), its items are called _rows_, and the items of the structure define the _columns_ of the table. Every sequence defines a value, called it’s _template_, which sets the default value for newly created items. For example:
 ```
 numbers: sequence {0}
 customers: table {
@@ -598,7 +598,7 @@ customers: table {
   address: ''
 }
 ```
-The sequence `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: sequence {group {...}}`. The table contains columns `name` and `address` defaulting to the empty text. 
+The sequence `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: sequence {record {...}}`. The table contains columns `name` and `address` defaulting to the empty text. 
 
 All sequences are initially created as empty. Text is a sequence of characters with the space character as the template, so `'' =? sequence{\ }`
 
@@ -950,7 +950,7 @@ Recall the `eval-expr` example that evaluated simple arithmetic formulas encoded
 ```Txt
 expr: choice {
   literal?: 0
-  plus?: group {
+  plus?: record {
     left: expr
     right: expr
   }
@@ -1044,7 +1044,7 @@ csv = repeat {
 check csv~ =? (sequence{0} & 1 & 2 & 3)
 ```
 
-Recall that the extra result of a `do` structure is a group, and the extra result of a `try` structure is a choice. The extra result of a `repeat` structure is a sequence, with each item containing the extra result of an iteration of the structure. The statement `extra ~value` declares the result of the structure to be the numeric value from the prior call to `match-number?()`. So the extra result of the entire `repeat` is a sequence of matched numbers. 
+Recall that the extra result of a `do` structure is a record, and the extra result of a `try` structure is a choice. The extra result of a `repeat` structure is a sequence, with each item containing the extra result of an iteration of the structure. The statement `extra ~value` declares the result of the structure to be the numeric value from the prior call to `match-number?()`. So the extra result of the entire `repeat` is a sequence of matched numbers. 
 
 ### Scanning
 
@@ -1103,7 +1103,7 @@ Subtext has no syntax for describing types: programs only talk about values. All
 
 We believe that type systems are an essential formalism for language theoreticians and designers, but that many language users would prefer to obtain their benefits without having to know about them and write about them.
 
-In PL theory terms, Subtext mixes aspects of structural and nominal type systems. It is structural in that `x = sequence{0}` and `y = sequence{1}` have the same type. It is nominal in that `x = group {a: 0}` and `y = group {a: 0}` have different types. Every time a structure item is defined a globally unique ID is assigned to it. There is a document-wide dictionary that maps these item IDs to their current names. Renaming a structure item just changes that dictionary entry. Type equality requires that structure item IDs be equal, not that their names are currently spelled the same.
+In PL theory terms, Subtext mixes aspects of structural and nominal type systems. It is structural in that `x = sequence{0}` and `y = sequence{1}` have the same type. It is nominal in that `x = record {a: 0}` and `y = record {a: 0}` have different types. Every time a structure item is defined a globally unique ID is assigned to it. There is a document-wide dictionary that maps these item IDs to their current names. Renaming a structure item just changes that dictionary entry. Type equality requires that structure item IDs be equal, not that their names are currently spelled the same.
 
 > TODO: To share item IDs across different types of structures we can use a traits-like mechanism that merges and restricts structures. Deferred until we have the need.
 
