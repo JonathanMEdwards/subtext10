@@ -15,6 +15,14 @@ export function isObject(x: any): x is object {
   return x !== null && typeof x === 'object';
 }
 
+export function isString(x: any): x is string {
+  return typeof x === 'string';
+}
+
+export function isNumber(x: any): x is number {
+  return typeof x === 'number';
+}
+
 /** Returns a new instance of an object. Calls constructor with no args */
 export function another<T extends Object>(existing: T): T {
   return new (existing.constructor as new () => T);
@@ -30,10 +38,10 @@ export function cast<T>(instance: any, ctor: { new(...args: any[]): T }): T {
 }
 
 
-export type Defined<T> = Exclude<T, undefined>;
 /** trap if value undefined, returns value otherwise */
-export function assertDefined<T>(x: T): asserts x is Defined<T> {
+export function assertDefined<T>(x: T): Exclude<T, undefined> {
   assert(x !== undefined);
+  return x as Exclude<T, undefined>;
 }
 
 
@@ -43,7 +51,6 @@ export function assert(condition: any, message = 'failed assertion'):
   if (!condition) {
     trap(message);
   }
-  return condition;
 }
 
 /** trap */

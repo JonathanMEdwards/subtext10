@@ -49,8 +49,8 @@ This section summarizes the notable programming language features of Subtext.
 The artifact that Subtext mediates is called a _document_. It is somewhat like a spreadsheet (e.g. Excel) in that it presents both data and formulas in a visual metaphor that is easy to learn. It is somewhat like a notebook (e.g. Jupyter) in that it offers the full power of a programming language. These artifacts are characterized by their geometry: notebooks are a linear sequence of cells; spreadsheets are a 2-dimensional grid of cells; Subtext documents are a tree of nested cells called _items_. There are many types of items, explained in the following:
 
 - Items are a holder for a value of some type
-- The value of an item is either an _atom_, a _block_, or a _series_
-- Atoms can be one of several types of basic values: numbers, characters, times, images, etc. Atoms do not contain any other items, and occupy the bottom of the document tree
+- An item is either a _base value_, a _block_, or a _series_
+- There are several kinds of base values: numbers, characters, times, images, etc. Base values do not contain any other items, and occupy the bottom of the document tree
 - Blocks and series are built out of other items, called their contents. They differ on how the contents are organized. 
 - A block contains a fixed set of items, like conventional records, structs, or objects. Each item has a fixed type of value. Often the items of a block are given unique names, but when used as intermediate computations they may be left anonymous. The top item of a document is a _head_ block. The _history_ of a document is a block containing heads.
 - A series contains a variable number of items all of the same type in a linear order, like conventional arrays or lists. _Text_ is a series of _characters_. A series of blocks is called a _table_.
@@ -73,7 +73,7 @@ Subtext provides several kinds of values out of which documents are built:
 - _number_: double float using JavaScript syntax, and the special value `_number_` not equal to any other number (except itself)
 - TODO: infinite precision rationals
 - _text_: JavaScript string literal using single quotes: `'hello'`
-- _character_: a unicode character, using JavaScript escape sequences like `\a` or `\u0021`
+- _character_: a unicode character
 - `nil`, the unit value, useful in enumerations (see _Choices_)
 - `anything`, the top value used to define generic programs (see _Types_)
 - TODO: fancy text with fonts and formating
@@ -528,7 +528,7 @@ Sometimes a program takes too long to execute, or consumes too many internal res
 
 > Simplest solution is that doc becomes read-only while reacting to an input, and then the results are shown atomically at completion. If computation takes too long the user can terminate it, which cancels the entire input action and leaves the document in its prior state. The input action remains in the history though and can be redone later if desired. Exceeding resource quotas (like stack size) would terminate computation automatically. This is the state of the art for computational notebooks.
 
-> However it would be nicer to be able to interrupt a long-running execution, observe it’s execution so far, and resume if desired. That should probably wait till there is reasonably effective memoization of results.
+> However it would be nicer to be able to interrupt a long-running execution, observe it’s execution so far, and resume if desired. That should probably wait for an implementation of incremental execution.
 
 ### TODO: Input event rejection, transactions, and constraints
 
@@ -874,7 +874,7 @@ Two copies of a tracked series can be compared to see exactly how they have dive
 
 Changes made to one copy can be merged into the other. If changes are merged in both directions the two copies become equal again. Sometimes changes made to both copies are such that merging must lose some information, for example if the same item in the same item is changed to be two different numbers. Merging can be done using an automatic policy to resolve such conflicts, or human intervention can be requested, either immediately in the UI when performing the merge, or later by reifying such conflicts into the document itself (but without breaking the document as textual version-control does).
 
-Merging can be done across copies of entire documents. Merging can also apply to documents included inside another document (see _include_ and _variant_). Merging applies to all tracked series and links within a document. Non-tracked series (like text) are treated as atomic values that change as a whole.
+Merging can be done across copies of entire documents. Merging can also apply to documents included inside another document (see _include_ and _variant_). Merging applies to all tracked series and links within a document. Non-tracked series (like text) are treated like base values that change as a whole.
 
 TODO: details.
 
@@ -1130,106 +1130,87 @@ A generic program is one with an input containing `anything`. The program can be
 # Appendix: Syntax
 
 ```
-Atom :=
-	| '{}'				// unit value 'nothing'
-	| Number
-	| text
-	| '_serial_'		// missing serial number
+Document = Block
 
-Number :=
-	| // JavaScript number
-	| '_number_'		// Special missing number
+Body :=
+	| Item 
+	| Item? (';' | '\n') Body?
 
-text := 		// single-quoted JavaScript text literal
+Item :=
+	| GuardedName ':' Formula				// input
+	| Dataflow? (GuardedName '=')? Formula	// output
 
-Label := Name | Operator | Ordinal
-Name := [a-z A-Z] ([a-z A-Z 0-9 _ \-]* [[a-z A-Z 0-9])? '?'?
-// names can't be keywords
-// underscore renders as space in UI
-Ordinal := [1-9][0-9]*		// positional item access - internal use only
-Operator := '+'|'-'|'*'|'/'|'=?'|'not=?'|'>?'|'>=?'|'<?'|'<=?'|'&'
+GuardedName := Name ('?' | '!')?
+Name := Word | Operator
+Word := [a-z A-Z] ([a-z A-Z 0-9 _ \-]* [[a-z A-Z 0-9])? // can't be keyword
+Operator := '+'|'-'|'*'|'/'|'='|'not='|'>'|'>='|'<'|'<='|'&'|'&&'
 
-Doc := item*
+Dataflow := 'check' | 'let' | 'extra'
 
-item := Statement Sep
-
-Statement :=
-	| Name ':' Qualifier* Expr				// state - 'name is'
-	| Name '=' Qualifier* Expr				// formula - 'name equals'
-	| Name '()=' Expr						// program - 'name of'
-	| (Name '=')? Path? ':=' ContextExpr	// 'set to'
-	| (Name '=')? Check Expr ('error' text)?
-	| 'assert' ContextExpr
-	| 'end'									// control containing repeat
-
-Check := 'check' | 'not'
-
-// item/argument seaparated by comma or new-line
-Sep := ',' | '\n'
-
-Qualifier :=
-	| 'backwards'
-	| 'key'
-	| 'arranged'
-	| 'positive'
-	| 'non-positive'
-	| 'negative'
-	| 'non-negative'
-	| 'non-zero'
-	| 'required'
-
-Expr := Value Op*
-ContextExpr := Value? Op*
+Formula := Value? Op*
 
 Value :=
-	| Atom
+	| BaseValue
 	| Path
-	| '$'					// subject of containing code form
-	| '_'					// default subject: current value on LHS of :=
-	| 'input'				// Input subject of containing formula?
-	| 'data' form
-	| 'choice' form
-	| 'table' form
-	| 'table' 'of' Value
-	| 'maybe'? ('one' | 'some') 'in' Path ('reflecting' Name)?
+	| 'that'				// preceding value
+	| 'record' Block
+	| 'choice' Block
+	| 'maybe' Block
+	| 'series' Block
+	| 'table' Block
 
-form := '{' item+ '}'
+BaseValue :=
+	| 					// single-quoted JS string literal
+	| 					// JS number literal
+	| '_number_'		// Special missing number
+	| 'nil'				// unit value
+	| 'anything'		// generic value
+
+Block := '{' Body '}'
 
 Op :=
-	| Path (Value | Arguments)		// program call
-	| Step*							// path following
+	| Path Arguments				// program call
+	| 'continue' Arguments			// tail call
+	| RelPath ':=' Formula			// set 
+	| RelPath '|=' Name Formula?	// choose
+	| RelPath						// follow
 	| Conditional
-	| Control form
+	| Control Block
 
-Arguments := '(' Argument* ')' '~'?
-Argument := (Label ':=')?  ContextExpr Sep
+Arguments :=
+	| Value 
+	| '(' Formula ')'
+	| '(' (Formula ArgSep)? KeywordArg (ArgSep KeywordArg)* ')'
+ArgSep := ',' | '\n'
+KeywordArg := '.' Name ':=' Formula
+
+Conditional := ('try' | 'optionally') FirstClause ElseClause* LastClause?
+FirstClause := ( Name '?' '=' )? Block
+ElseClause := ( Name '?' '=' )? 'else' Block
+LastClause := 'else' 'reject'
 
 Control :=
 	| 'do'
-	| 'generic'
 	| 'builtin'			// internal use only
-	| 'generic-builtin'	// internal use only
-	| 'optionally'
+	| 'not?'
 	| 'test'
+	| 'assert`
 	| 'find?'
 	| 'find-last?'
 	| 'find-only?'
+	| 'find-unique?'
 	| 'for-each'
 	| 'for-all?'
 	| 'for-none?'
-	| ('for' Value)? 'repeat'
-	| 'selecting'
+	| 'repeat'
+	| 'scan'
+	| 'aggregate'
 
-Conditional := 'try' FirstClause ElseClause* LastClause?
-FirstClause := ( Name '=' )? form
-ElseClause := ( Name '=' )? 'else' form
-LastClause := ( Name '=' )? 'else' ( 'ok' | 'reject)
-
-Path := Label? Step*
+Path := GuardedName? RelPath
+RelPath := step*
 Step :=
-	| '.' Label				// data
-	| '~' Label				// associated result
-	| '~'					// formula body
-	| '^' Label				// metadata - internal use only
-	| '[' ContextExpr ']'	// Index
+	| '.' GuardedName			// data
+	| '~' GuardedName?			// extra result
+	| '^' GuardedName?			// metadata - internal use only
+	| '[' Formula? ']'			// Index
 ```

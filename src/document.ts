@@ -1,14 +1,16 @@
-import { ID } from "./exports";
+import { History, Item, Path } from "./exports";
 
 /** A subtext document */
-export class Document {
+export class Document extends Item<never, History> {
 
-  /** History is root of item tree */
-  history: History = new History();
+  /** Document is at the top of the tree */
+  declare up: never;
+  get path() {
+    return Path.empty;
+  }
+
+  /** value is History */
+  value = new History();
 
 }
 
-/** globally unique ID of a document. Stored in History.id */
-export class DocumentID extends ID {
-
-}
