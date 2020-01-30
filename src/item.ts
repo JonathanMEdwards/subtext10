@@ -1,8 +1,8 @@
-import { ID, Path, Container, trap, Value, RealID, Metadata, MetaID, isString, assertDefined, PathValue, another } from "./exports";
+import { Doc, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, assertDefined, another, Field } from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not container other items are Base vales. This forms a tree. The top
- * item is a Document. Each contained item carries an ID, and we identify items
+ * item is a Doc. Each contained item carries an ID, and we identify items
  * by the path of IDs down from the top.
  */
 
@@ -10,6 +10,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
   /** Container */
   up!: Container<this>;
+
+  /** containing Doc */
+  get doc(): Doc { return this.up.doc }
 
   /** ID of the item within its container */
   id!: I;
@@ -23,11 +26,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return this._path
   }
 
-  /** whether input or ouput item */
-  isInput = true;
-  get isOutput() {
-    return !this.isInput;
-  }
+  /** whether input or output item */
+  isInput = false;
+
+  /** whether item can reject */
+  isConditional = false;
 
   /** Metadata block. Undefined if no metadata */
   metadata?: Metadata;
@@ -46,6 +49,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
     // evaluate and get from value
     return this.eval().get(id);
+  }
+
+  /** set a metadata field by name. Must not already exist */
+  setMeta(name: string, value: Value): Field {
+    if (!this.metadata) {
+      // allocate metadata block
+      this.metadata = new Metadata;
+      this.metadata.up = this;
+    }
+    return this.metadata.set(name, value);
   }
 
   /** Evaluate the formula stored in metadata to compute value if undefined */
@@ -82,9 +95,14 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       to.value.up = this;
     }
 
+    to.isInput = this.isInput;
+    to.isConditional = this.isConditional;
+
     // record copy
     to.source = this;
     return to;
   }
 
+  // dump evaluation
+  dump() { return this.eval().dump()}
 }

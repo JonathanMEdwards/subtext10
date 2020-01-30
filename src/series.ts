@@ -6,11 +6,11 @@ import { Container, ID, assert, Item, Character, isNumber, isString, Path, anoth
 export class Series<E extends Entry = Entry> extends Container<E> {
 
   /** whether series is tracked using serial numbers */
-  isTracked = false;
+  tracked = false;
 
   /** whether series is sorted by the value of the items */
-  isSorted = false;
-  isAscending = true;
+  sorted = false;
+  ascending = true;
 
   /** Template is entry with id=NaN */
   template!: E;
@@ -23,7 +23,7 @@ export class Series<E extends Entry = Entry> extends Container<E> {
   /** the item with an ID else undefined */
   get(id: ID): E | undefined {
     if (isNumber(id)) {
-      if (this.isTracked) {
+      if (this.tracked) {
         // find serial numner
         return this.entries.find(entry => entry.id === id);
       }
@@ -42,14 +42,18 @@ export class Series<E extends Entry = Entry> extends Container<E> {
 
   copy(src: Path, dst: Path): this {
     let to = super.copy(src, dst);
-    to.isTracked = this.isTracked;
-    to.isSorted = this.isSorted;
-    to.isAscending = this.isAscending;
+    to.tracked = this.tracked;
+    to.sorted = this.sorted;
+    to.ascending = this.ascending;
     to.template = this.template.copy(src, dst);
     to.template.up = this;
     return to;
   }
 
+  // dump as an array
+  dump(): any {
+    return this.entries.map(entry => entry.dump())
+  }
 }
 
 /** Entry is an Item with a numeric ID */
@@ -60,8 +64,8 @@ export class Entry extends Item<number> {
 /** Text is an untracked series of characters, but is stored as a JS string and
  * expanded into a series on demand */
 export class Text extends Series<TextEntry> {
-  isTracked = false;
-  isSorted = false;
+  tracked = false;
+  sorted = false;
 
   /** JS string value */
   value: string = '';
@@ -74,6 +78,8 @@ export class Text extends Series<TextEntry> {
     return to;
   }
 
+  // dump as string
+  dump() { return this.value };
 }
 
 export class TextEntry extends Item<number, Character> {

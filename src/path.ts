@@ -1,7 +1,4 @@
-import { FieldID, Base, another } from "./exports";
-import { assert } from "./util";
-import { VersionID } from "./history";
-import { MetaID } from "./metadata";
+import { MetaID, VersionID, assert, FieldID, Base, another } from "./exports";
 
 /**
  * ID of an item. Immutable and interned, so can use ===
@@ -11,7 +8,7 @@ import { MetaID } from "./metadata";
 export type RealID = FieldID | number;
 export type ID = RealID | string;
 
-/** Absolute path within the document. A sequence of IDs starting with the
+/** Absolute path within the doc. A sequence of IDs starting with the
  * VersionID in the Head. Immutable after construction */
 export class Path {
 
@@ -48,7 +45,7 @@ export class Path {
 
   containsOrEquals(other: Path): boolean {
     return this.equals(other) || this.contains(other);
-}
+  }
 
 
   /**
@@ -68,6 +65,9 @@ export class Path {
     assert(!dst.contains(this));
     return this;
   }
+
+  // dump path as dotted string
+  dump() { return this.ids.join('.'); }
 }
 
 /** Path as a value of an item. Only used in metadata */
@@ -84,4 +84,6 @@ export class PathValue extends Base {
   equals(other: any) {
     return other instanceof PathValue && this.path.equals(other.path);
   }
+
+  dump() { return this.path.dump(); }
 }

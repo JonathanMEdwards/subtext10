@@ -1,4 +1,4 @@
-import { Value, another, Path } from "./exports";
+import { Value, another, Path, escapedString } from "./exports";
 
 /** Base items contain no other items */
 export abstract class Base extends Value {
@@ -25,6 +25,9 @@ export class Numeric extends Base {
         this.value === other.value
         || (Number.isNaN(this.value) && Number.isNaN(other.value))));
   }
+
+  // dump as number
+  dump() { return this.value };
 }
 
 export class Character extends Base {
@@ -43,6 +46,9 @@ export class Character extends Base {
   equals(other: any) {
     return other instanceof Character && this.value === other.value;
   }
+
+  // dump as string
+  dump() { return this.value };
 }
 
 /** Nil is the unit type with one value */
@@ -52,6 +58,8 @@ export class Nil extends Base {
     return other instanceof Nil;
   }
 
+  // dump as null
+  dump() { return null };
 }
 
 /** Anything is the top type used in generics */
@@ -60,4 +68,7 @@ export class Anything extends Base {
   equals(other: any) {
     return other instanceof Anything;
   }
+
+  // dump as undefined
+  dump() { return undefined };
 }

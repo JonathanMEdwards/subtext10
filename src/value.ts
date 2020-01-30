@@ -1,10 +1,13 @@
-import { Item, trap, ID, Field, Path, another } from "./exports";
+import { Doc, Item, trap, ID, Path, another, Token } from "./exports";
 
 /** Every Value is contained in an Item */
 export abstract class Value {
 
   /** containing Item */
   up!: Item;
+
+  /** containing doc */
+  get doc(): Doc { return this.up.doc }
 
   get path() {
     return this.up.path;
@@ -15,6 +18,9 @@ export abstract class Value {
     return undefined;
   }
 
+  /** source token where defined */
+  token?: Token;
+
   /** source of value through copying */
   source?: this;
 
@@ -22,6 +28,7 @@ export abstract class Value {
   copy(src: Path, dst: Path): this {
     let to = another(this);
     to.source = this;
+    to.token = this.token;
     return to;
   }
 
@@ -29,4 +36,7 @@ export abstract class Value {
   equals(other: any): boolean {
     trap();
   }
+
+  /** dump into a plain JS value for testing */
+  abstract dump(): any;
 }

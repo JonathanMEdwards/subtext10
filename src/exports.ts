@@ -9,16 +9,18 @@
  * There are also reports that webpack tree-shaking breaks this
  */
 export * from "./util";
-// export * from "./scanner";
-// export * from "./parser";
-export * from "./path";
+export * from "./tokenize";
+export * from "./parser";
 export * from "./item";
 export * from "./value";
 export * from "./base";
+export * from "./path";
 export * from "./container";
 export * from "./block";
 export * from "./metadata";
 export * from "./head";
 export * from "./history";
-export * from "./document";
+export * from "./doc";
+export * from "./choice";
 export * from "./series";
+export * from "./do";

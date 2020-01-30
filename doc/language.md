@@ -1130,7 +1130,7 @@ A generic program is one with an input containing `anything`. The program can be
 # Appendix: Syntax
 
 ```
-Document = Block
+Document = Body
 
 Body :=
 	| Item 

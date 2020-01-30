@@ -1,5 +1,4 @@
-import { Item, Value, another, Path } from "./exports";
-import { assert } from "./util";
+import { assert, Item, Value, another, Path } from "./exports";
 
 /** superclass of Block and Series, the two kinds of containers. */
 export abstract class Container<I extends Item> extends Value {

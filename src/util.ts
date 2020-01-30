@@ -154,7 +154,7 @@ export function stringUnescape(input: string): string {
 /**
  * Returns single-quoted escaped string
  */
-export function stringEscape(s: string): string {
+export function escapedString(s: string): string {
   let out = "'";
   for (let c of s) {
     out += charEscape(c, "'");
