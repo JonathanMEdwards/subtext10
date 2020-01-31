@@ -89,3 +89,8 @@ export class FieldID {
     return this.name ?? this.serial.toString();
   }
 }
+
+/** data block */
+export class Record extends Block {
+
+}

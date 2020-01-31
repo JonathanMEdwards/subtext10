@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Doc } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -62,9 +62,13 @@ export class Parser {
     return this.error;
   }
 
+  doc!: Doc;
 
   /** require top-level doc definition */
   requireHead(head: Head) {
+    // store Doc in Parser
+    this.doc = head.doc;
+
     this.requireBlockBody(head);
     if (!this.peekToken('end')) {
       throw this.setError('Expecting top-level item definition');
@@ -72,10 +76,11 @@ export class Parser {
   }
 
   /** Require block with curly brackets */
-  requireBlock(block: Block): void {
+  requireBlock(block: Block): Block {
     this.requireToken('{');
     this.requireBlockBody(block);
     this.requireToken('}');
+    return block;
   }
 
   /**
@@ -153,7 +158,7 @@ export class Parser {
       }
 
       // FieldID allocated here becomes unique identifier for field
-      field.id = block.doc.newFieldID(unqualName, nameToken);
+      field.id = this.doc.newFieldID(unqualName, nameToken);
       field.isInput = (defType === ':');
 
       if (block instanceof Choice) {
@@ -172,7 +177,7 @@ export class Parser {
     } else {
       // anonymous output formula
       this.cursor = cursor
-      field.id = block.doc.newFieldID(
+      field.id = this.doc.newFieldID(
         undefined,
         // = token pointing to start of formula
         new Token(
@@ -569,23 +574,13 @@ export class Parser {
       return any;
     }
 
-    // if (this.matchToken('data', 'choice')) {
-    //   let block: Block;
-    //   switch (this.prevToken.type) {
-    //     case 'data':
-    //       block = new Data;
-    //       break;
+    if (this.matchToken('record')) {
+      return this.requireBlock(new Record);
+    }
 
-    //     case 'choice':
-    //       block = new Choice;
-    //       break;
-
-    //     default:
-    //       throw new Bug;
-    //   }
-    //   this.requireBlock(block);
-    //   return block;
-    // }
+    if (this.matchToken('choice')) {
+      return this.requireBlock(new Choice);
+    }
 
     // if (this.matchToken('table')) {
     //   let table = new Table;

@@ -51,6 +51,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return this.eval().get(id);
   }
 
+  /** get metadata field */
+  getMeta(id: ID) {
+    return this.metadata?.get(id);
+  }
+
   /** set a metadata field by name. Must not already exist */
   setMeta(name: string, value: Value): Field {
     if (!this.metadata) {
@@ -66,7 +71,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     if (this.value) return this.value;
 
     /** ^def is literal, reference, or formula */
-    const def = assertDefined(this.get('^def'));
+    const def = assertDefined(this.getMeta('^def'));
 
     // assume literal for now. Copy value
     this.value = def.eval().copy(def.path, this.path) as V;
@@ -89,8 +94,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       to.metadata.up = this;
     }
 
-    // copy value of inputs. Outputs gets re-evaluated
-    if (this.value && this.isInput) {
+    // copy value of inputs. Non-literal outputs gets re-evaluated
+    if (this.value && (this.isInput || !this.getMeta('^def'))) {
       to.value = this.value.copy(src, dst);
       to.value.up = this;
     }

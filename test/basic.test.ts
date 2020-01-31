@@ -15,20 +15,15 @@ function expectCompiling(source: string) {
 }
 
 
-test('basic literal outputs', () => {
-  expectDump("a = 0, b = '', c = nil")
-    .toEqual({ a: 0, b: '', c: null });
+test('literal outputs', () => {
+  expectDump("a = 0, b = '', c = nil, d = record{x = 0, y: 1}")
+    .toEqual({ a: 0, b: '', c: null, d: { x: 0, y: 1} });
 });
 
-test('basic literal inputs', () => {
-  expectDump("a: 0, b: '', c: nil")
-    .toEqual({ a: 0, b: '', c: null });
+test('literal inputs', () => {
+  expectDump("a: 0, b: '', c: nil, d: record{x = 0, y: 1}")
+    .toEqual({ a: 0, b: '', c: null, d: { x: 0, y: 1 }  });
 });
-
-// test('complex values', () => {
-//   expectDump("a: data{x:0}, b: table of 0")
-//     .toEqual({a: {x: 0}, b: []});
-// });
 
 // test('references', () => {
 //   expectDump("a: b, b: 0")
