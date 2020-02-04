@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Doc } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Doc, Reference } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -202,21 +202,29 @@ export class Parser {
   requireFormula(field: Field): void {
 
     // literal value
-    let value = this.parseValue();
+    let value = this.parseLiteral();
     if (value) {
       if (field.isInput) {
-        // literal input is stored as definition to allow reset
-        field.setMeta('^def', value);
+        // literal input is stored as formula to allow reset
+        field.setMeta('^formula', value);
       } else {
-        // literal output stored directly in value of field without a definition
-        // needed to avoid infinite regress of definitions
+        // literal output stored directly in value of field without a formula
+        // to avoid infinite regress
         field.value = value;
         value.up = field;
       }
       return;
     }
 
-    throw this.error;
+    // initial reference
+    let ref = this.parseReference();
+    if (ref) {
+      field.setMeta('^formula', ref);
+      // TODO: formulas
+      return;
+    }
+    
+    throw this.setError('expecting a formula')
   }
 
 
@@ -517,28 +525,39 @@ export class Parser {
   //   throw this.setError('Expecting a value');
   // }
 
-  // /** parse a dotted path of names, returned as array of name tokens. Includes '~' token for formula access */
-  // parsePath(): TokenPath | undefined {
-  //   if (!this.parseToken('name')) return undefined;
-  //   let names = [this.prevToken];
-  //   while (true) {
-  //     if (this.matchToken('.')) {
-  //       this.requireToken('name');
-  //       names.push(this.prevToken);
-  //     } else if (this.peekToken('name') &&
-  //       this.cursorToken.text.startsWith(FormulaChar)) {
-  //       names.push(this.cursorToken);
-  //       this.cursor++;
-  //     } else {
-  //       return names;
-  //     }
-  //   }
-  // }
-
-
+  /** Returns a Reference with tokens[] contains name tokens which
+   * may include a leading ^/~ and trailing ?/!. May contain leading '.' token.
+   * Also contains number tokens for literal series indexing (used in tests
+   * only). [] indexing will return a ReferenceFormula instead. */
+  parseReference(): Reference | undefined {
+    let tokens: Token[] = [];
+    while (true) {
+      if (this.matchToken('.')) {
+        if (!tokens.length) {
+          // record leading dot
+          tokens.push(this.prevToken);
+        }
+        this.requireToken('name', 'number');
+        tokens.push(this.prevToken);
+      } else if (this.peekToken('name')) {
+        // allow '^' and '~' names to skip dot
+        let prefix = this.cursorToken.text[0];
+        if (prefix === '^' || prefix === '~') {
+          tokens.push(this.cursorToken);
+          this.cursor++;
+          continue;
+        }
+        break;
+      }
+    }
+    if (!tokens.length) return undefined;
+    let ref = new Reference;
+    ref.tokens = tokens;
+    return ref;
+  }
 
   /** Parse a literal value */
-  parseValue(): Value | undefined {
+  parseLiteral(): Value | undefined {
     if (this.matchToken('number')) {
       let num = new Numeric;
       num.token = this.prevToken;

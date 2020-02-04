@@ -5,13 +5,8 @@ export abstract class Value {
 
   /** containing Item */
   up!: Item;
-
-  /** containing doc */
+  get path(): Path { return this.up.path; }
   get doc(): Doc { return this.up.doc }
-
-  get path() {
-    return this.up.path;
-  }
 
   /** the item with an ID else undefined */
   get(id: ID): Item | undefined {
@@ -20,6 +15,9 @@ export abstract class Value {
 
   /** source token where defined */
   token?: Token;
+
+  /** execute contents */
+  abstract exec(): void;
 
   /** source of value through copying */
   source?: this;

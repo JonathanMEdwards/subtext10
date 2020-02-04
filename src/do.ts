@@ -4,6 +4,18 @@ import { Block } from "./exports";
  * are called statements */
 export abstract class Code extends Block {
 
+  /** analysis state, only used during analysis */
+  analysis: 'pending' | 'complete' = 'pending';
+
+  /** execute code */
+  execute() {
+
+  }
+
+
+
+
+
 }
 
 /** A Do block is a procedure that executes statements sequentially */

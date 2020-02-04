@@ -36,6 +36,7 @@ export class MetaID extends FieldID {
 
   /** predefined metadata IDs */
   static ids: Dictionary<MetaID> = {
-    '^def': new MetaID('^def'),
+    '~': new MetaID('~'),                 // Extra results
+    '^formula': new MetaID('^formula'),   // defining formula
   }
 }

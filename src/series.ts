@@ -40,6 +40,14 @@ export class Series<E extends Entry = Entry> extends Container<E> {
     return undefined;
   }
 
+  // execute contents
+  exec(): void {
+    // exec template
+    this.template.exec();
+    // exec entries
+    super.exec();
+  }
+
   copy(src: Path, dst: Path): this {
     let to = super.copy(src, dst);
     to.tracked = this.tracked;

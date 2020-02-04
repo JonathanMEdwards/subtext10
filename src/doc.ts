@@ -1,14 +1,15 @@
-import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token  } from "./exports";
+import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap  } from "./exports";
 
 /** A subtext doc */
 export class Doc extends Item<never, History> {
 
   /** Doc is at the top of the tree */
   declare up: never;
-  get path() {
-    return Path.empty;
-  }
-  get doc(): Doc { return this; }
+  _path = Path.empty;
+  _doc = this;
+
+  /** whether analyzing doc */
+  analyzing = false;
 
   /** serial numbers assigned to FieldIDs */
   fieldSerial = 0;
@@ -53,6 +54,13 @@ export class Doc extends Item<never, History> {
     // compile
     let parser = new Parser(source);
     parser.requireHead(head);
+
+    // analyze all formulas
+    doc.analyzing = true;
+    version.exec();
+    doc.analyzing = false;
+    // reset doc state after analysis
+    trap();
 
     return doc;
   }

@@ -37,7 +37,7 @@ export class Block<F extends Field = Field> extends Container<F> {
     // search by name
     return this.fields.find(field => field.name === id);
   }
-
+ 
   copy(src: Path, dst: Path): this {
     let to = super.copy(src, dst);
     to.outlined = this.outlined;

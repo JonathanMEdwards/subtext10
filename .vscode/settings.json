@@ -1,29 +1,3 @@
 {
   "typescript.tsdk": "node_modules/typescript/lib",
-  "workbench.colorCustomizations": {
-    "editor.background": "#010101",
-    "statusBar.background": "#010101",
-    "editorGroup.emptyBackground": "#010101",
-    "editorGroup.dropBackground": "#010101",
-    "editorGroupHeader.noTabsBackground": "#010101",
-    "editorGroupHeader.tabsBackground": "#010101",
-    "activityBarBadge.background": "#010101",
-    "activityBar.background": "#010101",
-    "sideBar.background": "#010101",
-
-    "foreground": "#E6E6E6",
-    "editorLineNumber.foreground": "#E6E6E6",
-    "sideBar.foreground": "#E6E6E6",
-    "tab.activeForeground": "#E6E6E6",
-    "tab.inactiveForeground": "#E6E6E6",
-    "terminal.foreground": "#E6E6E6",
-    "activityBar.foreground": "#E6E6E6",
-    "activityBar.inactiveForeground": "#E6E6E6",
-
-    // "editor.selectionBackground": "#464646",
-    //"editorError.border": "#ff0000",
-  },
-  "[Log]": {
-    "editor.fontSize": 12
-  }
 }
