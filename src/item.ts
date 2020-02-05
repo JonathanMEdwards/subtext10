@@ -1,4 +1,4 @@
-import { Space, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, assertDefined, another, Field, Reference, trap, assert, PendingValue, Code } from "./exports";
+import { Space, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token } from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not container other items are Base vales. This forms a tree. The top
@@ -31,6 +31,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
     return this._path
   }
+  // FIXME: report ordinals on anon fields, not serials
   get pathString() { return this.path.toString(); }
 
 
@@ -45,7 +46,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     for (
       let item: Item = this;
       !(item instanceof Space);
-      item = item.container.container
+      item = item.container.holder
     ) {
       yield item;
     }
@@ -83,23 +84,25 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   /** set value */
   setValue(value: Value) {
     assert(!this.value);
-    assert(!value.container);
+    assert(!value.holder);
     this.value = value as V;
-    value.container = this;
+    value.holder = this;
   }
 
   /** prune value, so it can be set */
   prune() {
-    assert(this.value?.container === this);
-    this.value.container = undefined as any;
+    assert(this.value?.holder === this);
+    this.value.holder = undefined as any;
     this.value = undefined;
     // this.rejected = false;
   }
 
-  /** the Item at a downward path else trap */
-  down(path: Path): Item {
+  /** the Item at a downward path else trap. Accepts a dotted string */
+  down(path: Path | string): Item {
+    if (path === '') return this;
+    let ids = path instanceof Path ? path.ids : path.split('.');
     let target: Item = this;
-    path.ids.forEach(id => {
+    ids.forEach(id => {
       target = target.get(id);
     });
     return target;
@@ -129,23 +132,37 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     if (!this.metadata) {
       // allocate metadata block
       this.metadata = new Metadata;
-      this.metadata.container = this;
+      this.metadata.holder = this;
     }
     return this.metadata.set(name, value);
   }
 
+  /** Evaluates if value undefined, or if inside unexecuted code  */
+  evalIfNeeded() {
+    if (!this.value) {
+      this.eval();
+    }
+  }
+
+  /** flag that already evaluated, avoiding redundant eval scans. Not strictly
+   * necessary, but helps me stop worrying about extra evals */
+  evalComplete?: boolean;
+
   /** Evaluate metadata and value */
   eval() {
-
-    this.metadata?.eval();
-
-    if (!this.value) {
+    if (this.value) {
+      if (this.evalComplete) return;
+      // evaluate metadata
+      this.metadata?.eval();
+    } else {
       // derive value from formula
-
-
+      assert(!this.evalComplete);
 
       // set PendingValue to catch evaluation cycles
       this.setValue(new PendingValue);
+
+      // evaluate metadata
+      this.metadata?.eval();
 
       // formula is in ^formula metadata
       const formula = this.get('^formula').value!;
@@ -154,7 +171,6 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       // dereference a Reference
       if (formula instanceof Reference) {
         value = formula.deref(this);
-        trap()
       } else {
         // Copy literal value
         value = formula;
@@ -165,6 +181,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
     // evaluate within value
     this.value!.eval();
+
+    this.evalComplete = true;
   }
 
   /** source of value through copying */
@@ -190,7 +208,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // copy metadata
     if (this.metadata) {
       to.metadata = this.metadata.copy(src, dst);
-      to.metadata.container = this;
+      to.metadata.holder = this;
     }
 
     // copy value
@@ -204,7 +222,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       )
     ) {
       to.value = this.value.copy(src, dst);
-      to.value.container = this;
+      to.value.holder = this;
     }
 
     return to;
@@ -212,4 +230,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
   // dump value
   dump() { return this.value ? this.value.dump() : {'': 'undefined'}}
+}
+
+/** FIXME: reify into state so unaffected items can operate */
+export class StaticError extends Error {
+  constructor(token: Token, description: string) {
+    super(description + ': ' + token.source.slice(token.start, token.end + 10));
+  }
 }

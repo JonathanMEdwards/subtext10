@@ -1,4 +1,4 @@
-import { MetaID, VersionID, assert, FieldID, Base, another, Token, Item, trap, Field, Block, Value, arrayEquals, assertDefined, PendingValue } from "./exports";
+import { MetaID, VersionID, assert, FieldID, Base, another, Token, Item, trap, StaticError, Block, Value, arrayEquals, PendingValue, arrayLast } from "./exports";
 
 /**
  * ID of an item. Immutable and interned, so can use ===
@@ -83,30 +83,55 @@ export class Path {
 /** Guard on an ID in a reference */
 type Guard = '?' | '!' | undefined;
 
-/** Path as a value of an item. Only used in metadata */
+/** Path as a value of an item. Only used in ^formula metadata */
 export class Reference extends Base {
 
   /** Tokens of path in source. May have leading '.' token. Name tokens have
    * leading ^/~ and trailing ?/!. Number tokens used for testing */
-  tokens?: Token[];
+  tokens!: Token[];
 
-  /** Path of IDs */
-  path!: Path;
+  /** Path to follow */
+  refPath!: Path;
 
   /** guards for each ID in path. IDs above LUB of absolute path must be unguarded  */
   guards!: Guard[];
 
 
-  /** Dereference */
+  /** Called to evaluate base item */
   deref(from: Item): Value {
-    if (!this.path) {
+    assert(this.id.toString() === '^formula');
+    assert(from.value instanceof PendingValue); // for cycle detection
+    if (!this.refPath) {
       // bind path
       this.bind(from);
     }
-    // dereference
-    trap();
+    assert(this.refPath.isAbsolute);
 
+    // follow absolute path from top of space
+    let target: Item = from.space;
+    this.refPath.ids.forEach((id, i) => {
+      let guard = this.guards[i];
+      target = target.get(id);
 
+      if (this.refPath.ids[i + 1] instanceof MetaID) {
+        // metadata is not inside base item, so skip evaluating it
+        return;
+      }
+
+      // TODO - check guards from LUB
+
+      // evaluate on way down if value undefined
+      target.evalIfNeeded();
+
+      if (target.value instanceof PendingValue) {
+        // cyclic dependency - should have been caught during binding
+        trap();
+      }
+    })
+    // evaluate target deeply
+    target.eval();
+
+    return target.value!;
   }
 
   // bind reference during analysis
@@ -159,19 +184,10 @@ export class Reference extends Base {
       continue;
     }
     if (!target) {
-      // hit top without binding - try builtins
-      // generalize to includes?
-      trap();
-      // let builtins = cast(base.root.getMeta('^builtins'), Data);
-      // scope = builtins.fields.find(field => field.name.label === first);
-      // // TODO - search downward into builtins to allow sub-modules
-      // if (!scope) {
-      //   throw new AnalysisError(tokens[0], 'Name not defined in context');
-      // }
-    }
-    if (target === from) {
-      // self reference
-      trap();
+      // hit top without binding
+      // FIXME: use builtins, maybe generalized to includes at every level?
+
+      throw new StaticError(this.tokens[0], 'Undefined name')
     }
 
     // path starts at lexical binding, unguarded above
@@ -190,51 +206,50 @@ export class Reference extends Base {
         trap();
       }
 
-      if (!target.value) {
-        // target value undefined. Evaluate it
-        target.eval();
-        assert(target.value);
-      } else if (target.value instanceof PendingValue) {
-        // cyclic dependency
-        trap()
+      if (name[0] === '^') {
+        // next name is metadata - don't evaluate base item
+      } else {
+        // evaluate target if needed
+        target.evalIfNeeded();
+        if (target.value instanceof PendingValue) {
+          // cyclic dependency
+          throw new StaticError(this.tokens[i], 'Circular reference')
+        }
       }
 
-      target = target.value.getMaybe(name);
+      target = target.value!.getMaybe(name);
       if (!target) {
-        // undefined ID
-        trap();
+        // undefined name
+        throw new StaticError(this.tokens[i], 'Undefined name')
       }
-      if (target === from) {
-        // self reference
-        trap();
-      }
+
       // append to path
       ids.push(target.id);
       guards.push(guard);
-      if (!!guard !== target.isConditional) {
-        // guard and conditionality don't match
-        trap();
-      }
+      // TODO: check guards from LUB
+
+    }
+
+    if (target.value instanceof PendingValue) {
+      // cyclic dependency
+      throw new StaticError(arrayLast(this.tokens), 'Circular reference')
     }
 
     // establish Path
-    this.path = new Path(ids);
+    this.refPath = new Path(ids);
     this.guards = guards;
-
-    /** Disallow recursive paths from within the base case of a Choice or Try */
-    if (this.path.containsOrEquals(from.path)) {
-      trap();
-    }
-
   }
 
 
   /** make copy, bottom up, translating paths contextually */
   copy(src: Path, dst: Path): this {
+    // path must already have been bound
+    assert(this.refPath);
     let to = another(this);
-    to.path = this.path.translate(src, dst);
+    to.tokens = this.tokens;
+    to.refPath = this.refPath.translate(src, dst);
     // translate guards
-    if (this.path.isAbsolute && src.contains(this.path)) {
+    if (this.refPath.isAbsolute && src.contains(this.refPath)) {
       // Adjust unguarded accesses to context
       assert(
         this.guards.slice(0, src.length)
@@ -255,10 +270,24 @@ export class Reference extends Base {
   equals(other: any) {
     return (
       other instanceof Reference
-      && this.path.equals(other.path)
+      && this.refPath.equals(other.refPath)
       && arrayEquals(this.guards, other.guards)
     );
   }
 
-  dump() { return this.path.dump(); }
+  // dump path as dotted string
+  // Leave off versionID if in same version
+  // FIXME: add guards
+  dump() {
+    let ids = this.refPath.ids;
+    if (ids[0] === this.path.ids[0]) {
+      ids = ids.slice(1);
+    }
+    return ids.join('.');
+    // dump source path
+    // if (this.tokens[0].text === '.') {
+    //   return '.' + this.tokens.slice(1).join('.');
+    // }
+    // return this.tokens.join('.');
+  }
 }

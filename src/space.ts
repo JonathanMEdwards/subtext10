@@ -3,7 +3,7 @@ import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, 
 /** A subtext workspace */
 export class Space extends Item<never, History> {
 
-  /** Spave is at the top of the tree */
+  /** Space is at the top of the tree */
   declare container: never;
   _path = Path.empty;
   _space = this;
@@ -33,35 +33,40 @@ export class Space extends Item<never, History> {
   }
 
 
+  /** dump item at string path in current version */
+  dumpAt(path: string): Item {
+    return this.value!.currentVersion.down(path).dump();
+  }
+
   /** compile a doc
    * @param source
    * @param builtin flag for compiling builtins
    * @throws SyntaxError
    */
   static compile(source: string, builtin = false): Space {
-    let doc = new Space;
+    let space = new Space;
     let history = new History;
-    doc.value = history;
-    history.container = doc;
+    space.value = history;
+    history.holder = space;
     // FIXME: make real history
     let version = new Version;
-    version.id = doc.newVersionID('compiled version');
-    history.currentVersion = version;
+    version.id = space.newVersionID('initial');
+    history.add(version);
     version.container = history;
     let head = new Head;
     version.value = head;
-    head.container = version;
+    head.holder = version;
     // compile
     let parser = new Parser(source);
     parser.requireHead(head);
 
     // analyze all formulas by evaluating doc
-    doc.analyzing = true;
-    version.eval();
-    doc.analyzing = false;
+    space.analyzing = true;
+    space.eval();
+    space.analyzing = false;
     // TODO: reset doc state after analysis
 
-    return doc;
+    return space;
   }
 }
 

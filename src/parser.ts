@@ -213,7 +213,7 @@ export class Parser {
         // literal output stored directly in value of field without a formula
         // to avoid infinite regress
         field.value = value;
-        value.container = field;
+        value.holder = field;
       }
       return;
     }
@@ -533,6 +533,13 @@ export class Parser {
    * instead. */
   parseReference(): Reference | undefined {
     let tokens: Token[] = [];
+
+    // leading name
+    if (this.matchToken('name')) {
+      tokens.push(this.prevToken);
+    }
+
+    // rest of path
     while (true) {
       if (this.matchToken('.')) {
         if (!tokens.length) {
@@ -541,6 +548,7 @@ export class Parser {
         }
         this.requireToken('name', 'number');
         tokens.push(this.prevToken);
+        continue;
       } else if (this.peekToken('name')) {
         // allow '^' and '~' names to skip dot
         let prefix = this.cursorToken.text[0];
@@ -549,9 +557,10 @@ export class Parser {
           this.cursor++;
           continue;
         }
-        break;
       }
+      break;
     }
+
     if (!tokens.length) return undefined;
     let ref = new Reference;
     ref.tokens = tokens;

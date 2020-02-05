@@ -4,9 +4,9 @@ import { Space } from "../src/exports";
  * Basic tests
  */
 
-/** Compile and dump to plain JS object */
-function expectDump(source: string) {
-  return expect(Space.compile(source).dump());
+/** Compile and dump at a location to plain JS object */
+function expectDump(source: string, at = '') {
+  return expect(Space.compile(source).dumpAt(at));
 }
 
 /** Test compiler exceptions */
@@ -25,38 +25,39 @@ test('literal inputs', () => {
     .toEqual({ a: 0, b: '', c: null, d: { x: 0, y: 1 }  });
 });
 
-// test('references', () => {
-//   expectDump("a: b, b: 0")
-//     .toEqual({a: 0, b: 0});
-//   expectDump("a: b, b: data{x: 0, y: 1}")
-//     .toEqual({a: {x: 0, y: 1}, b: {x: 0, y: 1}});
-// });
+test('references', () => {
+  expectDump("a: 0, b: a")
+    .toEqual({a: 0, b: 0});
+  expectDump("a: b, b: 0")
+    .toEqual({a: 0, b: 0});
+  expectDump("a: b, b: record{x: 0, y: 1}")
+    .toEqual({a: {x: 0, y: 1}, b: {x: 0, y: 1}});
+});
 
-// test('path translation', () => {
-//   let d = Root.compile("a: b, b: data{x: 0, y: x}")
-//   expect(d.toJS())
-//     .toEqual({ a: { x: 0, y: 0 }, b: { x: 0, y: 0 } });
-//   expect(d.pathToJS('a.y.^value')).toEqual('a.x')
-// });
+test('path translation', () => {
+  expectDump("a: b, b: record {x: 0, y: x}")
+    .toEqual({ a: { x: 0, y: 0 }, b: { x: 0, y: 0 } });
+  expectDump("a: b, b: record {x: 0, y: x}", 'a.y.^formula')
+    .toEqual('a.x')
+  expectDump("a: b, b: record {x: 0, y: c}, c: 0", 'a.y.^formula')
+    .toEqual('c')
+});
 
-// test('undefined reference', () => {
-//   expectCompiling("a: c, b: 0")
-//     .toThrow('Name not defined in context: c');
-//   expectCompiling("a: b.c, b: data{x: 0}")
-//     .toThrow('Name not defined: c');
-// });
+test('undefined name', () => {
+  expectCompiling("a: c, b: 0")
+    .toThrow('Undefined name: c');
+  expectCompiling("a: b.c, b: record {x: 0}")
+    .toThrow('Undefined name: c');
+});
 
-// test('invalid recursion', () => {
-//   expectCompiling("a: a")
-//     .toThrow('Self reference: a');
-//   expectCompiling("a: data{x: a}")
-//     .toThrow('Illegal recursive reference');
-// });
-
-// test('cyclic references', () => {
-//   expectCompiling("a: b, b: a")
-//     .toThrow('Illegal cyclic reference');
-// });
+test('circular references', () => {
+  expectCompiling("a: a")
+    .toThrow('Circular reference: a');
+  expectCompiling("a: record{x: a}")
+    .toThrow('Circular reference: a');
+  expectCompiling("a: b, b: a")
+    .toThrow('Circular reference: a');
+});
 
 // test('set literal value', () => {
 //   expectDump("a = 0 do{:= ''}")
@@ -64,18 +65,18 @@ test('literal inputs', () => {
 // });
 
 // test('set block value', () => {
-//   expectDump("a = data{x: 0, y = x}, b = a do{:= a}")
+//   expectDump("a = record{x: 0, y = x}, b = a do{:= a}")
 //     .toEqual({ a: { x: 0, y: 0 }, b: { x: 0, y: 0} });
-//   expectDump("a = data{x: 0, y = x}, b = a do{x := 1}")
+//   expectDump("a = record{x: 0, y = x}, b = a do{x := 1}")
 //     .toEqual({ a: { x: 0, y: 0 }, b: { x: 1, y: 1} });
-//   expectCompiling("a = data{x: 0, y = x}, b = a do{x := ''}")
+//   expectCompiling("a = record{x: 0, y = x}, b = a do{x := ''}")
 //     .toThrow('Type mismatch');
-//   expectCompiling("a = data{x: 0, y = x}, b = a do{y := ''}")
+//   expectCompiling("a = record{x: 0, y = x}, b = a do{y := ''}")
 //     .toThrow('Cannot set a formula');
 // });
 
 // test('$ ref', () => {
-//   expectDump("a = data{x: 0, y = x}, b = a do{:= $.x}")
+//   expectDump("a = record{x: 0, y = x}, b = a do{:= $.x}")
 //     .toEqual({ a: { x: 0, y: 0 }, b: 0 });
 // });
 

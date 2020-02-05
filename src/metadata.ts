@@ -6,7 +6,7 @@ export class Metadata extends Block<Metafield> {
 
   /** logical container is base item's logical container */
   get up(): Item | undefined {
-    return this.container.up;
+    return this.holder.up;
   }
 
   /** sets a metadata field, which must not already exist */
@@ -20,7 +20,7 @@ export class Metadata extends Block<Metafield> {
     // define as literal output field (a constant)
     field.isInput = false;
     field.value = value;
-    field.value.container = field;
+    field.value.holder = field;
     return field;
   }
 
@@ -41,7 +41,7 @@ export class MetaID extends FieldID {
 
   /** predefined metadata IDs */
   static ids: Dictionary<MetaID> = {
-    '~': new MetaID('~'),                 // Extra results
+    '^~': new MetaID('^~'),               // Extra results
     '^formula': new MetaID('^formula'),   // defining formula
   }
 }

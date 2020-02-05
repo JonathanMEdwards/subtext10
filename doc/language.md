@@ -154,9 +154,9 @@ y = do {
 ```
 Like all blocks, a `do` block is a series of items. In this example there are three items, one per line, and they are output items whose value is calculated from their formula. Unlike in previous examples, these are anonymous outputs, lacking a name and the following `=`.  
 
-The first item is just a reference to `x` but the last two items are calls without a left input value: `+ 1` and `* 2`. In that case the value of the previous item is used as the left input. We can see this as the value of items flowing downward from the result of one formula into the start of the next formula. The result is the bottom value, which becomes the value of `y`. Note how this downward dataflow corresponds exactly to the rightward dataflow in the formula `x + 1 + 2`, with the result being the final value on the right. Thus data flows in formulas from left to right, and in outlined blocks from top to bottom. This matchs the reading order of English prose. 
+The first item is just a reference to `x` but the last two items are calls without a preceding input value: `+ 1` and `* 2`. In that case the value of the previous item is used as the left input. We can see this as the value of items flowing downward from the result of one formula into the start of the next formula. The result is the bottom value, which becomes the value of `y`. Note how this downward dataflow corresponds exactly to the rightward dataflow in the formula `x + 1 + 2`, with the result being the final value on the right. Thus data flows in formulas from left to right, and in outlined blocks from top to bottom. This matchs the reading order of English prose. 
 
-A formula is a single-line representation of a `do` block, but it will only look like a series of infix calls when the `do` block follows the pattern shown above: a series of anonymous outputs with the first being a literal or reference and the following ones single calls without a left input. Anything else will use the general notation for blocks in a line, with brackets and semicolons. For example, if we had named one of the items:
+A formula is a single-line representation of a `do` block, but it will only look like a series of infix calls when the `do` block follows the pattern shown above: a series of anonymous outputs with the first being a literal or reference and the following ones single calls without a  preceding value. Anything else will use the general notation for blocks in a line, with brackets and semicolons. For example, if we had named one of the items:
 ```
 y = do {
   x
@@ -211,14 +211,14 @@ We can abbreviate programs with just one input. For example:
 0
 increment = do{+ 1}
 ```
-Here the 0 preceding the definition of `increment` serves as the default input value to the program. When `increment` is called, the actual input value will be inserted as the first item. This abbreviation is especially convenient with sequential programs, like `find`, that automatically supply a default input value, saving the duplication of specifying it explicitly. 
+Here the 0 preceding the definition of `increment` serves as the default input value to the program. When `increment` is called, the previous value will be inserted as the first item. This abbreviation is especially convenient with sequential programs, like `find`, that automatically supply a default previous value, saving the duplication of specifying it explicitly. 
 
 There is another abbreviation for defining programs. For example,
 ```
 increment2 = 0 + 1
 
 ```
-can be called like the previous example. Note this is equivalent to:
+can be called like the prior example. Note this is equivalent to:
 ```
 increment2 = do {
   0
@@ -241,7 +241,7 @@ plus = do {
 ```
 the value of `plus` is just 1, the result of executing the program, not a special kind of value representing a program. When we call the program, as in `1 plus 1` what we are really doing is reusing the program that defines the value of `plus` with different inputs. 
 
-> In fact programs really are “first-class” values, accessible via special metadata references, but they are only used in the UI and planned metaprogramming capabilities.
+> In fact programs really are “first-class” values, but they are only used in the UI and planned metaprogramming capabilities.
 
 ### Block modification
 So far all of the examples have used arithmetic. But it is very common to work with blocks, particularly records,  as they are often the rows of tables. Take the record:

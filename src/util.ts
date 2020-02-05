@@ -70,8 +70,9 @@ class Trap extends Error {
 
 // Array utils
 
-/** return last element of array else undefined */
+/** return last element of array else trap */
 export function arrayLast<T>(array: T[]): T {
+  if (array.length === 0) trap();
   return array[array.length - 1];
 }
 
