@@ -1,6 +1,6 @@
 # The Subtext Programming Language
 
-Subtext is searching for the missing link between spreadsheets and programming. It is an interactive medium for data processing by people who don’t want to learn how to program.  For example, scientists who want to process data without becoming “data scientists”. Or people who want to build simple custom apps without learning to program. Spreadsheets primarily fill this role, but they have significant limitations. The goal of Subtext is to merge the power of programming with the simplicity of spreadsheets, without inheriting all the complexity of modern programming.  That said, there is indeed a programming language at the foundation of Subtext. This article specifies that language through examples as a way to solicit feedback from other researchers.
+Subtext is searching for the missing link between spreadsheets and programming. It is an interactive medium for data processing by people who don’t want to learn how to program.  For example, scientists who want to process data without becoming “data scientists”. Or people who want to build simple custom apps without learning to program. Spreadsheets primarily fill this role, but they have significant limitations. The goal of Subtext is to merge the power of programming with the simplicity of spreadsheets, without inheriting all the complexity of modern programming.  That said, there is indeed a programming language at the foundation of Subtext. This document specifies that language through examples as a way to solicit feedback from other researchers.
 
 Subtext tries to be simple, transparent, and informal:
 1. Simple — easy to learn and easy to use.
@@ -11,7 +11,7 @@ Subtext rejects:
 2. Requiring knowledge of existing software technology and practices beyond using a browser.
 3. Appealing to the tastes of professional programmers or computer scientists.
 
-These goals require changing not just the programming language but the entire programming experience. Much of this experience is still just a vision — this article discusses the language design decisions we have made to enable that vision, but without being able to go into much detail about what the experience will actually be. Nevertheless we must say a few things up front. Many programming languages presume that the programming experience is a text editor. Subtext instead provides an interactive environment with structured editing offering high-level code transformations, and live execution. As such, a complete textual representation would need to be a serialization format not well suited to manual editing. We will defer these concerns by assuming that all of the examples in this article are compiled into a fresh Subtext document and not subsequently edited. Also note that the ASCII syntax presented herein may diverge significantly from what the developer sees on screen, where we can exploit graphics, typography, and layout. For example, the curly brackets around blocks may render as rectangular regions; comments and labels may render in the margins. But syntax still matters, as it is the most effective way to communicate the design of the language in papers, which are still the primary medium of research. Syntax is also highly effective for testing and bootstrapping. As such, we have tried to keep the syntax reasonably readable and credibly usable.
+These goals require changing not just the programming language but the entire programming experience. Much of this experience is still just a vision — this document discusses the language design decisions we have made to enable that vision, but without being able to go into much detail about what the experience will actually be. Nevertheless we must say a few things up front. Many programming languages presume that the programming experience is a text editor. Subtext instead provides an interactive environment with structured editing offering high-level code transformations, and live execution. As such, a complete textual representation would need to be a serialization format not well suited to manual editing. We will defer these concerns by assuming that all of the examples in this document are compiled into a fresh Subtext workspace and not subsequently edited. Also note that the ASCII syntax presented herein may diverge significantly from what the developer sees on screen, where we can exploit graphics, typography, and layout. For example, the curly brackets around blocks may render as rectangular regions; comments and labels may render in the margins. But syntax still matters, as it is the most effective way to communicate the design of the language in papers, which are still the primary medium of research. Syntax is also highly effective for testing and bootstrapping. As such, we have tried to keep the syntax reasonably readable and credibly usable.
 
 > Discussion of design alternatives will be placed in notes like this.
 
@@ -21,9 +21,9 @@ This section summarizes the notable programming language features of Subtext.
 
 * The traditional terminology of programming languages and software development is rejected in favor of plain English. We continue to use traditional terminology in this section.
 * Subtext specifies how to pronounce its syntax.
-* Code and data are combined into autonomous documents that provide reproduceability, collaboration, version control, and schema change. Documents change both through direct manipulation by users and executing code within the document.
-* Everything is nestable: programs, databases, and documents can all be nested inside each other. A Subtext document is a tree.
-* All inputs and sources of randomness are recorded in the document history to make it autonomous and reproduceable.
+* Code and data are combined into an autonomous artifact called a workspace which provides reproduceability, collaboration, version control, and schema change. A workspace changes both through direct manipulation by users and executing code within the workspace.
+* Everything is nestable: programs, databases, and workspaces can all be nested inside each other. A Subtext workspace is a tree.
+* All inputs and sources of randomness are recorded in the workspace history to make it autonomous and reproduceable.
 * Subtext is both a PL and a DB: data is either persistent and transactional, or determinstically computed from such persistent data.
 * What a user can do by direct manipulation of data and what code can do when executed are similar. The recorded history of user interactions and external inputs is in fact a program that can replay that history, or be used as raw material for Programming by Demonstration.  Conversely, a program can be understood as a script that a user could follow to perform the same operations. The language syntax and semantics have been designed to make these connections as direct as possible. For example, the syntax for replacing a value at a path within a tree, which looks like an assignment statement, is used to record user edits in the history.
 * All code is strict, pure, and referentially transparent.
@@ -35,7 +35,7 @@ This section summarizes the notable programming language features of Subtext.
 * programs can have extra results, which do not need to be captured at the call site as in conventional approaches. The extra results of a program are a record. Extra results of conditional clauses are combined into a discriminated union. The extra results of a loop are collected into a list.
 * Subtext is statically (parametrically) typed, but types are not mentioned in the language nor error messages. Concrete values serve as witnesses of types. 
 * Lists are homogeneuoulst typed. Lists of records serve as a table.
-* Lists can be tracked by automatically assigning hidden unique IDs to their items. Tracking supports stable links into lists that act like database foreign keys with referential ingegrit maintenance. Tracking also supports precise document versioning and mergeing. 
+* Lists can be tracked by automatically assigning hidden unique IDs to their items. Tracking supports stable links into lists that act like database foreign keys with referential ingegrit maintenance. Tracking also supports precise workspace versioning and mergeing. 
 
 ### Intentionally excluded features
 
@@ -44,31 +44,31 @@ This section summarizes the notable programming language features of Subtext.
 * First-class programs (generics are enough)
 * The stack and the heap (and garbage collection)
 
-## Introduction to documents
+## Introduction to workspaces
 
-The artifact that Subtext mediates is called a _document_. It is somewhat like a spreadsheet (e.g. Excel) in that it presents both data and formulas in a visual metaphor that is easy to learn. It is somewhat like a notebook (e.g. Jupyter) in that it offers the full power of a programming language. These artifacts are characterized by their geometry: notebooks are a linear sequence of cells; spreadsheets are a 2-dimensional grid of cells; Subtext documents are a tree of nested cells called _items_. There are many types of items, explained in the following:
+The artifact that Subtext mediates is called a _workspace_. It is somewhat like a spreadsheet (e.g. Excel) in that it presents both data and formulas in a visual metaphor that is easy to learn. It is somewhat like a notebook (e.g. Jupyter) in that it offers the full power of a programming language. These artifacts are characterized by their geometry: a notebook is a linear sequence of cells; a spreadsheet is a 2-dimensional grid of cells; A Subtext workspace is a tree of nested cells called _items_. There are many types of items, explained in the following:
 
 - Items are a holder for a value of some type
 - An item is either a _base value_, a _block_, or a _series_
-- There are several kinds of base values: numbers, characters, times, images, etc. Base values do not contain any other items, and occupy the bottom of the document tree
+- There are several kinds of base values: numbers, characters, times, images, etc. Base values do not contain any other items, and occupy the bottom of the workspace tree
 - Blocks and series are built out of other items, called their contents. They differ on how the contents are organized. 
-- A block contains a fixed set of items, like conventional records, structs, or objects. Each item has a fixed type of value. Often the items of a block are given unique names, but when used as intermediate computations they may be left anonymous. The top item of a document is a _head_ block. The _history_ of a document is a block containing heads.
+- A block contains a fixed set of items, like conventional records, structs, or objects. Each item has a fixed type of value. Often the items of a block are given unique names, but when used as intermediate computations they may be left anonymous. The top item of a workspace is a _head_ block. The _history_ of a workspace is a block containing heads.
 - A series contains a variable number of items all of the same type in a linear order, like conventional arrays or lists. _Text_ is a series of _characters_. A series of blocks is called a _table_.
 
-The tree structure of Subtext documents strikes a balance: they are more flexible and dynamic than the grid of a spreadsheet, yet simpler and more visualizable than the graph-structured data of imperative programming languages. They are somewhat like the tree-structured values of programal programming languages, except that:
+The tree structure of Subtext workspaces strikes a balance: they are more flexible and dynamic than the grid of a spreadsheet, yet simpler and more visualizable than the graph-structured data of imperative programming languages. They are somewhat like the tree-structured values of programal programming languages, except that:
 
 - Items (called _inputs_) can be changed by the user and programs.
-- Items (called _outputs_) can be automatically derived from the state of other portions of the document as they change.
+- Items (called _outputs_) can be automatically derived from the state of other portions of the workspace as they change.
 - The same structures are used to represent data and programs (as in LISP), but they also represent the execution of programs for inspection by the developer.
 - There are cross-references within the tree. Cross-references can be dynamic only to the extent of selecting different items within a specific series — other than that, cross-references are static.
 
-Subtext is statically typed, which conventionally means that the code and the types of values are fixed at _compile time_ and do not vary at _run time_. But there is no such thing as compile time in Subtext documents, which are always running and fully editable with their state stored persistently in a file. Subtext distinguishes between two kinds of changes: modifying data and editing the definitions of prgrams and data. It is possible to lock a document so that only data modifications are allowed — this is called _user mode_. In user mode data changes are highly constrained: data types are fixed. For example a number can’t be changed into text, and a newly created item in a series will have the same type as all the others. Only certain kinds of errors can occur in user mode. In _programming mode_ anything can be changed, which can lead to various sorts of inconsistencies called _static errors_, corresponding to the errors a traditional compiler might report. Static errors are reported to the programmer as problems in the document to be resolved, but unlike compiled languages, the document continues to program outside the implicated parts.
+Subtext is statically typed, which conventionally means that the code and the types of values are fixed at _compile time_ and do not vary at _run time_. But there is no such thing as compile time in Subtext workspacess, which are always running and fully editable with their state stored persistently in a file. Subtext distinguishes between two kinds of changes: modifying data and editing the definitions of prgrams and data. It is possible to lock a workspace so that only data modifications are allowed — this is called _user mode_. In user mode data changes are highly constrained: data types are fixed. For example a number can’t be changed into text, and a newly created item in a series will have the same type as all the others. Only certain kinds of errors can occur in user mode. In _programming mode_ anything can be changed, which can lead to various sorts of inconsistencies called _static errors_, corresponding to the errors a traditional compiler might report. Static errors are reported to the programmer as problems in the workspace to be resolved, but unlike compiled languages, the workspace continues to function outside the implicated parts.
 
 Although Subtext is statically typed in the above sense, there is no mention of types in the language syntax or error messages, because concrete values serve as witnesses of their types (see _Types_).
 
 
 ## Base values
-Subtext provides several kinds of values out of which documents are built:
+Subtext provides several kinds of values out of which a workspace is built:
 
 - _number_: double float using JavaScript syntax, and the special value `_number_` not equal to any other number (except itself)
 - TODO: infinite precision rationals
@@ -84,7 +84,7 @@ Subtext provides several kinds of values out of which documents are built:
 
 ## Blocks, formulas, and programs
 
-One way Subtext documents are constructed is with a _block_ (the other is a _series_) . A block contains a fixed set of items with (optional) names. Blocks are defined in the syntax with curly brackets preceded by a keyword indicating the kind of block. Blocks are used for both data and programs. A common data block is the _record_, which is like a struct or object in other languages, and like a row in a relational databases. For example:
+One way a Subtext workspace is constructed is with a _block_ (the other is a _series_) . A block contains a fixed set of items with (optional) names. Blocks are defined in the syntax with curly brackets preceded by a keyword indicating the kind of block. Blocks are used for both data and programs. A common data block is the _record_, which is like a struct or object in other languages, and like a row in a relational databases. For example:
 ```
 b: record {
   x: 0
@@ -122,7 +122,7 @@ Subtext specifies how to pronounce its syntax. The above example syntax is prono
 > The distinction between `:` and `=` may be too subtle, but we haven’t come up with a better alternative.
 
 ### Formulas
-In the item definition `y = x + 1` the part to the right of the `=` is called a _formula_. Formulas are simple programs. They contain literal values like `1` and _references_ to items elsewhere in the document like `x` and `+`. They can _call_ the program defining an item, like `+`, which is the built-in program that adds numbers. Programs have one or more inputs and produce a result value. The program `+` is _called_ by first, making a copy of it, then setting its inputs to the values of `x` and `1`, and then taking its result as the value of `y`. The two references here are just names, but in general they can be paths (see Reference binding).
+In the item definition `y = x + 1` the part to the right of the `=` is called a _formula_. Formulas are simple programs. They contain literal values like `1` and _references_ to items elsewhere in the workspace like `x` and `+`. They can _call_ the program defining an item, like `+`, which is the built-in program that adds numbers. Programs have one or more inputs and produce a result value. The program `+` is _called_ by first, making a copy of it, then setting its inputs to the values of `x` and `1`, and then taking its result as the value of `y`. The two references here are just names, but in general they can be paths (see Reference binding).
 
 > In PL terminology, Subtext programs are pure strict functions. Subtext tries to use plain English instead of mathematical concepts, and so uses just “program”. In this case the term 'function” has the wrong meaning in both Math and English! The functions of Functional Programming are not actually mathematical functions.
 > Subtext is also referentially transparent, which means that equal inputs produce equal results.
@@ -370,7 +370,7 @@ The syntax uses conventional _lexical binding_, but the UI will not be constrain
 
 When a program executes (including formulas), exactly one of the following things will happen:
 
-1. The program crashes. A crash indicates a programming error, not a user error: some condition has arisen that ought to be impossible. A crash is reported to the document developer, including a snapshot of the document that can reproduce the crash. No changes are made to the document when an input event (including user actions) causes a crash. Sometimes crashes can be predicted ahead of time when formulas are being edited (for example type mismatches). These are called static errors and are presented to the developer as problems to be fixed. Unlike conventional compiler errors, static errors do not prevent the system from running, so long as the erroneous formula is not used.
+1. The program crashes. A crash indicates a programming error, not a user error: some condition has arisen that ought to be impossible. A crash is reported to the workspace developer, including a snapshot of the workspace that can reproduce the crash. No changes are made to the workspace when an input event (including user actions) causes a crash. Sometimes crashes can be predicted ahead of time when formulas are being edited (for example type mismatches). These are called static errors and are presented to the developer as problems to be fixed. Unlike conventional compiler errors, static errors do not prevent the system from running, so long as the erroneous formula is not used.
 2. The program is terminated before it completes because it has taken too long or used too many resources.
 3. The program completes successfully, producing results.
 4. The program intentionally _rejects_ without producing a result. Rejection means the program refuses to handle the input values supplied to it. Rejection is inspired by [SNOBOL](https://en.wikipedia.org/wiki/SNOBOL), which calls it _failure_, as do many parsing DSLs. We call it rejection rather than failure to make clear it is an intentional occurence, not a programming error (a crash).
@@ -406,7 +406,7 @@ x do {
 
 Only output items can use a conditional program, not input items. See _Missing values_ for alternative techniques.
 
-When a program rejects, what happens depends on the kind of block it is inside. Inside a `do` block (and other program blocks to be introduced later), rejection halts further execution, and causes the whole program block to reject. What happens next depends on the kind of block containing that block — if it is also a `do` block then the rejection continues to propagates into the containing block. This proceeds until the rejection reaches one of several kinds of block that handle rejections, for example the `try` block_.  Rejection is like _exception catching_ in conventional languages, except that it is the single kind of exception supported, and it carries no extra information visible to the program.
+When a program rejects, what happens depends on the kind of block it is inside. Inside a `do` block (and other program blocks to be introduced later), rejection halts further execution, and causes the whole program block to reject. What happens next depends on the kind of block containing that block — if it is also a `do` block then the rejection continues to propagates into the containing block. This proceeds until the rejection reaches one of several kinds of block that handle rejections, for example the `try` block\_.  Rejection is like \_exception catching\_ in conventional languages, except that it is the single kind of exception supported, and it carries no extra information visible to the program.
 
 A `try` block is a program that can respond to a rejection by doing something else — it fills the role of the ubiquitous _IF_ statement in conventional languages. Here is an example:
 ```Txt
@@ -508,9 +508,9 @@ test {
   1 polarity() =? 'positive'
 }
 ```
-All `test` blocks in the document are executed after programmer edits that could affect them (after all edits in the prototype implementation). If a rejection occurs inside the test block then it is treated as a static error, which is a problem for the programmer to resolve, but does not prevent the document from being used.
+All `test` blocks in the workspace are executed after programmer edits that could affect them (after all edits in the prototype implementation). If a rejection occurs inside the test block then it is treated as a static error, which is a problem for the programmer to resolve, but does not prevent the workspace from being used.
 
-Each `test` block executes inside a copy of the document where all input items have been reset to their initial state. This reset document is also the input value to the `test` block. That way tests are isolated and reproduceable, even if they explore changes to the document. For example:
+Each `test` block executes inside a copy of the workspace where all input items have been reset to their initial state. This reset workspace is also the input value to the `test` block. That way tests are isolated and reproduceable, even if they explore changes to the workspace. For example:
 ```Txt
 x: 0
 y = x + 1
@@ -526,7 +526,7 @@ test {
 
 Sometimes a program takes too long to execute, or consumes too many internal resources.
 
-> Simplest solution is that doc becomes read-only while reacting to an input, and then the results are shown atomically at completion. If computation takes too long the user can terminate it, which cancels the entire input action and leaves the document in its prior state. The input action remains in the history though and can be redone later if desired. Exceeding resource quotas (like stack size) would terminate computation automatically. This is the state of the art for computational notebooks.
+> Simplest solution is that doc becomes read-only while reacting to an input, and then the results are shown atomically at completion. If computation takes too long the user can terminate it, which cancels the entire input action and leaves the workspace in its prior state. The input action remains in the history though and can be redone later if desired. Exceeding resource quotas (like stack size) would terminate computation automatically. This is the state of the art for computational notebooks.
 
 > However it would be nicer to be able to interrupt a long-running execution, observe it’s execution so far, and resume if desired. That should probably wait for an implementation of incremental execution.
 
@@ -590,7 +590,7 @@ Here the first try clause accesses the `literal?` option. If it was chosen, its 
 
 ## Series and tables
 
-So far we have discussed various kinds of blocks. The other way that Subtext documents are built is with _series_. A series is an ordered set of zero or more items containing values of the same fixed type. A _text_ is a series of characters. A _table_ is a series of blocks (typically records), its items are called _rows_, and the items of the block define the _columns_ of the table. Every series defines a value, called it’s _template_, which sets the default value for newly created items. For example:
+So far we have discussed various kinds of blocks. The other way that a Subtext workspace is built is with _series_. A series is an ordered set of zero or more items containing values of the same fixed type. A _text_ is a series of characters. A _table_ is a series of blocks (typically records), its items are called _rows_, and the items of the block define the _columns_ of the table. Every series defines a value, called it’s _template_, which sets the default value for newly created items. For example:
 ```
 numbers: series {0}
 customers: table {
@@ -868,13 +868,13 @@ Links can target nested series, linking to a path of IDs. Reflecting links can c
 
 ### Merging
 
-Copies happen. Documents get shared as email attachments. Documents get imported into other documents. Inevitably both the copy and the original change. Tracking allows such changes to be later sent to the other version without wiping out all the changes that have happened to it in the meantime. This is called _merging_. 
+Copies happen. Workspaces get shared as email attachments. Workspaces get incorporated into other workspaces. Inevitably both the copy and the original change. Tracking allows such changes to be later sent to the other version without wiping out all the changes that have happened to it in the meantime. This is called _merging_. 
 
 Two copies of a tracked series can be compared to see exactly how they have diverged. The IDs in a tracked series allow changes made to an item to be tracked despite any changes made to its value or location. Deletions and creations are also known exactly. Tracking provides more precise information than text-based version control systems like git. 
 
-Changes made to one copy can be merged into the other. If changes are merged in both directions the two copies become equal again. Sometimes changes made to both copies are such that merging must lose some information, for example if the same item in the same item is changed to be two different numbers. Merging can be done using an automatic policy to resolve such conflicts, or human intervention can be requested, either immediately in the UI when performing the merge, or later by reifying such conflicts into the document itself (but without breaking the document as textual version-control does).
+Changes made to one copy can be merged into the other. If changes are merged in both directions the two copies become equal again. Sometimes changes made to both copies are such that merging must lose some information, for example if the same item in the same item is changed to be two different numbers. Merging can be done using an automatic policy to resolve such conflicts, or human intervention can be requested, either immediately in the UI when performing the merge, or later by reifying such conflicts into the workspace itself (but without breaking the workspace as textual version-control does).
 
-Merging can be done across copies of entire documents. Merging can also apply to documents included inside another document (see _include_ and _variant_). Merging applies to all tracked series and links within a document. Non-tracked series (like text) are treated like base values that change as a whole.
+Merging can be done across copies of entire workspaces. Merging can also apply to workspaces included inside another workspace (see _include_ and _variant_). Merging applies to all tracked series and links within a workspace. Non-tracked series (like text) are treated like base values that change as a whole.
 
 TODO: details.
 
@@ -1105,7 +1105,7 @@ Subtext has no syntax for describing types: programs only talk about values. All
 
 We believe that type systems are an essential formalism for language theoreticians and designers, but that many language users would prefer to obtain their benefits without having to know about them and write about them.
 
-In PL theory terms, Subtext mixes aspects of structural and nominal type systems. It is structural in that `x = series{0}` and `y = series{1}` have the same type. It is nominal in that `x = record {a: 0}` and `y = record {a: 0}` have different types. Every time a block item is defined a globally unique ID is assigned to it. There is a document-wide dictionary that maps these item IDs to their current names. Renaming a block item just changes that dictionary entry. Type equality requires that block item IDs be equal, not that their names are currently spelled the same.
+In PL theory terms, Subtext mixes aspects of structural and nominal type systems. It is structural in that `x = series{0}` and `y = series{1}` have the same type. It is nominal in that `x = record {a: 0}` and `y = record {a: 0}` have different types. Every time a block item is defined a globally unique ID is assigned to it. There is a workspace-wide dictionary that maps these item IDs to their current names. Renaming a block item just changes that dictionary entry. Type equality requires that block item IDs be equal, not that their names are currently spelled the same.
 
 > TODO: To share item IDs across different types of blocks we can use a traits-like mechanism that merges and restricts blocks. Deferred until we have the need.
 
@@ -1130,7 +1130,7 @@ A generic program is one with an input containing `anything`. The program can be
 # Appendix: Syntax
 
 ```
-Document = Body
+Workspace = Body
 
 Body :=
 	| Item 

@@ -20,7 +20,7 @@ export * from "./block";
 export * from "./metadata";
 export * from "./head";
 export * from "./history";
-export * from "./doc";
+export * from "./space";
 export * from "./choice";
 export * from "./series";
 export * from "./do";

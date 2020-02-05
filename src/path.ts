@@ -8,7 +8,7 @@ import { MetaID, VersionID, assert, FieldID, Base, another, Token, Item, trap, F
 export type RealID = FieldID | number;
 export type ID = RealID | string;
 
-/** Absolute path within the doc. A sequence of IDs starting with the
+/** Absolute path within the Space. A sequence of IDs starting with the
  * VersionID in the Head. Immutable after construction */
 export class Path {
 
@@ -21,7 +21,7 @@ export class Path {
 
   static readonly empty = new Path([]);
 
-  /** Whether path is absolute path witin doc. Otherwise it is relative to
+  /** Whether path is absolute path witin Space. Otherwise it is relative to
    * contextual input value */
   get isAbsolute() {
     return this.ids[0] instanceof VersionID;
@@ -111,7 +111,7 @@ export class Reference extends Base {
 
   // bind reference during analysis
   private bind(from: Item) {
-    assert(this.doc.analyzing);
+    assert(this.space.analyzing);
     assert(this.tokens);
     switch (this.tokens[0]?.text[0]) {
       case '.':

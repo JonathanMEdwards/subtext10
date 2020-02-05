@@ -1,14 +1,14 @@
 import { Block, FieldID, Head, Item, Field } from "./exports";
 
-/** History is the top value of a doc. The History is a Block whose fields have
- * a VersionID and contains a Head */
+/** History is the top value of a Space. The History is a Block whose fields
+ * have a VersionID and contains a Head */
 export class History extends Block<Version> {
 
   get versions() {
     return this.items;
   }
 
-  /** Current state of doc */
+  /** Current state of Space */
   // FIXME: hack till history actually implemented
   currentVersion!: Version;
 
@@ -21,7 +21,7 @@ export class Version extends Field<VersionID, Head> {
   isInput = false;
 }
 
-/** doc-unique ID of a Version */
+/** space-unique ID of a Version */
 export class VersionID extends FieldID {
 }
 

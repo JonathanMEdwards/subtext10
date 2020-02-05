@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Doc, Reference } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Space, Reference } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -62,12 +62,12 @@ export class Parser {
     return this.error;
   }
 
-  doc!: Doc;
+  space!: Space;
 
-  /** require top-level doc definition */
+  /** require top-level Head definition */
   requireHead(head: Head) {
-    // store Doc in Parser
-    this.doc = head.doc;
+    // store Space in Parser
+    this.space = head.space;
 
     this.requireBlockBody(head);
     if (!this.peekToken('end')) {
@@ -159,7 +159,7 @@ export class Parser {
       }
 
       // FieldID allocated here becomes unique identifier for field
-      field.id = this.doc.newFieldID(unqualName, nameToken);
+      field.id = this.space.newFieldID(unqualName, nameToken);
       field.isInput = (defType === ':');
 
       if (block instanceof Choice) {
@@ -178,7 +178,7 @@ export class Parser {
     } else {
       // anonymous output formula
       this.cursor = cursor
-      field.id = this.doc.newFieldID (
+      field.id = this.space.newFieldID (
         undefined,
         // = token pointing to start of formula
         new Token(

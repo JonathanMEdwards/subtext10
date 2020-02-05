@@ -69,10 +69,10 @@ export class Field<I extends FieldID = FieldID, V extends Value = Value> extends
   }
 }
 
-/** doc-unique ID of a Field. Immutable and interned */
+/** space-unique ID of a Field. Immutable and interned */
 export class FieldID {
 
-  /** doc serial # of field */
+  /** space serial # of field */
   readonly serial: number;
 
   /** name of field, without trailing ?. undefined if unnamed */

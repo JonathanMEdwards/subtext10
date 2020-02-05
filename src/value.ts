@@ -1,4 +1,4 @@
-import { Doc, Item, trap, ID, Path, another, Token } from "./exports";
+import { Space, Item, trap, ID, Path, another, Token } from "./exports";
 
 /** Every Value is contained in an Item */
 export abstract class Value {
@@ -6,7 +6,7 @@ export abstract class Value {
   /** containing Item */
   container!: Item;
   get path(): Path { return this.container.path; }
-  get doc(): Doc { return this.container.doc }
+  get space(): Space { return this.container.space }
 
   /** logical container (skipping base field of metadata) */
   get up(): Item | undefined {

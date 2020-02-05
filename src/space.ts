@@ -1,14 +1,14 @@
 import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap  } from "./exports";
 
-/** A subtext doc */
-export class Doc extends Item<never, History> {
+/** A subtext workspace */
+export class Space extends Item<never, History> {
 
-  /** Doc is at the top of the tree */
+  /** Spave is at the top of the tree */
   declare container: never;
   _path = Path.empty;
-  _doc = this;
+  _space = this;
 
-  /** whether analyzing doc - effects evaluation logic */
+  /** whether analyzing space - effects evaluation logic */
   analyzing = false;
 
   /** serial numbers assigned to FieldIDs */
@@ -38,8 +38,8 @@ export class Doc extends Item<never, History> {
    * @param builtin flag for compiling builtins
    * @throws SyntaxError
    */
-  static compile(source: string, builtin = false): Doc {
-    let doc = new Doc;
+  static compile(source: string, builtin = false): Space {
+    let doc = new Space;
     let history = new History;
     doc.value = history;
     history.container = doc;

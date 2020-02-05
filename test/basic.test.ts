@@ -1,4 +1,4 @@
-import { Doc } from "../src/exports";
+import { Space } from "../src/exports";
 /** @module
  *
  * Basic tests
@@ -6,12 +6,12 @@ import { Doc } from "../src/exports";
 
 /** Compile and dump to plain JS object */
 function expectDump(source: string) {
-  return expect(Doc.compile(source).dump());
+  return expect(Space.compile(source).dump());
 }
 
 /** Test compiler exceptions */
 function expectCompiling(source: string) {
-  return expect(() => Doc.compile(source));
+  return expect(() => Space.compile(source));
 }
 
 

@@ -1,8 +1,8 @@
-import { Doc, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, assertDefined, another, Field, Reference, trap, assert, PendingValue, Code } from "./exports";
+import { Space, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, assertDefined, another, Field, Reference, trap, assert, PendingValue, Code } from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not container other items are Base vales. This forms a tree. The top
- * item is a Doc. Each contained item carries an ID, and we identify items
+ * item is a Space. Each contained item carries an ID, and we identify items
  * by the path of IDs down from the top.
  */
 
@@ -11,13 +11,13 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   /** Physical container */
   container!: Container<this>;
 
-  /** memoized Doc */
-  _doc?: Doc;
-  get doc(): Doc {
-    if (!this._doc) {
-      this._doc = this.container.doc;
+  /** memoized Space */
+  _space?: Space;
+  get space(): Space {
+    if (!this._space) {
+      this._space = this.container.space;
     }
-    return this._doc;
+    return this._space;
   }
 
   /** ID of the item within its container */
@@ -40,11 +40,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return this.container!.up;
   }
 
-  /** iterate upwards through logical containers to Doc */
+  /** iterate upwards through logical containers to Space */
   *upwards(): Generator<Item> {
     for (
       let item: Item = this;
-      !(item instanceof Doc);
+      !(item instanceof Space);
       item = item.container.container
     ) {
       yield item;
@@ -96,6 +96,14 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // this.rejected = false;
   }
 
+  /** the Item at a downward path else trap */
+  down(path: Path): Item {
+    let target: Item = this;
+    path.ids.forEach(id => {
+      target = target.get(id);
+    });
+    return target;
+  }
 
   /** the contained item with an ID else trap */
   get(id: ID): Item {
@@ -174,7 +182,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // record copy
     to.source = this;
 
-    if (this.doc.analyzing) {
+    if (this.space.analyzing) {
       // copy rejection during analysis, which indicates conditionality
       // to.rejected = this.rejected;
     }
