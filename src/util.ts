@@ -71,27 +71,31 @@ class Trap extends Error {
 // Array utils
 
 /** return last element of array else undefined */
-export function last<T>(array: ReadonlyArray<T>): T {
+export function arrayLast<T>(array: T[]): T {
   return array[array.length - 1];
 }
 
 /** remove first occurence of a value in an array */
-export function remove<T>(array: T[], value: T) {
+export function arrayRemove<T>(array: T[], value: T) {
   let i = array.indexOf(value);
   assert(i >= 0);
   array.splice(i, 1);
 }
 
 /** replace first occurence of a value in an array */
-export function replace<T>(array: T[], value: T, replacement: T) {
+export function arrayReplace<T>(array: T[], value: T, replacement: T) {
   let i = array.indexOf(value);
   assert(i >= 0);
   array.splice(i, 1, replacement);
 }
 
 /** returns a reversed copy of an array */
-export function reverse<T>(array: ReadonlyArray<T>): T[] {
+export function arrayReverse<T>(array: T[]): T[] {
   return array.slice().reverse();
+}
+
+export function arrayEquals<T>(xs: T[], ys: T[]) {
+  return (xs.length === ys.length && xs.every((x, i) => x === ys[i]));
 }
 
 // String utils

@@ -1,4 +1,4 @@
-import { last } from "./exports";
+import { arrayLast } from "./exports";
 /** @module scanner
  * Lexical scanner. No regular expressions were harmed in this module.
  */
@@ -52,7 +52,7 @@ export function tokenize(source: string): Token[] {
     // tokenize newlines
     if (newline(char)) {
       // ignore if first token or repeated
-      if (tokens.length && last(tokens).type !== '\n') {
+      if (tokens.length && arrayLast(tokens).type !== '\n') {
         tokens.push(new Token('\n', cursor - 1, cursor, source));
       }
       cursor++;

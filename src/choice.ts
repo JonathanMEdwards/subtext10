@@ -5,12 +5,12 @@ import { Block, trap } from "./exports";
  * has a value and is accessible with a ?-guarded path */
 export class Choice extends Block {
 
-  exec() {
+  eval() {
     if (this.doc.analyzing) {
-      // execute all options during analysis
-      return super.exec();
+      // eval all options during analysis
+      return super.eval();
     }
-    // execute choice
+    // eval choice
     trap();
   }
 }

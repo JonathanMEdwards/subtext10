@@ -21,7 +21,7 @@ export class Series<E extends Entry = Entry> extends Container<E> {
   }
 
   /** the item with an ID else undefined */
-  get(id: ID): E | undefined {
+  getMaybe(id: ID): E | undefined {
     if (isNumber(id)) {
       if (this.tracked) {
         // find serial numner
@@ -40,12 +40,12 @@ export class Series<E extends Entry = Entry> extends Container<E> {
     return undefined;
   }
 
-  // execute contents
-  exec(): void {
-    // exec template
-    this.template.exec();
-    // exec entries
-    super.exec();
+  // evaluate contents
+  eval(): void {
+    // eval template
+    this.template.eval();
+    // eval entries
+    super.eval();
   }
 
   copy(src: Path, dst: Path): this {
@@ -54,7 +54,7 @@ export class Series<E extends Entry = Entry> extends Container<E> {
     to.sorted = this.sorted;
     to.ascending = this.ascending;
     to.template = this.template.copy(src, dst);
-    to.template.up = this;
+    to.template.container = this;
     return to;
   }
 
@@ -77,6 +77,8 @@ export class Text extends Series<TextEntry> {
 
   /** JS string value */
   value: string = '';
+
+  eval() { }
 
   copy(src: Path, dst: Path): this {
     // just copy string value

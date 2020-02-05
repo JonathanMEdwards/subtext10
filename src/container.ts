@@ -16,16 +16,16 @@ export abstract class Container<I extends Item> extends Value {
 
   /** add an item to end */
   add(item: I) {
-    assert(!item.up);
-    item.up = this;
+    assert(!item.container);
+    item.container = this;
     this.items.push(item);
   }
 
-  /** execute all items */
-  exec() {
-    this.items.forEach(item => item.exec());
+  /** evaluate all items */
+  eval() {
+    this.items.forEach(item => item.eval());
   }
-  
+
   /** make copy, bottom up, translating paths contextually */
   copy(src: Path, dst: Path): this {
     let to = super.copy(src, dst);

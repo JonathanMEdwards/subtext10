@@ -1,4 +1,4 @@
-import { Doc, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, assertDefined, another, Field, Reference, trap, assert, PendingValue } from "./exports";
+import { Doc, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, assertDefined, another, Field, Reference, trap, assert, PendingValue, Code } from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not container other items are Base vales. This forms a tree. The top
@@ -8,14 +8,14 @@ import { Doc, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, as
 
 export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
-  /** Container */
-  up!: Container<this>;
+  /** Physical container */
+  container!: Container<this>;
 
   /** memoized Doc */
   _doc?: Doc;
   get doc(): Doc {
     if (!this._doc) {
-      this._doc = this.up.doc;
+      this._doc = this.container.doc;
     }
     return this._doc;
   }
@@ -27,27 +27,37 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   _path?: Path;
   get path(): Path {
     if (!this._path) {
-      this._path = this.up.path.down(this.id);
+      this._path = this.container.path.down(this.id);
     }
     return this._path
   }
+  get pathString() { return this.path.toString(); }
 
-  /** iterate upwards to Doc */
-  *upwards() {
-    let item: Item = this;
-    while (!(item instanceof Doc)) {
-      item = item.up.up;
+
+  /** Logical container: metadata is physically contained in base item, but
+   * logically is a peer */
+  get up(): Item | undefined {
+    return this.container!.up;
+  }
+
+  /** iterate upwards through logical containers to Doc */
+  *upwards(): Generator<Item> {
+    for (
+      let item: Item = this;
+      !(item instanceof Doc);
+      item = item.container.container
+    ) {
       yield item;
     }
   }
 
   /** iterate upwards starting with this */
-  *thisUpwards() {
-    yield this as Item;
+  *thisUpwards(): Generator<Item> {
+    yield this;
     yield* this.upwards();
   }
 
-  /** top-down iteration through all places */
+  /** top-down iteration through all items */
   *visit(): IterableIterator<Item> {
     if (this.metadata) {
       yield* this.metadata.visit();
@@ -73,40 +83,37 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   /** set value */
   setValue(value: Value) {
     assert(!this.value);
-    assert(!value.up);
+    assert(!value.container);
     this.value = value as V;
-    value.up = this;
+    value.container = this;
   }
 
   /** prune value, so it can be set */
   prune() {
-    assert(this.value?.up === this);
-    this.value.up = undefined as any;
+    assert(this.value?.container === this);
+    this.value.container = undefined as any;
     this.value = undefined;
-    this.rejected = false;
+    // this.rejected = false;
   }
 
 
+  /** the contained item with an ID else trap */
+  get(id: ID): Item {
+    return this.getMaybe(id) ?? trap(this.path + ': ' + id + ' undefined');
+  }
+
   /** the contained item with an ID else undefined */
-  get(id: ID): Item | undefined {
+  getMaybe(id: ID): Item | undefined {
     if (
       id instanceof MetaID
-      || (isString(id) && id.startsWith('^'))) {
+      || (isString(id) && id.startsWith('^'))
+    ) {
       // metadata access
-      return this.metadata?.get(id);
+      return this.metadata?.getMaybe(id);
     }
 
     // evaluate and get from value
-    return this.eval().get(id);
-  }
-
-  /** get metadata field */
-  getMeta(id: ID) {
-    return this.metadata?.get(id);
-  }
-  /** get metadata field value */
-  getMetaValue(id: ID) {
-    return this.metadata?.get(id)?.eval();
+    return this.value?.getMaybe(id);
   }
 
   /** set a metadata field by name. Must not already exist */
@@ -114,64 +121,43 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     if (!this.metadata) {
       // allocate metadata block
       this.metadata = new Metadata;
-      this.metadata.up = this;
+      this.metadata.container = this;
     }
     return this.metadata.set(name, value);
   }
 
-  /** Evaluate the formula stored in metadata to compute value if undefined */
-  eval(): V {
-    if (this.value) return this.value;
+  /** Evaluate metadata and value */
+  eval() {
 
-    // set PendingValue to catch evaluation cycles
-    this.setValue(new PendingValue);
+    this.metadata?.eval();
 
-    /** ^formula contains formula */
-    const formula = assertDefined(this.getMetaValue('^formula'));
-
-    if (formula instanceof Reference) {
-      formula.deref(this)
-       trap()
+    if (!this.value) {
+      // derive value from formula
 
 
-    }
-    // Copy literal value
-    this.prune();
-    this.setValue(formula.copy(formula.path, this.path));
-    return this.value!;
-  }
 
-  /** execution status (analysis status during analysis phase) */
-  execStatus: undefined | 'pending' | 'done' = undefined;
+      // set PendingValue to catch evaluation cycles
+      this.setValue(new PendingValue);
 
-  /** Execute value. This executes a program block, and evaluates all field in a
-   * data block. Also performs analysis */
-  exec() {
-    switch (this.execStatus) {
-      case undefined:
-        this.execStatus = 'pending';
-        break;
-      case 'pending':
-        // cyclic execution
-        trap();
-      case 'done':
-        return;
+      // formula is in ^formula metadata
+      const formula = this.get('^formula').value!;
+      let value: Value;
+
+      // dereference a Reference
+      if (formula instanceof Reference) {
+        value = formula.deref(this);
+        trap()
+      } else {
+        // Copy literal value
+        value = formula;
+      }
+      this.prune();
+      this.setValue(value.copy(value.path, this.path));
     }
 
-    // evaluate field
-    this.eval();
-
-    // TODO: handle rejects and crashes
-
-    // execute value
-    this.value!.exec();
-
-    // TODO: hand program rejects and crashes
-
-    this.execStatus = 'done';
-    return;
+    // evaluate within value
+    this.value!.eval();
   }
-
 
   /** source of value through copying */
   // FIXME prob should be a Path, translated through copies
@@ -190,24 +176,32 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
     if (this.doc.analyzing) {
       // copy rejection during analysis, which indicates conditionality
-      to.rejected = this.rejected;
+      // to.rejected = this.rejected;
     }
 
     // copy metadata
     if (this.metadata) {
       to.metadata = this.metadata.copy(src, dst);
-      to.metadata.up = this;
+      to.metadata.container = this;
     }
 
-    // copy value of inputs. Non-literal outputs gets re-evaluated
-    if (this.value && (this.isInput || !this.getMeta('^formula'))) {
+    // copy value
+    if (
+      this.value
+      && (
+        // non-code input values are copied
+        (this.isInput && !(this.container instanceof Code))
+        // non-literal output values are copied
+        || (!this.isInput && !this.getMaybe('^formula'))
+      )
+    ) {
       to.value = this.value.copy(src, dst);
-      to.value.up = this;
+      to.value.container = this;
     }
 
     return to;
   }
 
-  // dump evaluation
-  dump() { return this.eval().dump()}
+  // dump value
+  dump() { return this.value ? this.value.dump() : {'': 'undefined'}}
 }

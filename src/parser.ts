@@ -150,10 +150,11 @@ export class Parser {
       const unqualName = (
         field.isConditional
           ? nameToken.text.slice(0, -1)
-          : nameToken.text);
+          : nameToken.text
+      );
 
       // check name is unique
-      if (block.get(unqualName)) {
+      if (block.getMaybe(unqualName)) {
         throw this.setError('Duplicate name', nameToken);
       }
 
@@ -177,14 +178,15 @@ export class Parser {
     } else {
       // anonymous output formula
       this.cursor = cursor
-      field.id = this.doc.newFieldID(
+      field.id = this.doc.newFieldID (
         undefined,
         // = token pointing to start of formula
         new Token(
           '=',
           this.cursorToken.start,
           this.cursorToken.start,
-          this.cursorToken.source)
+          this.cursorToken.source
+        )
       );
       field.isInput = false;
     }
@@ -211,7 +213,7 @@ export class Parser {
         // literal output stored directly in value of field without a formula
         // to avoid infinite regress
         field.value = value;
-        value.up = field;
+        value.container = field;
       }
       return;
     }
@@ -223,7 +225,7 @@ export class Parser {
       // TODO: formulas
       return;
     }
-    
+
     throw this.setError('expecting a formula')
   }
 
@@ -525,10 +527,10 @@ export class Parser {
   //   throw this.setError('Expecting a value');
   // }
 
-  /** Returns a Reference with tokens[] contains name tokens which
-   * may include a leading ^/~ and trailing ?/!. May contain leading '.' token.
-   * Also contains number tokens for literal series indexing (used in tests
-   * only). [] indexing will return a ReferenceFormula instead. */
+  /** Returns a Reference with tokens[] contains name tokens which may include a
+   * leading ^/~ and trailing ?/!. May contain leading '.' token. Also contains
+   * number tokens for testing. [] indexing will return a ReferenceFormula
+   * instead. */
   parseReference(): Reference | undefined {
     let tokens: Token[] = [];
     while (true) {

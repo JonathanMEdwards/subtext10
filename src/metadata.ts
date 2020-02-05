@@ -4,18 +4,23 @@ import { Block, FieldID, Item, Value, Dictionary, assert, assertDefined, Field }
  *start with '^' */
 export class Metadata extends Block<Metafield> {
 
+  /** logical container is base item's logical container */
+  get up(): Item | undefined {
+    return this.container.up;
+  }
+
   /** sets a metadata field, which must not already exist */
   set(name: string, value: Value): Metafield {
     let id = assertDefined(MetaID.ids[name]);
-    assert(!this.get(id));
+    assert(!this.getMaybe(id));
     let field = new Metafield;
     this.fields.push(field)
-    field.up = this;
+    field.container = this;
     field.id = id;
     // define as literal output field (a constant)
     field.isInput = false;
     field.value = value;
-    field.value.up = field;
+    field.value.container = field;
     return field;
   }
 

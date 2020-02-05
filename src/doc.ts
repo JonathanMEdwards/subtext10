@@ -4,11 +4,11 @@ import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, 
 export class Doc extends Item<never, History> {
 
   /** Doc is at the top of the tree */
-  declare up: never;
+  declare container: never;
   _path = Path.empty;
   _doc = this;
 
-  /** whether analyzing doc */
+  /** whether analyzing doc - effects evaluation logic */
   analyzing = false;
 
   /** serial numbers assigned to FieldIDs */
@@ -42,25 +42,24 @@ export class Doc extends Item<never, History> {
     let doc = new Doc;
     let history = new History;
     doc.value = history;
-    history.up = doc;
+    history.container = doc;
     // FIXME: make real history
     let version = new Version;
     version.id = doc.newVersionID('compiled version');
     history.currentVersion = version;
-    version.up = history;
+    version.container = history;
     let head = new Head;
     version.value = head;
-    head.up = version;
+    head.container = version;
     // compile
     let parser = new Parser(source);
     parser.requireHead(head);
 
-    // analyze all formulas
+    // analyze all formulas by evaluating doc
     doc.analyzing = true;
-    version.exec();
+    version.eval();
     doc.analyzing = false;
-    // reset doc state after analysis
-    trap();
+    // TODO: reset doc state after analysis
 
     return doc;
   }

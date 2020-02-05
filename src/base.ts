@@ -3,8 +3,8 @@ import { Value, another, Path, escapedString } from "./exports";
 /** Base items contain no other items */
 export abstract class Base extends Value {
 
-  // base values don't execute
-  exec() { return; }
+  // base values already evaluated
+  eval() { return; }
 }
 
 /**

@@ -1,4 +1,4 @@
-import { assert, Container, ID, Item, isNumber, Token, Path, Dictionary, Value } from "./exports";
+import { assert, Container, ID, Item, isNumber, Token, Path, Dictionary, Value, trap } from "./exports";
 
 /** A Block is a record-like container with a fixed set of items called fields.
  * Each field can have a different type. Each Field has a globally unique
@@ -16,12 +16,12 @@ export class Block<F extends Field = Field> extends Container<F> {
   /** add a Field */
   add(field: F) {
     this.fields.push(field);
-    assert(!field.up);
-    field.up = this;
+    assert(!field.container);
+    field.container = this;
   }
 
   /** the item with an ID else undefined */
-  get(id: ID): F | undefined {
+  getMaybe(id: ID): F | undefined {
     if (id instanceof FieldID) {
       return this.fields.find(field => field.id === id);
     }
@@ -37,7 +37,7 @@ export class Block<F extends Field = Field> extends Container<F> {
     // search by name
     return this.fields.find(field => field.name === id);
   }
- 
+
   copy(src: Path, dst: Path): this {
     let to = super.copy(src, dst);
     to.outlined = this.outlined;

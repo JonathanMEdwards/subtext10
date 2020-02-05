@@ -1,4 +1,4 @@
-import { MetaID, VersionID, assert, FieldID, Base, another, Token, Item, trap, Field, Block, Value } from "./exports";
+import { MetaID, VersionID, assert, FieldID, Base, another, Token, Item, trap, Field, Block, Value, arrayEquals, assertDefined, PendingValue } from "./exports";
 
 /**
  * ID of an item. Immutable and interned, so can use ===
@@ -87,8 +87,7 @@ type Guard = '?' | '!' | undefined;
 export class Reference extends Base {
 
   /** Tokens of path in source. May have leading '.' token. Name tokens have
-   * leading ^/~ and trailing ?/!. Number tokens included for testing literal
-   * series IDS */
+   * leading ^/~ and trailing ?/!. Number tokens used for testing */
   tokens?: Token[];
 
   /** Path of IDs */
@@ -99,12 +98,14 @@ export class Reference extends Base {
 
 
   /** Dereference */
-  deref(from: Item): Item {
+  deref(from: Item): Value {
     if (!this.path) {
       // bind path
       this.bind(from);
     }
     // dereference
+    trap();
+
 
   }
 
@@ -117,7 +118,7 @@ export class Reference extends Base {
       case '^':
       case '~':
         // relative reference
-        bindRelative();
+        trap();
         return;
       default:
         break;
@@ -147,7 +148,8 @@ export class Reference extends Base {
     let first = tokenNames[0];
 
     // lexically bind by searching upward to match first name
-    let target: Field | undefined;
+    // Note upwards scan skips from metadata to base item's container
+    let target: Item | undefined;
     for (let up of from.upwards()) {
       if (up.value instanceof Block) {
         // bind against field names in Block container
@@ -158,6 +160,7 @@ export class Reference extends Base {
     }
     if (!target) {
       // hit top without binding - try builtins
+      // generalize to includes?
       trap();
       // let builtins = cast(base.root.getMeta('^builtins'), Data);
       // scope = builtins.fields.find(field => field.name.label === first);
@@ -183,17 +186,22 @@ export class Reference extends Base {
 
       if (name.startsWith('~')) {
         // TODO - extra results
+        // split into two steps to access field of extra results
         trap();
       }
 
-      let block: Value = target.eval();
-      if (!(block instanceof Block)) {
-        // can't follow path
-        trap();
+      if (!target.value) {
+        // target value undefined. Evaluate it
+        target.eval();
+        assert(target.value);
+      } else if (target.value instanceof PendingValue) {
+        // cyclic dependency
+        trap()
       }
-      target = block.get(name);
+
+      target = target.value.getMaybe(name);
       if (!target) {
-        // undefined name
+        // undefined ID
         trap();
       }
       if (target === from) {
@@ -213,105 +221,12 @@ export class Reference extends Base {
     this.path = new Path(ids);
     this.guards = guards;
 
-    /*
-    Check for invalid (possibly mutually) recursive paths by detecting
-    cyclic analysis. Recursion is only allowed within non base cases of a
-    choice or try. Non base cases have analysis deferred, which breaks
-    analysis cycles.
-    */
+    /** Disallow recursive paths from within the base case of a Choice or Try */
     if (this.path.containsOrEquals(from.path)) {
-      if (target.analysis === 'pending') {
-        throw new AnalysisError(tokens[0],
-          'Illegal recursive reference');
-      }
-    } else {
-      // Check that target is not pending analysis, beneath LUB with base.
-      for (let up of target.thisUpwards()) {
-        if (up.contains(base)) {
-          // hit LUB - pending analysis is OK from here up
-          break;
-        }
-        if (up.analysis === 'pending') {
-          throw new AnalysisError(tokens[0],
-            'Illegal cyclic reference');
-        }
-      }
+      trap();
     }
 
-      // replace TokenPath with Name Path, including AssertedNames
-      assert(pathEquals(target.path, path));
-      this.value = path;
-      return;
-
-      // if token is an assertion, convert end of path to AssertedName
-      function assertLast(token: Token) {
-        if (token.text.endsWith('!')) {
-          // use asserted name
-          path[path.length - 1] = new AssertedName(token, cast(last(path), Name));
-        }
-      }
-
-      // follow token path downward, adding to path. Skips first token
-      function down(start: Field, tokens: TokenPath): Field {
-        let target = start;
-        tokens.slice(1).forEach(token => {
-
-        if (!functionPath && target.mode === 'function') {
-          throw new AnalysisError(last(tokens),
-            'Accessing a function as a value');
-        }
-        return target;
-      }
-
-    //   // do deep search for formula name, throwing error if ambiguous
-    //   function deepFormula(scope: Field, token: Token): Field | undefined {
-    //     // get formula
-    //     let formula: Field | undefined;
-    //     if (scope.mode === 'state') return undefined;
-    //     let value = scope.evaluateAndExecute();
-    //     if (scope.container instanceof Try) {
-    //       // Try clause is a literal formula
-    //       assert(value instanceof Do);
-    //       // note that bound path will lose evidence of formula access
-    //       // Maybe generate a ^~= metafield that copies the formula while
-    //       // reifying the path
-    //       formula = scope;
-    //     } else {
-    //       // access either ^code or ^call= metadata
-    //       formula = scope.getMetaField('^code') || scope.getMetaField('^call=');
-    //     }
-    //     if (!formula) return undefined;
-
-    //     // Force deferred analysis within formula
-    //     const formulaPath = formula.path;
-    //     Root.analysisQueue = Root.analysisQueue.filter(([path, closure]) => {
-    //       if (pathContainsOrEquals(formulaPath, path)) {
-    //         closure();
-    //         return false;
-    //       }
-    //       return true;
-    //     })
-
-    //     // access named formula
-    //     let name = deassert(token.text.slice(FormulaChar.length));
-    //     if (!name) return formula;
-    //     let target = formula.get(name) as Field | undefined;
-    //     if (target) return target;
-    //     if (!(formula.value instanceof Block)) {
-    //       return undefined;
-    //     }
-    //     // search for deep name
-    //     formula.value.fields.forEach(field => {
-    //       let down = deepFormula(field, token);
-    //       if (down && target) {
-    //         throw new AnalysisError(token, 'Multiple definitions of deep formula name');
-    //       }
-    //       target = down;
-    //     })
-    //     return target;
-    //   }
   }
-
 
 
   /** make copy, bottom up, translating paths contextually */
@@ -328,7 +243,8 @@ export class Reference extends Base {
 
       to.guards = [
         ...dst.ids.map(_ => undefined),
-        ...this.guards.slice(src.length)];
+        ...this.guards.slice(src.length)
+      ];
 
     } else {
       to.guards = this.guards;
@@ -337,7 +253,11 @@ export class Reference extends Base {
   }
 
   equals(other: any) {
-    return other instanceof Reference && this.path.equals(other.path);
+    return (
+      other instanceof Reference
+      && this.path.equals(other.path)
+      && arrayEquals(this.guards, other.guards)
+    );
   }
 
   dump() { return this.path.dump(); }

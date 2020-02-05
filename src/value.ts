@@ -4,20 +4,25 @@ import { Doc, Item, trap, ID, Path, another, Token } from "./exports";
 export abstract class Value {
 
   /** containing Item */
-  up!: Item;
-  get path(): Path { return this.up.path; }
-  get doc(): Doc { return this.up.doc }
+  container!: Item;
+  get path(): Path { return this.container.path; }
+  get doc(): Doc { return this.container.doc }
+
+  /** logical container (skipping base field of metadata) */
+  get up(): Item | undefined {
+    return this.container;
+  }
 
   /** the item with an ID else undefined */
-  get(id: ID): Item | undefined {
+  getMaybe(id: ID): Item | undefined {
     return undefined;
   }
 
   /** source token where defined */
   token?: Token;
 
-  /** execute contents */
-  abstract exec(): void;
+  /** evaluate contents */
+  abstract eval(): void;
 
   /** source of value through copying */
   source?: this;
