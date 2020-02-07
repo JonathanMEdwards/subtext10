@@ -1,13 +1,23 @@
-import { Block } from "./exports";
+import { Block, arrayLast, Field, assert } from "./exports";
 
 /** A Code block is evaluated to produce a result value. The fields of the block
  * are called statements */
-export abstract class Code extends Block {
+export class Code extends Block {
 
-  /** analysis state, only used during analysis */
-  analysis: 'pending' | 'complete' = 'pending';
+  /** final result field of block */
+  result!: Field;
 
+  eval() {
+    assert(!this.result);
 
+    // evaluate all fields
+    // TODO: stop on rejection
+    super.eval();
+
+    // set result to last field
+    // TODO: set result to previous field
+    this.result = arrayLast(this.fields);
+  }
 
 
 }

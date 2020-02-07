@@ -59,6 +59,14 @@ test('circular references', () => {
     .toThrow('Circular reference: a');
 });
 
+test('do block', () => {
+  expectDump("a = do{1}")
+    .toEqual({ a: 1 });
+  expectDump("a = do{1; 2}")
+    .toEqual({ a: 2 });
+});
+
+
 // test('set literal value', () => {
 //   expectDump("a = 0 do{:= ''}")
 //     .toEqual({ a: ''});

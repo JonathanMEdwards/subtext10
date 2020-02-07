@@ -147,8 +147,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    * reference: value is target of a Reference in ^reference
    *
+   * code: value is result of a Code block in ^code
+   *
    *  */
-  formulaType!: 'none' | 'literal' | 'reference';
+  formulaType!: 'none' | 'literal' | 'reference'| 'code';
 
   /** Evaluates if value undefined, or if inside unexecuted code  */
   evalIfNeeded() {
@@ -187,12 +189,14 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           source = this.get('^literal');
           break;
         case 'reference':
-          source = assertDefined(
-            cast(this.get('^reference').value, Reference).target
-          );
+          source = cast(this.get('^reference').value, Reference).target!;
+          break;
+        case 'code':
+          source = cast(this.get('^code').value, Code).result!;
           break;
       }
-
+      assert(source);
+      
       // copy value
       this.prune();
       this.copyValue(source);

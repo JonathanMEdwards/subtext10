@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Space, Reference } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Space, Reference, Do, trap } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -102,7 +102,12 @@ export class Parser {
         break;
       }
 
-      if (this.peekToken('}', 'end')) return;
+      if (this.peekToken('}', 'end')) {
+        if (!block.fields.length) {
+          throw this.setError('empty block', this.cursorToken)
+        }
+        return;
+      }
       this.requireField(block);
       continue;
     }
@@ -220,14 +225,22 @@ export class Parser {
       return;
     }
 
-    // initial reference
+    // reference
     let ref = this.parseReference();
     if (ref) {
       field.formulaType = 'reference';
       field.setMeta('^reference', ref);
-      // TODO: formulas
       return;
     }
+
+    // code block
+    let code = this.parseCode();
+    if (code) {
+      field.formulaType = 'code';
+      field.setMeta('^code', code);
+      return;
+    }
+
 
     throw this.setError('expecting a formula')
   }
@@ -425,41 +438,6 @@ export class Parser {
   //   }
   // }
 
-  // /** parse a code block */
-  // parseCode(): Code | undefined {
-  //   let token = this.parseToken(
-  //     'do', 'try', 'generic', 'builtin', 'generic-builtin');
-  //   if (!token) return undefined;
-  //   let code: Code;
-  //   switch (token.type) {
-  //     case 'do':
-  //       code = new Do;
-  //       break;
-  //     case 'generic':
-  //       code = new Do;
-  //       code.generic = true;
-  //       break;
-  //     case 'builtin':
-  //       code = new Builtin;
-  //       break;
-  //     case 'generic-builtin':
-  //       code = new Builtin;
-  //       code.generic = true;
-  //       break;
-
-  //     case 'try':
-  //       let block = new Try;
-  //       this.requireTry(block);
-  //       return block;
-
-  //     default:
-  //       throw new Bug;
-  //   }
-
-  //   this.requireBlock(code);
-  //   return code;
-  // }
-
   // /** Require try block */
   // requireTry(block: Try): void {
   //   while (true) {
@@ -520,15 +498,37 @@ export class Parser {
   // }
 
 
-  // requireValue(): Value {
-  //   let value = this.parseLiteralMaybeFalsey();
-  //   if (value !== undefined) return value;
 
-  //   let path = this.parsePath();
-  //   if (path) return path;
+  /** parse a code block */
+  parseCode(): Code | undefined {
+    let token = this.parseToken('do', 'try', 'builtin');
+    if (!token) return undefined;
+    let code: Code;
+    switch (token.type) {
+      case 'do':
+        code = new Do;
+        break;
 
-  //   throw this.setError('Expecting a value');
-  // }
+      // case 'builtin':
+      //   code = new Builtin;
+      //   break;
+
+      // case 'try':
+      //   let block = new Try;
+      //   this.requireTry(block);
+      //   return block;
+
+      default:
+        trap();
+    }
+
+    // parse body of block
+    this.requireBlock(code);
+    return code;
+  }
+
+
+
 
   /** Returns a Reference with tokens[] contains name tokens which may include a
    * leading ^/~ and trailing ?/!. May contain leading '.' token. Also contains
