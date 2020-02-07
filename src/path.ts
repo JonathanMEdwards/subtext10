@@ -96,11 +96,21 @@ export class Reference extends Base {
   /** guards for each ID in path. IDs above LUB of absolute path must be unguarded  */
   guards!: Guard[];
 
+  /** target value of reference */
+  value?: Value;
 
-  /** Called to evaluate base item */
-  deref(from: Item): Value {
-    assert(this.id.toString() === '^formula');
-    assert(from.value instanceof PendingValue); // for cycle detection
+  /** Evaluate reference */
+  eval() {
+    if (this.value) {
+      // already evaluated
+      return;
+    }
+
+    // References only exist in metadata
+    assert(this.id instanceof MetaID);
+    // Reference is relative to base item
+    let from = this.item.container.item;
+
     if (!this.refPath) {
       // bind path
       this.bind(from);
@@ -131,7 +141,7 @@ export class Reference extends Base {
     // evaluate target deeply
     target.eval();
 
-    return target.value!;
+    this.value = target.value!;
   }
 
   // bind reference during analysis

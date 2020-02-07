@@ -6,7 +6,7 @@ export class Metadata extends Block<Metafield> {
 
   /** logical container is base item's logical container */
   get up(): Item | undefined {
-    return this.holder.up;
+    return this.item.up;
   }
 
   /** sets a metadata field, which must not already exist */
@@ -20,7 +20,7 @@ export class Metadata extends Block<Metafield> {
     // define as literal output field (a constant)
     field.isInput = false;
     field.value = value;
-    field.value.holder = field;
+    field.value.item = field;
     return field;
   }
 

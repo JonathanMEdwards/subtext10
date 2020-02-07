@@ -3,7 +3,7 @@ import { Value, another, Path, escapedString } from "./exports";
 /** Base items contain no other items */
 export abstract class Base extends Value {
 
-  // base values already evaluated
+  // base values already evaluated by default
   eval() { return; }
 }
 

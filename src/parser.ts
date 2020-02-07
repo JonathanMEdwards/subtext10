@@ -213,7 +213,7 @@ export class Parser {
         // literal output stored directly in value of field without a formula
         // to avoid infinite regress
         field.value = value;
-        value.holder = field;
+        value.item = field;
       }
       return;
     }

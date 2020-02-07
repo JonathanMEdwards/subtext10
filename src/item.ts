@@ -1,4 +1,4 @@
-import { Space, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token } from "./exports";
+import { Space, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, assertDefined } from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not container other items are Base vales. This forms a tree. The top
@@ -46,7 +46,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     for (
       let item: Item = this;
       !(item instanceof Space);
-      item = item.container.holder
+      item = item.container.item
     ) {
       yield item;
     }
@@ -84,15 +84,15 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   /** set value */
   setValue(value: Value) {
     assert(!this.value);
-    assert(!value.holder);
+    assert(!value.item);
     this.value = value as V;
-    value.holder = this;
+    value.item = this;
   }
 
   /** prune value, so it can be set */
   prune() {
-    assert(this.value?.holder === this);
-    this.value.holder = undefined as any;
+    assert(this.value?.item === this);
+    this.value.item = undefined as any;
     this.value = undefined;
     // this.rejected = false;
   }
@@ -132,7 +132,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     if (!this.metadata) {
       // allocate metadata block
       this.metadata = new Metadata;
-      this.metadata.holder = this;
+      this.metadata.item = this;
     }
     return this.metadata.set(name, value);
   }
@@ -170,7 +170,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
       // dereference a Reference
       if (formula instanceof Reference) {
-        value = formula.deref(this);
+        // dereferenced by evaling the metadata
+        value = assertDefined(formula.value)
       } else {
         // Copy literal value
         value = formula;
@@ -208,7 +209,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // copy metadata
     if (this.metadata) {
       to.metadata = this.metadata.copy(src, dst);
-      to.metadata.holder = this;
+      to.metadata.item = this;
     }
 
     // copy value
@@ -222,7 +223,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       )
     ) {
       to.value = this.value.copy(src, dst);
-      to.value.holder = this;
+      to.value.item = this;
     }
 
     return to;
