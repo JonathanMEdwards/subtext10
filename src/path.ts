@@ -96,12 +96,12 @@ export class Reference extends Base {
   /** guards for each ID in path. IDs above LUB of absolute path must be unguarded  */
   guards!: Guard[];
 
-  /** target value of reference */
-  value?: Value;
+  /** target item of reference */
+  target?: Item;
 
   /** Evaluate reference */
   eval() {
-    if (this.value) {
+    if (this.target) {
       // already evaluated
       return;
     }
@@ -141,7 +141,7 @@ export class Reference extends Base {
     // evaluate target deeply
     target.eval();
 
-    this.value = target.value!;
+    this.target = target;
   }
 
   // bind reference during analysis

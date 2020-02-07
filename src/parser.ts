@@ -200,7 +200,7 @@ export class Parser {
     return field;
   }
 
-  /** Parse a formula defining a field */
+  /** Parse a formula defining a field. Sets formulaType and metadata */
   requireFormula(field: Field): void {
 
     // literal value
@@ -208,10 +208,12 @@ export class Parser {
     if (value) {
       if (field.isInput) {
         // literal input is stored as formula to allow reset
-        field.setMeta('^formula', value);
+        field.formulaType = 'literal';
+        field.setMeta('^literal', value);
       } else {
         // literal output stored directly in value of field without a formula
         // to avoid infinite regress
+        field.formulaType = 'none';
         field.value = value;
         value.item = field;
       }
@@ -221,7 +223,8 @@ export class Parser {
     // initial reference
     let ref = this.parseReference();
     if (ref) {
-      field.setMeta('^formula', ref);
+      field.formulaType = 'reference';
+      field.setMeta('^reference', ref);
       // TODO: formulas
       return;
     }

@@ -1,4 +1,4 @@
-import { Space, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, assertDefined } from "./exports";
+import { Space, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, assertDefined, cast } from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not container other items are Base vales. This forms a tree. The top
@@ -137,6 +137,19 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return this.metadata.set(name, value);
   }
 
+  /**
+   * How item value is computed. The formula is stored in various metadata
+   * fields depending on this tag.
+   *
+   * none: value is a constant in item.value. Used for literal outputs.
+   *
+   * literal: value is in ^literal
+   *
+   * reference: value is target of a Reference in ^reference
+   *
+   *  */
+  formulaType!: 'none' | 'literal' | 'reference';
+
   /** Evaluates if value undefined, or if inside unexecuted code  */
   evalIfNeeded() {
     if (!this.value) {
@@ -164,20 +177,25 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       // evaluate metadata
       this.metadata?.eval();
 
-      // formula is in ^formula metadata
-      const formula = this.get('^formula').value!;
-      let value: Value;
-
-      // dereference a Reference
-      if (formula instanceof Reference) {
-        // dereferenced by evaling the metadata
-        value = assertDefined(formula.value)
-      } else {
-        // Copy literal value
-        value = formula;
+      // evaluate formula
+      let source: Item;
+      switch (this.formulaType) {
+        case undefined:
+        case 'none':
+          trap();
+        case 'literal':
+          source = this.get('^literal');
+          break;
+        case 'reference':
+          source = assertDefined(
+            cast(this.get('^reference').value, Reference).target
+          );
+          break;
       }
+
+      // copy value
       this.prune();
-      this.setValue(value.copy(value.path, this.path));
+      this.copyValue(source);
     }
 
     // evaluate within value
@@ -190,11 +208,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   // FIXME prob should be a Path, translated through copies
   source?: this;
 
+  /** copy value of another item, translating internal paths */
+  copyValue(src: Item) {
+    this.setValue(src.value!.copy(src.path, this.path));
+  }
+
   /** make copy, bottom up, translating paths contextually */
   copy(src: Path, dst: Path): this {
     let to = another(this);
     to.id = this.id;
-
+    to.formulaType = this.formulaType;
     to.isInput = this.isInput;
     to.isConditional = this.isConditional;
 

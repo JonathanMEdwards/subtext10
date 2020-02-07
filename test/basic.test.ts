@@ -37,9 +37,9 @@ test('references', () => {
 test('path translation', () => {
   expectDump("a: b, b: record {x: 0, y: x}")
     .toEqual({ a: { x: 0, y: 0 }, b: { x: 0, y: 0 } });
-  expectDump("a: b, b: record {x: 0, y: x}", 'a.y.^formula')
+  expectDump("a: b, b: record {x: 0, y: x}", 'a.y.^reference')
     .toEqual('a.x')
-  expectDump("a: b, b: record {x: 0, y: c}, c: 0", 'a.y.^formula')
+  expectDump("a: b, b: record {x: 0, y: c}, c: 0", 'a.y.^reference')
     .toEqual('c')
 });
 
