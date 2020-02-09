@@ -4,11 +4,12 @@ import { arrayLast } from "./exports";
  */
 
 export type TokenType = (
-  ':' | '=' | ':=' | '|=' | '.' | ',' | ';' | '{' | '}' | '(' | ')'
+  ':' | '=' | ':=' | '|=' | '.' | ',' | ';' | '{' | '}' | '(' | ')' | '~'
   | '[' | ']' | 'string' | 'number' | '_number_' | 'name' | 'end' | '\n' |
   // keywords - add to matchToken switch statement
   'record' | 'choice' | 'table' | 'series' | 'do' | 'builtin' | 'anything'
   | 'nil' | 'try' | 'check' | 'not' | 'else' | 'reject' | 'let' | 'extra'
+  | 'that'
 )
 
 export class Token {
@@ -161,9 +162,10 @@ export function tokenize(source: string): Token[] {
     if (match(')')) return ')';
     if (match('[')) return '[';
     if (match(']')) return ']';
+    if (match('~')) return '~';
 
-    // match name, optionally prefixed by metadata and extra result characters
-    if (matchAlpha() || match('^') || match('~')) {
+    // match name, optionally prefixed by metadata character
+    if (matchAlpha() || match('^')) {
       while (true) {
         // allow internal hyphen and underscore
         if (match('-') || match('_')) {
@@ -207,6 +209,7 @@ export function tokenize(source: string): Token[] {
         case 'anything':
         case 'nil':
         case 'builtin':
+        case 'that':
 
           return name;
       }

@@ -47,7 +47,7 @@ export class Space extends Item<never, History> {
     let space = new Space;
     let history = new History;
     space.value = history;
-    history.item = space;
+    history.containingItem = space;
     // FIXME: make real history
     let version = new Version;
     version.id = space.newVersionID('initial');
@@ -55,7 +55,7 @@ export class Space extends Item<never, History> {
     version.container = history;
     let head = new Head;
     version.value = head;
-    head.item = version;
+    head.containingItem = version;
     // compile
     let parser = new Parser(source);
     parser.requireHead(head);

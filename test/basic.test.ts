@@ -64,6 +64,14 @@ test('do block', () => {
     .toEqual({ a: 1 });
   expectDump("a = do{1; 2}")
     .toEqual({ a: 2 });
+  expectDump("a = do{1; that}")
+    .toEqual({ a: 1 });
+  expectDump("a = do{record{x: 0}; .x}")
+    .toEqual({ a: 0 });
+  expectDump("a = 0; b = that")
+    .toEqual({ a: 0, b: 0 });
+  expectDump("a = 0; b = do{that}")
+    .toEqual({ a: 0, b: 0 });
 });
 
 

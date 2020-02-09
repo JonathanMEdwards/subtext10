@@ -1,4 +1,4 @@
-import { Block, FieldID, Head, Field, arrayLast, assertDefined } from "./exports";
+import { Block, FieldID, Head, Field, arrayLast, assertDefined, Item } from "./exports";
 
 /** History is the top value of a Space. The History is a Block whose fields
  * have a VersionID and contain a Head */
@@ -20,6 +20,11 @@ export class History extends Block<Version> {
 export class Version extends Field<VersionID, Head> {
   // versions are all outputs
   isInput = false;
+
+  // No previous value of Head
+  previous(): Item | undefined {
+    return undefined;
+  }
 }
 
 /** space-unique ID of a Version */

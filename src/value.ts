@@ -3,15 +3,14 @@ import { Space, Item, trap, ID, Path, another, Token } from "./exports";
 /** Every Value is contained in an Item */
 export abstract class Value {
 
-  /** Item holding this value */
-  item!: Item;
-  get path(): Path { return this.item.path; }
-  get space(): Space { return this.item.space }
-  get id(): ID { return this.item.id }
+  /** Item containing this value */
+  containingItem!: Item;
+  get space(): Space { return this.containingItem.space }
+  get id(): ID { return this.containingItem.id }
 
   /** logical container (skipping base field of metadata) */
   get up(): Item | undefined {
-    return this.item;
+    return this.containingItem;
   }
 
   /** the item with an ID else undefined */

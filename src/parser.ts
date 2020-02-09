@@ -220,7 +220,7 @@ export class Parser {
         // to avoid infinite regress
         field.formulaType = 'none';
         field.value = value;
-        value.item = field;
+        value.containingItem = field;
       }
       return;
     }
@@ -530,36 +530,56 @@ export class Parser {
 
 
 
-  /** Returns a Reference with tokens[] contains name tokens which may include a
-   * leading ^/~ and trailing ?/!. May contain leading '.' token. Also contains
-   * number tokens for testing. [] indexing will return a ReferenceFormula
-   * instead. */
+  /** Returns a Reference with tokens[] containing name tokens which may include
+   * a leading ^ and trailing ?/!. Will contain leading 'that' for dependent
+   * path. Also contains '~' tokens for extra results. Also contains number
+   * tokens for testing. [] indexing will return a ReferenceFormula instead. */
   parseReference(): Reference | undefined {
     let tokens: Token[] = [];
 
-    // leading name
-    if (this.matchToken('name')) {
+    // leading name or that
+    if (this.matchToken('name', 'that')) {
+      if (this.prevToken.text[0] === '^') {
+        throw this.setError("Reference can't start with ^", this.cursorToken);
+      }
+
       tokens.push(this.prevToken);
+    } else if (this.peekToken('.', '~')) {
+      // leading . or ~ simulates leading 'that'
+      tokens.push(
+        new Token(
+          'that',
+          this.cursorToken.start,
+          this.cursorToken.end,
+          this.cursorToken.source
+        )
+      );
     }
 
     // rest of path
     while (true) {
       if (this.matchToken('.')) {
-        if (!tokens.length) {
-          // record leading dot
-          tokens.push(this.prevToken);
-        }
         this.requireToken('name', 'number');
+        if (this.prevToken.text[0] === '^') {
+          throw this.setError("^ can't follow .", this.prevToken)
+        }
         tokens.push(this.prevToken);
         continue;
-      } else if (this.peekToken('name')) {
-        // allow '^' and '~' names to skip dot
-        let prefix = this.cursorToken.text[0];
-        if (prefix === '^' || prefix === '~') {
-          tokens.push(this.cursorToken);
-          this.cursor++;
-          continue;
+      } else if (this.peekToken('name') && this.cursorToken.text[0] === '^') {
+        // metadata
+        tokens.push(this.cursorToken);
+        this.cursor++;
+        continue;
+      } else if (this.matchToken('~')) {
+        tokens.push(this.prevToken);
+        if (this.peekToken('~')) {
+          throw this.setError("repeated ~", this.cursorToken);
         }
+        if (this.peekToken('name')) {
+          // extra result name without separating dot
+          tokens.push(this.prevToken);
+        }
+        continue;
       }
       break;
     }

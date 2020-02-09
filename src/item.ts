@@ -27,7 +27,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   _path?: Path;
   get path(): Path {
     if (!this._path) {
-      this._path = this.container.path.down(this.id);
+      this._path = this.container.containingItem.path.down(this.id);
     }
     return this._path
   }
@@ -46,7 +46,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     for (
       let item: Item = this;
       !(item instanceof Space);
-      item = item.container.item
+      item = item.container.containingItem
     ) {
       yield item;
     }
@@ -84,15 +84,15 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   /** set value */
   setValue(value: Value) {
     assert(!this.value);
-    assert(!value.item);
+    assert(!value.containingItem);
     this.value = value as V;
-    value.item = this;
+    value.containingItem = this;
   }
 
   /** prune value, so it can be set */
   prune() {
-    assert(this.value?.item === this);
-    this.value.item = undefined as any;
+    assert(this.value?.containingItem === this);
+    this.value.containingItem = undefined as any;
     this.value = undefined;
     // this.rejected = false;
   }
@@ -132,9 +132,23 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     if (!this.metadata) {
       // allocate metadata block
       this.metadata = new Metadata;
-      this.metadata.item = this;
+      this.metadata.containingItem = this;
     }
     return this.metadata.set(name, value);
+  }
+
+  /** The previous item in evaluation order. Used by dependent references. */
+  previous(): Item | undefined {
+    let itemIndex = this.container.items.indexOf(this);
+    assert(itemIndex >= 0);
+    if (itemIndex > 0) {
+      // previous item in container
+      // TODO: skip over locals
+      return this.container.items[itemIndex - 1];
+    }
+    // At beginning of container - use previous in its container
+    // scan stopped in Version
+    return this.container.containingItem.previous();
   }
 
   /**
@@ -196,7 +210,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           break;
       }
       assert(source);
-      
+
       // copy value
       this.prune();
       this.copyValue(source);
@@ -236,7 +250,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // copy metadata
     if (this.metadata) {
       to.metadata = this.metadata.copy(src, dst);
-      to.metadata.item = this;
+      to.metadata.containingItem = this;
     }
 
     // copy value
@@ -250,7 +264,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       )
     ) {
       to.value = this.value.copy(src, dst);
-      to.value.item = this;
+      to.value.containingItem = this;
     }
 
     return to;

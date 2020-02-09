@@ -360,7 +360,7 @@ So when there are no `extra` statements, there is an implicit `extra ~` at the e
 
 ### TODO: Reference binding
 
-The syntax uses conventional _lexical binding_, but the UI will not be constrained by that, nor subject to lexical shadowing. 
+The syntax uses conventional _lexical binding_, but the UI will not be constrained by that, nor subject to lexical shadowing. References starting with `.`, `~`, or `that` are _dependent_ on the previous value.
 
 > When the UI lets the developer make references that can’t be expressed lexically, we might want to automatically fix that by adding names to anonymous items and renaming shadowed items.
 
