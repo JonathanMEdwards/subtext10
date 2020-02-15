@@ -117,12 +117,12 @@ This is like a spreadsheet: cells containing a formula are outputs, and cells co
 
 Note that the terms input and output mean different things in computational notebooks like Jupyter, where an input is a formula and the paired output is its value. Notebooks do not let the user directly edit a value as can be done with non-formula cells in a spreadsheet and input items in Subtext.
 
-Subtext specifies how to pronounce its syntax. The above example syntax is pronounced “record of, x set 0, y equals x plus 1”. A `{` is pronounced “of”, `:` is pronounced “set”, and `=` is pronounced “equals”. Note that, unlike imany programming languages, `=` means the same thing as in mathematics — the left and right sides have the same value. The ':' means the left hand side originally had the same value as the right-hand side.
+Subtext specifies how to pronounce its syntax. The above example syntax is pronounced “record of, x as 0, y equals x plus 1”. A `{` is pronounced “of”, `:` is pronounced “as”, and `=` is pronounced “equals”. Note that, unlike imany programming languages, `=` means the same thing as in mathematics — the left and right sides have the same value. The ':' means the left hand side originally had the same value as the right-hand side.
 
 > The distinction between `:` and `=` may be too subtle, but we haven’t come up with a better alternative.
 
 ### Formulas
-In the item definition `y = x + 1` the part to the right of the `=` is called a _formula_. Formulas are simple programs. They contain literal values like `1` and _references_ to items elsewhere in the workspace like `x` and `+`. They can _call_ the program defining an item, like `+`, which is the built-in program that adds numbers. Programs have one or more inputs and produce a result value. The program `+` is _called_ by first, making a copy of it, then setting its inputs to the values of `x` and `1`, and then taking its result as the value of `y`. The two references here are just names, but in general they can be paths (see Reference binding).
+In the item definition `y = x + 1` the part to the right of the `=` is called a _formula_. Formulas are simple programs. They contain literal values like `1` and _references_ to items elsewhere in the workspace like `x` and `+`. They can _call_ the program defining an item, like `+`, which is the built-in program that adds numbers. Programs have one or more inputs and produce a result value. The program `+` is _called_ by first, making a copy of it, then changing its inputs to the values of `x` and `1`, and then taking its result as the value of `y`. The two references here are just names, but in general they can be paths (see Reference binding).
 
 > In PL terminology, Subtext programs are pure strict functions. Subtext tries to use plain English instead of mathematical concepts, and so uses just “program”. In this case the term 'function” has the wrong meaning in both Math and English! The functions of Functional Programming are not actually mathematical functions.
 > Subtext is also referentially transparent, which means that equal inputs produce equal results.
@@ -196,7 +196,7 @@ plus = do {
   x + y
 }
 ```
-When this program is called, as in `1 plus 2`, the value on the left, 1, is set into the first input item, named `x`. The value 2 is set into the second input item, named `y`, resulting in:
+When this program is called, as in `1 plus 2`, the value on the left, 1, becomes the value of the first input item, named `x`. The value 2 becomes the value of the second input item, named `y`, resulting in:
 ```
 do {
   x: 1
@@ -253,11 +253,11 @@ x: record {
 ```
 This block contains two input items: `name` which is an initially empty text, and `number` which is initially the number `0`.
 
-The essential operations on a block are to read and change individual items. We read the items using paths, like `x.name` and `x.number`. To change a item we use a _set operation_:
+The essential operations on a block are to read and change individual items. We read the items using paths, like `x.name` and `x.number`. To change a item we use a _change operation_:
 ```
 x.name := 'Joe'
 ```
-We pronounce this “x dot name is set to text Joe”. The result of a set operation is a block equal to the value of `x` except with the item `name` set to `'Joe'`, and keeping the prior value of `number`. Note that the value of `x` is not changed as a result of this operation: a new and different block value is produced. We might give this new value a name, as in:
+We pronounce this “x dot name becomes text Joe”. The result of a change operation is a block equal to the value of `x` except with the item `name` changed to `'Joe'`, and keeping the prior value of `number`. Note that the value of `x` is not changed as a result of this operation: a new and different block value is produced. We might give this new value a name, as in:
 ```
 y = x.name := 'Joe'
 ```
@@ -277,7 +277,7 @@ y = do{x.name := 'Joe'; x.number := 2}
 ```
 The update to `name` is lost because the update to `number` goes back to the original value of x. This will be reported as an  _unused value_ static error.
 
-Set operations can delve into nested blocks by using a dotted path to the left of the `:=`
+Change operations can delve into nested blocks by using a dotted path to the left of the `:=`
 ```
 x: record {
   name: ''
@@ -293,14 +293,14 @@ Instead of using dotted paths, we can nest `do` blocks:
 ```
 y = x do{.address := do{.street := '12 Main St'; .city := 'Springville'}}
 ```
-Note how the block is nested: `.address := do{.street := ...}`. Here `.address :=` passes the current value of `x.address` as the input to the `do` block on its right, and then sets the `address` item to be the result. This is an example of _default inputs_. We saw earlier how the first call in a `do` block can take its input from the previous item before the `do` block. The set operation `:=` works similarly — any formula on the right will by default input from the current value of the item named on the left. Thus for example:
+Note how the block is nested: `.address := do{.street := ...}`. Here `.address :=` passes the current value of `x.address` as the input to the `do` block on its right, and then changes the `address` item to be the result. This is an example of _default inputs_. We saw earlier how the first call in a `do` block can take its input from the previous item before the `do` block. The change operation `:=` works similarly — any formula on the right will by default input from the current value of the item named on the left. Thus for example:
 
 ```
 y = x.number := + 1
 ```
 will increment the value of the `number` item. Note how this looks like an _assignment statement_ in an imperative language, which modifies values “in place”. Subtext only modifies by creating new values, so in the above example `x` is not changed. Some functional languages force you to rebuild such new values “bottom up”. The Subtext `:=` operation does that automatically, copying an entire tree-structured value with one path inside it replaced. Defaulting of inputs allows a `:=` to extract the current value at a path and transform it.
 
-Set operations can only be done on input items, those defined with `:`, not outputs defined with '='.
+Change operations can only be done on input items, those defined with `:`, not outputs defined with '='.
 
 Recall that `:=` is also used when supplying the third or later inputs when calling a program. This is not a cooincidence. For example:
 ```
@@ -312,7 +312,7 @@ ternary-program = do {
 }
 x = 1 ternary-program(2, .input3 := 3)
 ```
-The syntax `.input3 := 3` is actually a set operation applied to the `do` block. It sets the value of the `input3` input item to 3. The same thing happens with the second input: `.input2 := 2` , but that is hidden in the syntax.
+The syntax `.input3 := 3` is actually a change operation applied to the `do` block. It changes the value of the `input3` input item to 3. The same thing happens with the second input: `.input2 := 2` , but that is hidden in the syntax.
 
 ### Local variables
 
@@ -346,8 +346,8 @@ y = x~remainder // 2
 
 Skipping to the definition of `x`, we see that it calls the program `integral-divide` as follows:
 1. A copy of the `do` block of `integral-divide` is made
-2. Its input item `numerator` is set to `5`
-3. Its input item `divisor` is set to `3`
+2. Its input item `numerator` becomes `5`
+3. Its input item `divisor` becomes `3`
 4. The output item `ratio` is calculated to be 1 using the `floor` program to round-down the division
 5. The extra result `remainder` is calculated from `ratio` as 2. 
 6. The `extra` statement acts like a `let`, passing on the previous value, so `ratio` becomes the final result of the program. 
@@ -551,11 +551,11 @@ Choices are made with the _choice operation_ `|=`. For example:
 ```Txt
 a-literal = expr |= literal 1
 ```
-This pronounced “a-literal equals expr choosing literal one”. The `|=` expects a choice value on its left (`expr`) and to its right the name of an option without the question mark (`literal`), followed by a formula resulting in a value for the option. The formula can be left out, which will set the option to its default value (0 for `literal`):
+This pronounced “a-literal equals expr choosing literal one”. The `|=` expects a choice value on its left (`expr`) and to its right the name of an option without the question mark (`literal`), followed by a formula resulting in a value for the option. The formula can be left out, which will change the option to its default value (0 for `literal`):
 ```Txt
 a-literal = expr |= literal
 ```
-Note the similarity between the choice operation `|=` and the set operation `:=`. As with `:=` we can use a `do` block to nest choices:
+Note the similarity between the choice operation `|=` and the change operation `:=`. As with `:=` we can use a `do` block to nest choices:
 ```Txt
 a-plus = expr |= plus do{left |= literal 2, right |= literal 2}
 ```
@@ -568,7 +568,7 @@ color: choice {
   green?: nil
 }
 ```
-The value `nil` is called a _unit value_ in some languages: it contains no information, and is the sole value within its datatype. As such `nil` options are always set to their default value:
+The value `nil` is called a _unit value_ in some languages: it contains no information, and is the sole value within its datatype. As such `nil` options have no value chosen:
 ```Txt
 red = color |= red
 ```
@@ -590,7 +590,7 @@ Here the first try clause accesses the `literal?` option. If it was chosen, its 
 
 ## Series and tables
 
-So far we have discussed various kinds of blocks. The other way that a Subtext workspace is built is with _series_. A series is an ordered set of zero or more items containing values of the same fixed type. A _text_ is a series of characters. A _table_ is a series of blocks (typically records), its items are called _rows_, and the items of the block define the _columns_ of the table. Every series defines a value, called it’s _template_, which sets the default value for newly created items. For example:
+So far we have discussed various kinds of blocks. The other way that a Subtext workspace is built is with _series_. A series is an ordered set of zero or more items containing values of the same fixed type. A _text_ is a series of characters. A _table_ is a series of blocks (typically records), its items are called _rows_, and the items of the block define the _columns_ of the table. Every series defines a value, called it’s _template_, which defines the default value for newly created items. For example:
 ```
 numbers: series {0}
 customers: table {
@@ -607,7 +607,7 @@ The `&` program (pronounced “and”) is used to add items to a series. For exa
 n = numbers & 1 & 2 & 3
 c = customers & do{.name := 'Joe', .address := 'Pleasantown, USA'}
 ```
-The `&` program takes a series as it’s left input and an item value as its right input, resulting in a series equal to the input plus a new item with that value. The default value of the item is the template of the seqence. In a table it is often convenient to use a `do` block as above to set some of the columns and let the others default to their template values.
+The `&` program takes a series as it’s left input and an item value as its right input, resulting in a series equal to the input plus a new item with that value. The default value of the item is the template of the seqence. In a table it is often convenient to use a `do` block as above to change some of the columns and let the others default to their template values.
 
 The `&&` program concatenates two seriess: `series1 && series2` is a copy of `series1` with all the items from `series2` added to its end. The two series must have the same type template.
 
@@ -620,7 +620,7 @@ check n[1] =? 1
 check n[2] =? 2
 ```
 
-When an item is accessed, the `~index` extra result is set to the index value:
+When an item is accessed, the `~index` extra result is the index value:
 ```
 x = n[i]
 check x~index =? i
@@ -724,7 +724,7 @@ A `find` block searches in a series:
 ```
 joe = customers find? {check .name =? 'Joe'}
 ```
-The `find?` block is executed like a `do` repeatedly with items from the series as its input value, starting with the first item and continuing until it does not reject. The result is the first non-rejected item, with `~index` set to the index. If all the items are rejected, the entire `find?` rejects (hence the suffix `?`).
+The `find?` block is executed like a `do` repeatedly with items from the series as its input value, starting with the first item and continuing until it does not reject. The result is the first non-rejected item, with `~index` equal to the index. If all the items are rejected, the entire `find?` rejects (hence the suffix `?`).
 
 Note that in this example the program block contains no input item — the input is referenced implicitly with `.name ...`. If we outline it in the UI we will see that one is created automatically to display the input value:
 ```
@@ -736,7 +736,7 @@ joe = do {
   }
 }
 ```
-The code is defined to input from the series template, and in each iteration that input item will be set from a successive item of the series.
+The code is defined to input from the series template, and in each iteration that input item will become a successive item of the series.
 
 A `find-last?` does the same thing as `find?` except that it scans the table backwards. A `find-only?` succeeds if there is exactly one match, and rejects if there are none or more than one. A useful special case is `series sole?()`, resulting in the single item of the series, rejecting if the series has 0 or multiple items. Another is `find-unique?{...}` that finds all matches and rejects if there are none or they are not all equal.  
 
@@ -776,7 +776,7 @@ aggregate {
 check =? 3
 ```
 An aggregate block must define two input items. The block will be executed repeatedly, like a `for-each`, feeding items from the input series into the first input item. In this example we called the first input `item`, and define it from the default template value referenced as `that`. 
-The second input (`sum`) acts as an accumulator. On the first call it defaults to the defined value (0). On the second and subsequent calls, `sum` is set to the result of the previous call. This example is equivalent to the built-in `sum()` program that sums a series of numbers. If the program rejects an item then it will be skipped and the accumulator value will be passed on to the next call. An `aggregate` is  like a conventional _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `s sum(100)`).
+The second input (`sum`) acts as an accumulator. On the first call it defaults to the defined value (0). On the second and subsequent calls, `sum` becomes the result of the previous call. This example is equivalent to the built-in `sum()` program that sums a series of numbers. If the program rejects an item then it will be skipped and the accumulator value will be passed on to the next call. An `aggregate` is  like a conventional _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `s sum(100)`).
 
 ## Tracked series
 
@@ -1095,9 +1095,9 @@ choice {
   yes?: x
 }
 ```
-where the the `no?` option is chosen if `x?` rejects, and the `yes?` option is chosen and set to the value of `x?` if it succeeds.
+where the the `no?` option is chosen if `x?` rejects, and the `yes?` option is chosen and changed to the value of `x?` if it succeeds.
 
-A `maybe` block is often useful in cases where we would like to set an input item with a conditional formula (which is illegal). For example we might want to use a conditional formula as a program input so that, instead of rejecting the call, the program itself gets to decide what to do. Wrapping the conditional formula in a `maybe` block permits that. 
+A `maybe` block is often useful in cases where we would like to change an input item with a conditional formula (which is illegal). For example we might want to use a conditional formula as a program input so that, instead of rejecting the call, the program itself gets to decide what to do. Wrapping the conditional formula in a `maybe` block permits that. 
 
 ## Types
 
@@ -1123,7 +1123,7 @@ series{0} & ''	   // this will report a type mismatch static error
 series{0} &()      // this will insert 0
 ```
 
-A generic program is one with an input containing `anything`. The program can be called with any input value where the `anything` occurs. Every call of a generic program will recompute the input default values based on the actual input values before setting value from the call. Inputs to the call are type-checked against those new defaults. Note that type checking is still static: every call to a generic program gets statically checked — types can not vary dynamically, only across different call-sites. It is notable that we acheive parametric types without introducing an explicitly parametric type system with type variables like `<T>`, which are notoriously baffling to beginners. Yet unlike template meta-programming, we retain static type checking at call sites for comprehensible errors.
+A generic program is one with an input containing `anything`. The program can be called with any input value where the `anything` occurs. Every call of a generic program will recompute the input default values based on the actual input values before becoming the value from the call. Inputs to the call are type-checked against those new defaults. Note that type checking is still static: every call to a generic program gets statically checked — types can not vary dynamically, only across different call-sites. It is notable that we acheive parametric types without introducing an explicitly parametric type system with type variables like `<T>`, which are notoriously baffling to beginners. Yet unlike template meta-programming, we retain static type checking at call sites for comprehensible errors.
 
 # Appendix: Glossary
 
@@ -1171,7 +1171,7 @@ Block := '{' Body '}'
 Op :=
 	| Path Arguments				// program call
 	| 'continue' Arguments			// tail call
-	| RelPath ':=' Formula			// set 
+	| RelPath ':=' Formula			// change 
 	| RelPath '|=' Name Formula?	// choose
 	| RelPath						// follow
 	| Conditional

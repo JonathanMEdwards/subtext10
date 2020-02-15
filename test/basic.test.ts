@@ -74,11 +74,14 @@ test('do block', () => {
     .toEqual({ a: 0, b: 0 });
 });
 
-
-// test('set literal value', () => {
-//   expectDump("a = 0 do{:= ''}")
-//     .toEqual({ a: ''});
-// });
+test('change', () => {
+  expectDump("a = record{x: 0, y : 0}, b = .x := 1")
+    .toEqual({ a: {x: 0, y: 0}, b: {x: 1, y: 0}});
+  expectCompiling("a = record{x = 0, y : 0}, b = .x := 1")
+    .toThrow('cannot change an output');
+  expectDump("a = record{x: 0, y : record{i: 0, j: 0}}, b = .y := do{.i := 1}")
+    .toEqual({ a: { x: 0, y: { i: 0, j: 0 } }, b: { x: 0, y: {i: 1, j: 0}}});
+});
 
 // test('set block value', () => {
 //   expectDump("a = record{x: 0, y = x}, b = a do{:= a}")

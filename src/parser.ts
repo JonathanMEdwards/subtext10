@@ -225,19 +225,34 @@ export class Parser {
       return;
     }
 
-    // reference
-    let ref = this.parseReference();
-    if (ref) {
-      field.formulaType = 'reference';
-      field.setMeta('^reference', ref);
-      return;
-    }
-
     // code block
     let code = this.parseCode();
     if (code) {
       field.formulaType = 'code';
       field.setMeta('^code', code);
+      return;
+    }
+
+    // reference
+    let ref = this.parseReference();
+    if (ref) {
+      if (this.matchToken(':=')) {
+        // change operation
+        if (!ref.dependent) {
+          throw this.setError('Change operation requires dependent path', ref.tokens[0]);
+        }
+
+        field.formulaType = 'change';
+        field.setMeta('^lhs', ref);
+        // parse formula into ^rhs
+        let rhs = field.setMeta('^rhs', undefined);
+        this.requireFormula(rhs);
+        return;
+      }
+
+      // plain reference
+      field.formulaType = 'reference';
+      field.setMeta('^reference', ref);
       return;
     }
 

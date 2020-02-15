@@ -15,13 +15,14 @@ type Guard = '?' | '!' | undefined;
  */
 export class Reference extends Base {
 
-  /** whether reference is structural or dependent */
-  structural!: boolean;
-
   /** Tokens of path in source. May have leading 'that' token. Name tokens have
    * leading ^ and trailing ?/!. '~' token used for extra results. Number tokens
    * used for testing */
   tokens!: Token[];
+
+  /** reference is dependent if starts with 'that' */
+  get dependent() { return this.tokens[0].type === 'that' }
+
 
   /** Path to follow */
   path!: Path;
@@ -104,11 +105,9 @@ export class Reference extends Base {
       }
     });
 
-    // reference is dependent if starts with 'that'
-    this.structural = this.tokens[0].type !== 'that';
     let target: Item | undefined;
 
-    if (this.structural) {
+    if (!this.dependent) {
       /** bind first name of structural reference lexically by searching upward
        * to match first name. Note upwards scan skips from metadata to base
        * item's container */
@@ -152,7 +151,7 @@ export class Reference extends Base {
 
       if (token.type === 'that') {
         // skip leading that in dependent path
-        assert(i === 0 && !this.structural);
+        assert(i === 0 && this.dependent);
         continue;
       } else if (name[0] === '^') {
         // next name is metadata - don't evaluate base item
@@ -190,7 +189,7 @@ export class Reference extends Base {
     this.guards = guards;
 
     // LUB of structural path must be same as lexical scope
-    if (this.structural) {
+    if (!this.dependent) {
       let lub = this.path.lub(from.path);
       if (lub.length !== this.context) {
         throw new StaticError(this.tokens[0], 'Structural path scope too high')
@@ -214,7 +213,6 @@ export class Reference extends Base {
     assert(this.path);
     let to = another(this);
     to.tokens = this.tokens;
-    to.structural = this.structural;
     to.path = this.path.translate(src, dst);
     // translate guards
     if (src.contains(this.path)) {

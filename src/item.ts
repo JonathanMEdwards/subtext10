@@ -1,4 +1,4 @@
-import { Space, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, assertDefined, cast } from "./exports";
+import { Space, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, assertDefined, cast, arrayLast } from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not container other items are Base vales. This forms a tree. The top
@@ -97,10 +97,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // this.rejected = false;
   }
 
-  /** the Item at a downward path else trap. Accepts a dotted string */
-  down(path: Path | string): Item {
+  /** the Item at a downward path else trap. Accepts a dotted string or ID[] */
+  down(path: Path | ID[] | string): Item {
     if (path === '') return this;
-    let ids = path instanceof Path ? path.ids : path.split('.');
+    let ids = (
+      path instanceof Path
+        ? path.ids
+        : typeof path === 'string'
+          ? path.split('.')
+          : path
+    )
     let target: Item = this;
     ids.forEach(id => {
       target = target.get(id);
@@ -127,8 +133,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return this.value?.getMaybe(id);
   }
 
-  /** set a metadata field by name. Must not already exist */
-  setMeta(name: string, value: Value): Field {
+  /** set a metadata field by name. Must not already exist. Value can be
+   * undefined */
+  setMeta(name: string, value?: Value): Field {
     if (!this.metadata) {
       // allocate metadata block
       this.metadata = new Metadata;
@@ -139,6 +146,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
   /** The previous item in evaluation order. Used by dependent references. */
   previous(): Item | undefined {
+    // should only be used during analysis to bind references
+    assert(this.space.analyzing);
     let itemIndex = this.container.items.indexOf(this);
     assert(itemIndex >= 0);
     if (itemIndex > 0) {
@@ -163,8 +172,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    * code: value is result of a Code block in ^code
    *
+   * change: dependent reference in ^lhs, formula in ^rhs
+   *
    *  */
-  formulaType!: 'none' | 'literal' | 'reference'| 'code';
+  formulaType!: 'none' | 'literal' | 'reference'| 'code' | 'change';
 
   /** Evaluates if value undefined, or if inside unexecuted code  */
   evalIfNeeded() {
@@ -194,26 +205,29 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       this.metadata?.eval();
 
       // evaluate formula
-      let source: Item;
       switch (this.formulaType) {
         case undefined:
         case 'none':
           trap();
+
         case 'literal':
-          source = this.get('^literal');
+          this.replaceValue(this.get('^literal'));
           break;
+
         case 'reference':
-          source = cast(this.get('^reference').value, Reference).target!;
+          this.replaceValue(
+            cast(this.get('^reference').value, Reference).target!
+          );
           break;
+
         case 'code':
-          source = cast(this.get('^code').value, Code).result!;
+          this.replaceValue(cast(this.get('^code').value, Code).result!);
+          break;
+
+        case 'change':
+          this.change();
           break;
       }
-      assert(source);
-
-      // copy value
-      this.prune();
-      this.copyValue(source);
     }
 
     // evaluate within value
@@ -222,14 +236,43 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     this.evalComplete = true;
   }
 
-  /** source of value through copying */
-  // FIXME prob should be a Path, translated through copies
-  source?: this;
+
+  /** evaluate change operation */
+  private change() {
+    // lhs and rhs in metadata already evaluated
+    let ref = cast(this.get('^lhs').value, Reference);
+    assert(ref.dependent);
+    assert(ref.path.length > ref.context);
+    // get previous value, which is context of reference
+    assert(ref.target);
+    let prev = this.space.down(ref.path.ids.slice(0, ref.context));
+    // copy previous value
+    this.replaceValue(prev);
+    // follow dependent path within previous value
+    let target = this.down(ref.path.ids.slice(ref.context));
+    if (!target.isInput) {
+      throw new StaticError(arrayLast(ref.tokens), 'cannot change an output')
+    }
+    // replace target value with value of rhs
+    target.replaceValue(this.get('^rhs'));
+  }
+
+
+  /** replace current value from another item, translating internal paths */
+  replaceValue(src: Item) {
+    assert(src);
+    this.prune();
+    this.copyValue(src);
+  }
 
   /** copy value of another item, translating internal paths */
   copyValue(src: Item) {
     this.setValue(src.value!.copy(src.path, this.path));
   }
+
+  /** source of value through copying */
+  // FIXME prob should be a Path, translated through copies
+  source?: this;
 
   /** make copy, bottom up, translating paths contextually */
   copy(src: Path, dst: Path): this {
@@ -250,7 +293,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // copy metadata
     if (this.metadata) {
       to.metadata = this.metadata.copy(src, dst);
-      to.metadata.containingItem = this;
+      to.metadata.containingItem = to;
     }
 
     // copy value
@@ -264,7 +307,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       )
     ) {
       to.value = this.value.copy(src, dst);
-      to.value.containingItem = this;
+      to.value.containingItem = to;
     }
 
     return to;
