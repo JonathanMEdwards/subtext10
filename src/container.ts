@@ -27,10 +27,11 @@ export abstract class Container<I extends Item> extends Value {
   }
 
   /** make copy, bottom up, translating paths contextually */
-  copy(src: Path, dst: Path): this {
-    let to = super.copy(src, dst);
+  copy(srcPath: Path, Path: Path): this {
+    let to = super.copy(srcPath, Path);
     this.items.forEach(item => {
-      to.add(item.copy(src, dst));
+      assert(item.container === this);
+      to.add(item.copy(srcPath, Path));
     })
     return to;
   }

@@ -14,8 +14,8 @@ export abstract class Base extends Value {
 export class Numeric extends Base {
   value: number = NaN;
 
-  copy(src: Path, dst: Path): this {
-    let to = super.copy(src, dst);
+  copy(srcPath: Path, dstPath: Path): this {
+    let to = super.copy(srcPath, dstPath);
     to.value = this.value;
     return to;
   }
@@ -39,8 +39,8 @@ export class Character extends Base {
    */
   value: string = ' ';
 
-  copy(src: Path, dst: Path): this {
-    let to = super.copy(src, dst);
+  copy(srcPath: Path, dstPath: Path): this {
+    let to = super.copy(srcPath, dstPath);
     to.value = this.value;
     return to;
   }

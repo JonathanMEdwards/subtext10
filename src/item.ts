@@ -254,7 +254,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       throw new StaticError(arrayLast(ref.tokens), 'cannot change an output')
     }
     // replace target value with value of rhs
-    target.replaceValue(this.get('^rhs'));
+    let source = this.get('^rhs');
+    if (!target.value!.sameType(source.value!, source.path, target.path)) {
+      throw new StaticError(ref.tokens[0], 'cannot change type')
+    }
+    target.replaceValue(source);
   }
 
 
@@ -275,7 +279,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   source?: this;
 
   /** make copy, bottom up, translating paths contextually */
-  copy(src: Path, dst: Path): this {
+  copy(srcPath: Path, dstPath: Path): this {
     let to = another(this);
     to.id = this.id;
     to.formulaType = this.formulaType;
@@ -292,7 +296,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
     // copy metadata
     if (this.metadata) {
-      to.metadata = this.metadata.copy(src, dst);
+      to.metadata = this.metadata.copy(srcPath, dstPath);
       to.metadata.containingItem = to;
     }
 
@@ -306,11 +310,30 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         || (!this.isInput && !this.getMaybe('^formula'))
       )
     ) {
-      to.value = this.value.copy(src, dst);
+      assert(this.value.containingItem === this);
+      to.value = this.value.copy(srcPath, dstPath);
       to.value.containingItem = to;
     }
 
     return to;
+  }
+
+  /** compare types within a path context */
+  sameType(from: Item, srcPath: Path, dstPath: Path): boolean {
+    return (
+      this.id === from.id
+      && this.isInput === from.isInput
+      && this.formulaType === from.formulaType
+      && (
+        this.formulaType !== 'none'
+        || this.value!.sameType(from.value!, srcPath, dstPath)
+      )
+      && !!this.metadata === !!from.metadata
+      && (
+        !this.metadata
+        || this.metadata.sameType(from.metadata!, srcPath, dstPath)
+      )
+    )
   }
 
   // dump value

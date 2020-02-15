@@ -1,4 +1,4 @@
-import { arrayEquals, Base, Token, Path, Item, assert, MetaID, PendingValue, trap, Block, StaticError, ID, arrayLast, another } from "./exports";
+import { arrayEquals, Base, Token, Path, Item, assert, MetaID, PendingValue, trap, Block, StaticError, ID, arrayLast, another, Value } from "./exports";
 
 /** Guard on an ID in a reference */
 type Guard = '?' | '!' | undefined;
@@ -208,26 +208,26 @@ export class Reference extends Base {
 
 
   /** make copy, bottom up, translating paths contextually */
-  copy(src: Path, dst: Path): this {
+  copy(srcPath: Path, dstPath: Path): this {
     // path must already have been bound
     assert(this.path);
     let to = another(this);
     to.tokens = this.tokens;
-    to.path = this.path.translate(src, dst);
+    to.path = this.path.translate(srcPath, dstPath);
     // translate guards
-    if (src.contains(this.path)) {
+    if (srcPath.contains(this.path)) {
       // Adjust unguarded accesses to context
       assert(
-        this.guards.slice(0, src.length)
+        this.guards.slice(0, srcPath.length)
           .every(guard => guard === undefined)
       );
 
       to.guards = [
-        ...dst.ids.map(_ => undefined),
-        ...this.guards.slice(src.length)
+        ...dstPath.ids.map(_ => undefined),
+        ...this.guards.slice(srcPath.length)
       ];
 
-      to.context = this.context + dst.ids.length - src.length;
+      to.context = this.context + dstPath.ids.length - srcPath.length;
     } else {
       to.guards = this.guards;
       to.context = this.context;
@@ -241,6 +241,16 @@ export class Reference extends Base {
       && this.path.equals(other.path)
       && arrayEquals(this.guards, other.guards)
     );
+  }
+
+  /** References are the same type if they reference the same location
+   * contextually */
+  sameType(from: Value, srcPath: Path, dstPath: Path): boolean {
+    return (
+      from instanceof Reference
+      && arrayEquals(this.guards, from.guards)
+      && this.path.equals(from.path.translate(srcPath, dstPath))
+    )
   }
 
   // dump path as dotted string

@@ -28,7 +28,7 @@ export abstract class Value {
   source?: this;
 
   /** make copy, bottom up, translating paths contextually */
-  copy(src: Path, dst: Path): this {
+  copy(srcPath: Path, dstPath: Path): this {
     let to = another(this);
     to.source = this;
     to.token = this.token;
@@ -38,6 +38,11 @@ export abstract class Value {
   /** equality */
   equals(other: any): boolean {
     trap();
+  }
+
+  /** compare types within a path context */
+  sameType(from: Value, srcPath: Path, dstPath: Path): boolean {
+    return this.constructor === from.constructor;
   }
 
   /** dump into a plain JS value for testing */

@@ -79,30 +79,13 @@ test('change', () => {
     .toEqual({ a: {x: 0, y: 0}, b: {x: 1, y: 0}});
   expectCompiling("a = record{x = 0, y : 0}, b = .x := 1")
     .toThrow('cannot change an output');
+  expectCompiling("a = record{x: 0, y : 0}, b = .x := 'foo'")
+    .toThrow('cannot change type');
   expectDump("a = record{x: 0, y : record{i: 0, j: 0}}, b = .y := do{.i := 1}")
     .toEqual({ a: { x: 0, y: { i: 0, j: 0 } }, b: { x: 0, y: {i: 1, j: 0}}});
 });
 
-// test('set block value', () => {
-//   expectDump("a = record{x: 0, y = x}, b = a do{:= a}")
-//     .toEqual({ a: { x: 0, y: 0 }, b: { x: 0, y: 0} });
-//   expectDump("a = record{x: 0, y = x}, b = a do{x := 1}")
-//     .toEqual({ a: { x: 0, y: 0 }, b: { x: 1, y: 1} });
-//   expectCompiling("a = record{x: 0, y = x}, b = a do{x := ''}")
-//     .toThrow('Type mismatch');
-//   expectCompiling("a = record{x: 0, y = x}, b = a do{y := ''}")
-//     .toThrow('Cannot set a formula');
-// });
 
-// test('$ ref', () => {
-//   expectDump("a = record{x: 0, y = x}, b = a do{:= $.x}")
-//     .toEqual({ a: { x: 0, y: 0 }, b: 0 });
-// });
-
-// test('default expression value', () => {
-//   expectDump("a = 0 do{:= do{:= 1}}")
-//     .toEqual({ a: 1 });
-// });
 
 // test('function call', () => {
 //   expectDump("f = 0 do{:= $}, a = 1 f(), b = 2 a()")

@@ -38,10 +38,19 @@ export class Block<F extends Field = Field> extends Container<F> {
     return this.fields.find(field => field.name === id);
   }
 
-  copy(src: Path, dst: Path): this {
-    let to = super.copy(src, dst);
+  copy(srcPath: Path, dstPath: Path): this {
+    let to = super.copy(srcPath, dstPath);
     to.outlined = this.outlined;
     return to;
+  }
+
+  sameType(from: Block, srcPath: Path, dstPath: Path) {
+    return (
+      super.sameType(from, srcPath, dstPath)
+      && this.fields.length === from.fields.length
+      && this.fields.every((field, i) =>
+        field.sameType(from.fields[i], srcPath, dstPath))
+    )
   }
 
   // dump as an object
@@ -62,8 +71,8 @@ export class Field<I extends FieldID = FieldID, V extends Value = Value> extends
 
   get name() { return this.id.name }
 
-  copy(src: Path, dst: Path): this {
-    let to = super.copy(src, dst);
+  copy(srcPath: Path, dstPath: Path): this {
+    let to = super.copy(srcPath, dstPath);
     to.dataflow = this.dataflow;
     return to;
   }

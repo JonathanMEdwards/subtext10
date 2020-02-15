@@ -1,4 +1,4 @@
-import { Container, ID, assert, Item, Character, isNumber, isString, Path, another } from "./exports";
+import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value } from "./exports";
 
 /** A Series contains a variable-zed sequence of items of a fixed type. The
  * items are called entries and have numeric IDs, which are ordinal numbers in
@@ -48,14 +48,25 @@ export class Series<E extends Entry = Entry> extends Container<E> {
     super.eval();
   }
 
-  copy(src: Path, dst: Path): this {
-    let to = super.copy(src, dst);
+  copy(srcPath: Path, dstPath: Path): this {
+    let to = super.copy(srcPath, dstPath);
     to.tracked = this.tracked;
     to.sorted = this.sorted;
     to.ascending = this.ascending;
-    to.template = this.template.copy(src, dst);
+    assert(this.template.container === this);
+    to.template = this.template.copy(srcPath, dstPath);
     to.template.container = this;
     return to;
+  }
+
+  sameType(from: Value, srcPath: Path, dstPath: Path): boolean {
+    return (
+      from instanceof Series
+      && this.tracked === from.tracked
+      && this.sorted === from.sorted
+      && (this.sorted && this.ascending === from.ascending)
+      && this.template.sameType(from.template, srcPath, dstPath)
+    )
   }
 
   // dump as an array
@@ -80,7 +91,7 @@ export class Text extends Series<TextEntry> {
 
   eval() { }
 
-  copy(src: Path, dst: Path): this {
+  copy(srcPath: Path, dstPath: Path): this {
     // just copy string value
     let to = another(this);
     to.source = this;
