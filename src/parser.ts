@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Space, Reference, Do, trap } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Space, Reference, Do, trap, Call } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -186,12 +186,7 @@ export class Parser {
       field.id = this.space.newFieldID (
         undefined,
         // = token pointing to start of formula
-        new Token(
-          '=',
-          this.cursorToken.start,
-          this.cursorToken.start,
-          this.cursorToken.source
-        )
+        Token.mimic('=', this.cursorToken)
       );
       field.isInput = false;
     }
@@ -209,18 +204,18 @@ export class Parser {
   requireFormula(field: Field): void {
 
     // literal value
-    let value = this.parseLiteral();
-    if (value) {
+    let literal = this.parseLiteral();
+    if (literal) {
       if (field.isInput) {
         // literal input is stored as formula to allow reset
         field.formulaType = 'literal';
-        field.setMeta('^literal', value);
+        field.setMeta('^literal', literal);
       } else {
         // literal output stored directly in value of field without a formula
         // to avoid infinite regress
         field.formulaType = 'none';
-        field.value = value;
-        value.containingItem = field;
+        field.value = literal;
+        literal.containingItem = field;
       }
       return;
     }
@@ -250,6 +245,14 @@ export class Parser {
         return;
       }
 
+      let call = this.parseCall(ref);
+      if (call) {
+        // call
+        field.formulaType = 'call';
+        field.setMeta('^call', call);
+        return;
+      }
+
       // plain reference
       field.formulaType = 'reference';
       field.setMeta('^reference', ref);
@@ -262,7 +265,311 @@ export class Parser {
 
 
 
-  //
+
+
+  /** parse an argument list following a reference. Param ternary false rejects
+   * syntax 'x y' */
+  parseCall(ref: Reference, ternary = false): Call | undefined {
+
+    // unparenthesized value following function reference
+    let startCursor = this.cursor;
+    let startToken = this.cursorToken;
+    let rightValue = this.parseLiteral() || this.parseReference();
+    if (rightValue && !ternary && this.parseReference()) {
+      // reject ternary form at beginning of formula
+      this.cursor = startCursor;
+      return undefined;
+    }
+    if (!rightValue && !this.matchToken('(')) {
+      return undefined;
+    }
+    if (ref.dependent) {
+      // program references must be structureal
+      throw this.setError('Program is dependent', ref.tokens[0]);
+    }
+    let call = new Call;
+
+    // first field of call is reference to program
+    ref.tokens.push(Token.mimic('call', this.prevToken));
+    let prog = new Field;
+    prog.id = this.space.newFieldID(undefined, this.prevToken);
+    call.add(prog);
+    prog.formulaType = 'reference';
+    prog.setMeta('^reference', ref);
+
+    // second field of call is input argument change operation
+    let input = new Field;
+    input.id = this.space.newFieldID(undefined, this.prevToken);
+    call.add(input);
+    input.formulaType = 'change';
+    // LHS is dependent ref to first input
+    let lhs = new Reference;
+    lhs.tokens = [
+      Token.mimic('that', this.prevToken),
+      Token.mimic('arg1', this.prevToken)
+    ]
+    input.setMeta('^lhs', lhs);
+    // RHS is structural reference to input value
+    let rhsRef = new Reference;
+    rhsRef.tokens = [Token.mimic('input', this.prevToken)]
+    let rhs = input.setMeta('^rhs');
+    rhs.formulaType = 'reference';
+    rhs.setMeta('^reference', rhsRef);
+
+    if (rightValue) {
+      // unparenthesized value argument
+      let arg = new Field;
+      arg.formulaType = 'change';
+      let lhs = new Reference;
+      lhs.tokens = [
+        Token.mimic('that', startToken),
+        Token.mimic('arg2', startToken)
+      ]
+      arg.setMeta('^lhs', lhs);
+      let rhs = arg.setMeta('^rhs');
+      if (rightValue instanceof Reference) {
+        rhs.formulaType = 'reference';
+        rhs.setMeta('^reference', rightValue)
+      } else {
+        rhs.formulaType = 'none';
+        rhs.setValue(rightValue);
+      }
+      arg.id = this.space.newFieldID(undefined, startToken);
+      call.add(arg);
+      return call;
+    }
+
+    // parse arguments into change operations
+    while (!this.parseToken(')')) {
+      let arg = new Field;
+      let argToken = this.cursorToken;
+      this.requireFormula(arg)
+      if (arg.formulaType !== 'change') {
+        // anonymous first argument
+        if (call.fields.length !== 2) {
+          throw this.setError('Only first argument can be anonymous', argToken);
+        }
+        // move formula to RHS of arg2 change operation
+        let anon = arg;
+        arg = new Field;
+        arg.formulaType = 'change';
+        let lhs = new Reference;
+        lhs.tokens = [
+          Token.mimic('that', argToken),
+          Token.mimic('arg2', argToken)
+        ]
+        arg.setMeta('^lhs', lhs);
+        let rhs = arg.setMeta('^rhs', anon.value);
+        rhs.formulaType = anon.formulaType;
+        if (anon.metadata) {
+          rhs.metadata = anon.metadata;
+          rhs.metadata.containingItem = rhs;
+        }
+      }
+
+      arg.id = this.space.newFieldID(undefined, argToken);
+      call.add(arg);
+      this.matchToken(',');
+    }
+
+    return call;
+  }
+
+  /** parse a code block */
+  parseCode(): Code | undefined {
+    let token = this.parseToken('do', 'try', 'builtin');
+    if (!token) return undefined;
+    let code: Code;
+    switch (token.type) {
+      case 'do':
+        code = new Do;
+        break;
+
+      // case 'builtin':
+      //   code = new Builtin;
+      //   break;
+
+      // case 'try':
+      //   let block = new Try;
+      //   this.requireTry(block);
+      //   return block;
+
+      default:
+        trap();
+    }
+
+    // parse body of block
+    this.requireBlock(code);
+    return code;
+  }
+
+  /** Returns a Reference with tokens[] containing name tokens which may include
+   * a leading ^ and trailing ?/!. Will contain leading 'that' for dependent
+   * path. Also contains '~' tokens for extra results. Also contains number
+   * tokens for testing. [] indexing will return a ReferenceFormula instead. */
+  parseReference(): Reference | undefined {
+    let tokens: Token[] = [];
+
+    // leading name or that
+    if (this.matchToken('name', 'that')) {
+      if (this.prevToken.text[0] === '^') {
+        throw this.setError("Reference can't start with ^", this.cursorToken);
+      }
+
+      tokens.push(this.prevToken);
+    } else if (this.peekToken('.', '~')) {
+      // leading . or ~ simulates leading 'that'
+      tokens.push(Token.mimic('that', this.cursorToken));
+    }
+
+    // rest of path
+    while (true) {
+      if (this.matchToken('.')) {
+        this.requireToken('name', 'number');
+        if (this.prevToken.text[0] === '^') {
+          throw this.setError("^ can't follow .", this.prevToken)
+        }
+        tokens.push(this.prevToken);
+        continue;
+      } else if (this.peekToken('name') && this.cursorToken.text[0] === '^') {
+        // metadata
+        tokens.push(this.cursorToken);
+        this.cursor++;
+        continue;
+      } else if (this.matchToken('~')) {
+        tokens.push(this.prevToken);
+        if (this.peekToken('~')) {
+          throw this.setError("repeated ~", this.cursorToken);
+        }
+        if (this.peekToken('name')) {
+          // extra result name without separating dot
+          tokens.push(this.prevToken);
+        }
+        continue;
+      }
+      break;
+    }
+
+    if (!tokens.length) return undefined;
+    let ref = new Reference;
+    ref.tokens = tokens;
+    return ref;
+  }
+
+  /** Parse a literal value */
+  parseLiteral(): Value | undefined {
+    if (this.matchToken('number')) {
+      let num = new Numeric;
+      num.token = this.prevToken;
+      num.value = Number(this.prevToken.text);
+      assert(Number.isFinite(num.value));
+      return num;
+    }
+
+    if (this.matchToken('_number_')) {
+      let num = new Numeric;
+      num.token = this.prevToken;
+      num.value = NaN;
+      return num;
+    }
+
+    if (this.matchToken('string')) {
+      let text = new Text;
+      text.token = this.prevToken;
+      text.value = stringUnescape(this.prevToken.text.slice(1, -1));
+      return text;
+    }
+
+
+    if (this.matchToken('nil')) {
+      let nil = new Nil;
+      nil.token = this.prevToken;
+      return nil;
+    }
+
+    if (this.matchToken('anything')) {
+      let any = new Anything;
+      any.token = this.prevToken;
+      return any;
+    }
+
+    if (this.matchToken('record')) {
+      return this.requireBlock(new Record);
+    }
+
+    if (this.matchToken('choice')) {
+      return this.requireBlock(new Choice);
+    }
+
+    // if (this.matchToken('table')) {
+    //   let table = new Table;
+    //   let template = new Row;
+    //   table.rows.push(template);
+    //   template.table = table;
+    //   template.serial = 0;
+    //   template.mode = 'formula';
+    //   if (this.matchToken('of')) {
+    //     let value = this.requireValue();
+    //     if (isPath(value)) {
+    //       // path is stored as metadata to be evaluated dynamically
+    //       template.setMeta('^value', value);
+    //     } else {
+    //       // literal value is stored literally
+    //       template.set(value);
+    //     }
+    //   } else {
+    //     // Data block template
+    //     let block = new Data;
+    //     template.set(block);
+    //     this.requireBlock(block);
+    //   }
+    //   return table;
+    // }
+
+    this.setError('Expecting a value');
+    return undefined;
+  }
+
+
+  /** require one of several token types */
+  requireToken(...types: TokenType[]): Token {
+    let token = this.parseToken(...types);
+    if (!token) {
+      throw this.error;
+    }
+    return token;
+  }
+
+
+  /** parse one of several token types */
+  parseToken(...types: TokenType[]): Token | undefined {
+    if (this.matchToken(...types)) {
+      return this.prevToken;
+    }
+    this.setError('Expecting ' + types.join(' or '));
+    return undefined;
+  }
+
+  /** match one of several token types */
+  matchToken(...types: TokenType[]) {
+    if (this.peekToken(...types)) {
+      this.cursor++;
+      return true;
+    }
+    return false;
+  }
+
+  /** peek one of several token types */
+  peekToken(...types: TokenType[]): boolean {
+    let cursorType = this.cursorToken.type;
+    for (let type of types) {
+      if (type === cursorType) return true;
+    }
+    return false;
+  }
+
+
+   //
   // requireExpr(field: Field): void {
 
   //   // parse subject value
@@ -511,212 +818,5 @@ export class Parser {
   //   }
   //   // Maybe if try is vertical, set all clauses vertical too
   // }
-
-
-
-  /** parse a code block */
-  parseCode(): Code | undefined {
-    let token = this.parseToken('do', 'try', 'builtin');
-    if (!token) return undefined;
-    let code: Code;
-    switch (token.type) {
-      case 'do':
-        code = new Do;
-        break;
-
-      // case 'builtin':
-      //   code = new Builtin;
-      //   break;
-
-      // case 'try':
-      //   let block = new Try;
-      //   this.requireTry(block);
-      //   return block;
-
-      default:
-        trap();
-    }
-
-    // parse body of block
-    this.requireBlock(code);
-    return code;
-  }
-
-
-
-
-  /** Returns a Reference with tokens[] containing name tokens which may include
-   * a leading ^ and trailing ?/!. Will contain leading 'that' for dependent
-   * path. Also contains '~' tokens for extra results. Also contains number
-   * tokens for testing. [] indexing will return a ReferenceFormula instead. */
-  parseReference(): Reference | undefined {
-    let tokens: Token[] = [];
-
-    // leading name or that
-    if (this.matchToken('name', 'that')) {
-      if (this.prevToken.text[0] === '^') {
-        throw this.setError("Reference can't start with ^", this.cursorToken);
-      }
-
-      tokens.push(this.prevToken);
-    } else if (this.peekToken('.', '~')) {
-      // leading . or ~ simulates leading 'that'
-      tokens.push(
-        new Token(
-          'that',
-          this.cursorToken.start,
-          this.cursorToken.end,
-          this.cursorToken.source
-        )
-      );
-    }
-
-    // rest of path
-    while (true) {
-      if (this.matchToken('.')) {
-        this.requireToken('name', 'number');
-        if (this.prevToken.text[0] === '^') {
-          throw this.setError("^ can't follow .", this.prevToken)
-        }
-        tokens.push(this.prevToken);
-        continue;
-      } else if (this.peekToken('name') && this.cursorToken.text[0] === '^') {
-        // metadata
-        tokens.push(this.cursorToken);
-        this.cursor++;
-        continue;
-      } else if (this.matchToken('~')) {
-        tokens.push(this.prevToken);
-        if (this.peekToken('~')) {
-          throw this.setError("repeated ~", this.cursorToken);
-        }
-        if (this.peekToken('name')) {
-          // extra result name without separating dot
-          tokens.push(this.prevToken);
-        }
-        continue;
-      }
-      break;
-    }
-
-    if (!tokens.length) return undefined;
-    let ref = new Reference;
-    ref.tokens = tokens;
-    return ref;
-  }
-
-  /** Parse a literal value */
-  parseLiteral(): Value | undefined {
-    if (this.matchToken('number')) {
-      let num = new Numeric;
-      num.token = this.prevToken;
-      num.value = Number(this.prevToken.text);
-      assert(Number.isFinite(num.value));
-      return num;
-    }
-
-    if (this.matchToken('_number_')) {
-      let num = new Numeric;
-      num.token = this.prevToken;
-      num.value = NaN;
-      return num;
-    }
-
-    if (this.matchToken('string')) {
-      let text = new Text;
-      text.token = this.prevToken;
-      text.value = stringUnescape(this.prevToken.text.slice(1, -1));
-      return text;
-    }
-
-
-    if (this.matchToken('nil')) {
-      let nil = new Nil;
-      nil.token = this.prevToken;
-      return nil;
-    }
-
-    if (this.matchToken('anything')) {
-      let any = new Anything;
-      any.token = this.prevToken;
-      return any;
-    }
-
-    if (this.matchToken('record')) {
-      return this.requireBlock(new Record);
-    }
-
-    if (this.matchToken('choice')) {
-      return this.requireBlock(new Choice);
-    }
-
-    // if (this.matchToken('table')) {
-    //   let table = new Table;
-    //   let template = new Row;
-    //   table.rows.push(template);
-    //   template.table = table;
-    //   template.serial = 0;
-    //   template.mode = 'formula';
-    //   if (this.matchToken('of')) {
-    //     let value = this.requireValue();
-    //     if (isPath(value)) {
-    //       // path is stored as metadata to be evaluated dynamically
-    //       template.setMeta('^value', value);
-    //     } else {
-    //       // literal value is stored literally
-    //       template.set(value);
-    //     }
-    //   } else {
-    //     // Data block template
-    //     let block = new Data;
-    //     template.set(block);
-    //     this.requireBlock(block);
-    //   }
-    //   return table;
-    // }
-
-    this.setError('Expecting a value');
-    return undefined;
-  }
-
-
-
-
-  /** require one of several token types */
-  requireToken(...types: TokenType[]): Token {
-    let token = this.parseToken(...types);
-    if (!token) {
-      throw this.error;
-    }
-    return token;
-  }
-
-
-  /** parse one of several token types */
-  parseToken(...types: TokenType[]): Token | undefined {
-    if (this.matchToken(...types)) {
-      return this.prevToken;
-    }
-    this.setError('Expecting ' + types.join(' or '));
-    return undefined;
-  }
-
-  /** match one of several token types */
-  matchToken(...types: TokenType[]) {
-    if (this.peekToken(...types)) {
-      this.cursor++;
-      return true;
-    }
-    return false;
-  }
-
-  /** peek one of several token types */
-  peekToken(...types: TokenType[]): boolean {
-    let cursorType = this.cursorToken.type;
-    for (let type of types) {
-      if (type === cursorType) return true;
-    }
-    return false;
-  }
 
 }

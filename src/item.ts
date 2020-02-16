@@ -1,4 +1,4 @@
-import { Space, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, assertDefined, cast, arrayLast } from "./exports";
+import { Space, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, assertDefined, cast, arrayLast, Call, Do } from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not container other items are Base vales. This forms a tree. The top
@@ -174,8 +174,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    * change: dependent reference in ^lhs, formula in ^rhs
    *
+   * call: Call block in ^call, starting with reference to program followed by
+   * changes on the arguments
    *  */
-  formulaType!: 'none' | 'literal' | 'reference'| 'code' | 'change';
+  formulaType!: 'none' | 'literal' | 'reference' | 'code' | 'change' | 'call';
 
   /** Evaluates if value undefined, or if inside unexecuted code  */
   evalIfNeeded() {
@@ -206,10 +208,6 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
       // evaluate formula
       switch (this.formulaType) {
-        case undefined:
-        case 'none':
-          trap();
-
         case 'literal':
           this.replaceValue(this.get('^literal'));
           break;
@@ -227,6 +225,17 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         case 'change':
           this.change();
           break;
+
+        case 'call':
+          let call = cast(this.get('^call').value, Call);
+          // Evaluate code body and copy result
+          let body = cast(arrayLast(call.fields).value, Code);
+          body.eval();
+          this.replaceValue(body.result);
+          break;
+
+        default:
+          trap();
       }
     }
 
@@ -235,7 +244,6 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
     this.evalComplete = true;
   }
-
 
   /** evaluate change operation */
   private change() {
@@ -246,6 +254,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // get previous value, which is context of reference
     assert(ref.target);
     let prev = this.space.down(ref.path.ids.slice(0, ref.context));
+    prev.eval();
     // copy previous value
     this.replaceValue(prev);
     // follow dependent path within previous value
@@ -254,6 +263,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       throw new StaticError(arrayLast(ref.tokens), 'cannot change an output')
     }
     // replace target value with value of rhs
+    target.eval();
     let source = this.get('^rhs');
     if (!target.value!.sameType(source.value!, source.path, target.path)) {
       throw new StaticError(ref.tokens[0], 'cannot change type')

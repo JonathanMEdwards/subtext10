@@ -64,5 +64,6 @@ export class MetaID extends FieldID {
     '^code': new MetaID('^code'),           // Code block
     '^lhs': new MetaID('^lhs'),             // Dependent reference on left of :=
     '^rhs': new MetaID('^rhs'),             // Formula on right of :=
+    '^call': new MetaID('^call'),           // Program call
   }
 }

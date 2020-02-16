@@ -1,4 +1,4 @@
-import { arrayEquals, Base, Token, Path, Item, assert, MetaID, PendingValue, trap, Block, StaticError, ID, arrayLast, another, Value } from "./exports";
+import { arrayEquals, Base, Token, Path, Item, assert, MetaID, PendingValue, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do } from "./exports";
 
 /** Guard on an ID in a reference */
 type Guard = '?' | '!' | undefined;
@@ -16,8 +16,9 @@ type Guard = '?' | '!' | undefined;
 export class Reference extends Base {
 
   /** Tokens of path in source. May have leading 'that' token. Name tokens have
-   * leading ^ and trailing ?/!. '~' token used for extra results. Number tokens
-   * used for testing */
+   * leading ^ and trailing ?/!. '~' token used for extra results.
+   * Special tokens used for binding calls: call, arg1, arg2, input.
+   * Number tokens are used for testing */
   tokens!: Token[];
 
   /** reference is dependent if starts with 'that' */
@@ -107,6 +108,31 @@ export class Reference extends Base {
 
     let target: Item | undefined;
 
+    if (this.tokens[0].type === 'input') {
+      /** bind to input of a call.
+       * This occurs on ^rhs^reference of Call.
+       * Possibly could generalize to outer-that.
+       * */
+      assert(this.tokens.length === 1);
+      assert(from.id.toString() === '^rhs');
+      let change = from.container.containingItem;
+      assert(change.formulaType === 'change');
+      assert(change.container instanceof Call);
+      let call = change.container.containingItem;
+      assert(call.id.toString() === '^call');
+      target = call.previous();
+      if (!target) {
+        throw new StaticError(this.tokens[0], 'No previous value for call');
+      }
+      if (target.value instanceof PendingValue) {
+        throw new StaticError(this.tokens[0], 'Circular reference')
+      }
+      this.path = target.path;
+      this.context = this.path.length;
+      this.guards = this.path.ids.map(() => undefined);
+      return;
+    }
+
     if (!this.dependent) {
       /** bind first name of structural reference lexically by searching upward
        * to match first name. Note upwards scan skips from metadata to base
@@ -146,21 +172,30 @@ export class Reference extends Base {
     // follow path downwards from context, advancing target
     for (let i = 0; i < this.tokens.length; i++) {
       let token = this.tokens[i];
+      let type = token.type;
       let name = tokenNames[i];
       let guard = tokenGuards[i];
 
-      if (token.type === 'that') {
+      if (type === 'that') {
         // skip leading that in dependent path
         assert(i === 0 && this.dependent);
         continue;
       } else if (name[0] === '^') {
         // next name is metadata - don't evaluate base item
+      } else if (type === 'call') {
+        // dereferences formula body in a call
+        let call = target.getMaybe('^code');
+        if (!call || !(call.value instanceof Do)) {
+          throw new StaticError(token, 'Can only call a do-block');
+        }
+        // fall through to name lookup
+        name = '^code';
       } else {
         // evaluate target if needed
         target.evalIfNeeded();
         if (target.value instanceof PendingValue) {
           // cyclic dependency
-          throw new StaticError(this.tokens[i], 'Circular reference')
+          throw new StaticError(token, 'Circular reference')
         }
         if (name === '~') {
           // access extra results in metadata
@@ -168,10 +203,25 @@ export class Reference extends Base {
         }
       }
 
-      target = target.value!.getMaybe(name);
-      if (!target) {
-        // undefined name
-        throw new StaticError(token, 'Undefined name')
+      if (type === 'arg1' || type === 'arg2') {
+
+        // positional call argument
+        target = (
+          target.value instanceof Do
+            ? target.value.fields[type === 'arg1' ? 0 : 1]
+            : undefined
+        )
+        if (!target || !target.isInput) {
+          throw new StaticError(token, 'Program input not defined')
+        }
+      } else {
+
+        // dereference by name
+        target = target.getMaybe(name);
+        if (!target) {
+          // undefined name
+          throw new StaticError(token, 'Undefined name')
+        }
       }
 
       // append to path

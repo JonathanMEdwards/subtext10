@@ -85,18 +85,26 @@ test('change', () => {
     .toEqual({ a: { x: 0, y: { i: 0, j: 0 } }, b: { x: 0, y: {i: 1, j: 0}}});
 });
 
+test('call', () => {
+  expectDump("f = do{x: 0}, a = 1, b = f()")
+    .toEqual({ f: 0, a: 1, b: 1 });
+  expectCompiling("f = 0, a = 1, b = f()")
+    .toThrow('Can only call a do-block');
+  expectCompiling("f = do{x = 0}, a = 1, b = f()")
+    .toThrow('Program input not defined');
+  expectCompiling("f = do{x: ''}, a = 1, b = f()")
+    .toThrow('cannot change type');
+  expectDump("f = do{x: 0; y: 1}, a = 1, b = f(2)")
+    .toEqual({ f: 1, a: 1, b: 2 });
+  expectDump("f = do{x: 0; y: 1}, a = 1, b = f 2")
+    .toEqual({ f: 1, a: 1, b: 2 });
+  expectDump("f = do{x: 0; y: 1}, a = 1, b = f(.y := 2)")
+    .toEqual({ f: 1, a: 1, b: 2 });
+  expectCompiling("f = do{x: 0; y: 1}, a = 1, b = f(.y := 2, 2)")
+    .toThrow('Only first argument can be anonymous');
 
+});
 
-// test('function call', () => {
-//   expectDump("f = 0 do{:= $}, a = 1 f(), b = 2 a()")
-//     .toEqual({ f: 0, a: 1, b: 2 });
-//   expectCompiling("f = 0 do{:= $}, a = '' f()")
-//     .toThrow('Type mismatch');
-//   expectDump("f() = 0 do{:= $}, a = 1 f(), b = 2 a()")
-//     .toEqual({ f: 0, a: 1, b: 2 });
-//   expectCompiling("f() = 0 do{:= $}, a = f")
-//     .toThrow('Accessing a function as a value');
-// });
 
 // test('arguments', () => {
 //   expectDump("f = 0 do{arg: 1, := arg}, a = 0 f()")

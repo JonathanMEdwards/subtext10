@@ -8,7 +8,10 @@ export class Code extends Block {
   result!: Field;
 
   eval() {
-    assert(!this.result);
+    if (this.result) {
+      assert(this.result.evalComplete);
+      return;
+    }
 
     // evaluate all fields
     // TODO: stop on rejection
@@ -24,5 +27,10 @@ export class Code extends Block {
 
 /** A Do block is a procedure that evaluates statements sequentially */
 export class Do extends Code {
+
+}
+
+/** A Call is a special Do block that calls get compiled into */
+export class Call extends Do {
 
 }

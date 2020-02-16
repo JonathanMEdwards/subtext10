@@ -5,9 +5,10 @@ import { arrayLast } from "./exports";
 
 export type TokenType = (
   ':' | '=' | ':=' | '|=' | '.' | ',' | ';' | '{' | '}' | '(' | ')' | '~'
-  | '[' | ']' | 'string' | 'number' | '_number_' | 'name' | 'end' | '\n' |
+  | '[' | ']' | 'string' | 'number' | '_number_' | 'name' | 'end' | '\n'
+  | 'call' | 'arg1' | 'arg2' | 'input'
   // keywords - add to matchToken switch statement
-  'record' | 'choice' | 'table' | 'series' | 'do' | 'builtin' | 'anything'
+  | 'record' | 'choice' | 'table' | 'series' | 'do' | 'builtin' | 'anything'
   | 'nil' | 'try' | 'check' | 'not' | 'else' | 'reject' | 'let' | 'extra'
   | 'that'
 )
@@ -17,7 +18,13 @@ export class Token {
     readonly type: TokenType,
     readonly start: number,
     readonly end: number,
-    readonly source: string) { }
+    readonly source: string)
+  { }
+
+  /** Copy an existing token giving a different type */
+  static mimic(type: TokenType, token: Token): Token {
+    return new Token(type, token.start, token.end, token.source);
+  }
 
   get text() { return this.toString() };
 
