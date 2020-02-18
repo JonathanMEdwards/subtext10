@@ -200,8 +200,46 @@ export class Parser {
     return field;
   }
 
-  /** Parse a formula defining a field. Sets formulaType and metadata */
+  /** Require a formula defining a field. Sets formulaType and metadata */
   requireFormula(field: Field): void {
+    let startToken = this.cursorToken;
+    // parse first term of formula
+    if (!this.parseTerm(field, true)) {
+      throw this.setError('expecting a formula')
+    }
+    // parse multiterm formula into a do-block
+    let block: Do | undefined;
+    while (!this.peekToken(',', ';', ')', '}', '\n', 'end')) {
+      if (!block) {
+        // move first term into multi-term do-block
+        block = new Do;
+        let first = new Field;
+        first.id = this.space.newFieldID(undefined, startToken);
+        if (field.metadata) {
+          first.metadata = field.metadata;
+          field.metadata = undefined;
+          first.metadata.containingItem = first;
+        }
+        if (field.value) {
+          first.setValue(field.value);
+        }
+        block.add(first);
+        first.formulaType = field.formulaType;
+        field.formulaType = 'code';
+        field.setMeta('^code', block);
+      }
+
+      let term = new Field;
+      term.id = this.space.newFieldID(undefined, this.cursorToken);
+      block.add(term);
+      if (!this.parseTerm(term, false)) {
+        throw this.setError('expecting a formula')
+      }
+    }
+  }
+
+  /** parse a single term of a formula */
+  parseTerm(field: Field, first = false): boolean {
 
     // literal value
     let literal = this.parseLiteral();
@@ -217,7 +255,7 @@ export class Parser {
         field.value = literal;
         literal.containingItem = field;
       }
-      return;
+      return true;
     }
 
     // code block
@@ -225,7 +263,7 @@ export class Parser {
     if (code) {
       field.formulaType = 'code';
       field.setMeta('^code', code);
-      return;
+      return true;
     }
 
     // reference
@@ -242,40 +280,43 @@ export class Parser {
         // parse formula into ^rhs
         let rhs = field.setMeta('^rhs', undefined);
         this.requireFormula(rhs);
-        return;
+        return true;
       }
 
-      let call = this.parseCall(ref);
+      let call = this.parseCall(ref, first);
       if (call) {
         // call
         field.formulaType = 'call';
         field.setMeta('^call', call);
-        return;
+        return true;
       }
 
       // plain reference
       field.formulaType = 'reference';
       field.setMeta('^reference', ref);
-      return;
+      return true;
     }
+    return false;
 
-
-    throw this.setError('expecting a formula')
   }
 
-
-
-
-
-  /** parse an argument list following a reference. Param ternary false rejects
-   * syntax 'x y' */
-  parseCall(ref: Reference, ternary = false): Call | undefined {
+  /** parse arguments following a reference. Param first rejects
+   * syntax 'ref value x' and 'ref value('*/
+  parseCall(ref: Reference, first = false): Call | undefined {
 
     // unparenthesized value following function reference
     let startCursor = this.cursor;
     let startToken = this.cursorToken;
     let rightValue = this.parseLiteral() || this.parseReference();
-    if (rightValue && !ternary && this.parseReference()) {
+    if (
+      rightValue
+      && first
+      && (
+        this.parseReference()
+        || this.parseLiteral()
+        || this.parseToken('(')
+      )
+    ) {
       // reject ternary form at beginning of formula
       this.cursor = startCursor;
       return undefined;

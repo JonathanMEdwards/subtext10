@@ -100,10 +100,23 @@ test('call', () => {
     .toEqual({ f: 1, a: 1, b: 2 });
   expectDump("f = do{x: 0; y: 1}, a = 1, b = f(.y := 2)")
     .toEqual({ f: 1, a: 1, b: 2 });
+  expectCompiling("f = do{x: 0; y: 1}, a = 1, b = f(.z := 2)")
+    .toThrow('Undefined name');
   expectCompiling("f = do{x: 0; y: 1}, a = 1, b = f(.y := 2, 2)")
     .toThrow('Only first argument can be anonymous');
-
 });
+
+test('formula', () => {
+  expectDump("f = do{x: 0}, a = 1, b = a f()")
+    .toEqual({ f: 0, a: 1, b: 1});
+  expectDump("f = do{x: 0; y: 1}, a = 1, b = a f(2)")
+    .toEqual({ f: 1, a: 1, b: 2 });
+  expectDump("f = do{x: 0; y: 1}, a = 1, b = a f 2")
+    .toEqual({ f: 1, a: 1, b: 2 });
+  expectDump("f = do{x: 0; y: 1}, a = 1, b = a f 2 f 3")
+    .toEqual({ f: 1, a: 1, b: 3 });
+});
+
 
 
 // test('arguments', () => {
