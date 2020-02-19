@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Space, Reference, Do, trap, Call } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -62,12 +62,12 @@ export class Parser {
     return this.error;
   }
 
-  space!: Space;
+  space!: Workspace;
 
   /** require top-level Head definition */
   requireHead(head: Head) {
     // store Space in Parser
-    this.space = head.space;
+    this.space = head.workspace;
 
     this.requireBlockBody(head);
     if (!this.peekToken('end')) {
@@ -220,8 +220,10 @@ export class Parser {
           field.metadata = undefined;
           first.metadata.containingItem = first;
         }
-        if (field.value) {
-          first.setValue(field.value);
+        let value = field.value;
+        if (value) {
+          field.prune();
+          first.setValue(value);
         }
         block.add(first);
         first.formulaType = field.formulaType;
@@ -296,6 +298,24 @@ export class Parser {
       field.setMeta('^reference', ref);
       return true;
     }
+
+    // include
+    if (this.matchToken('include')) {
+      field.formulaType = 'include';
+      // ignore name for now - only include builtins
+      this.requireToken('name');
+      return true;
+    }
+
+    // builtin
+    if (this.matchToken('builtin')) {
+      let name = new Text;
+      name.value = this.requireToken('name').text;
+      field.formulaType = 'builtin';
+      field.setMeta('^builtin', name);
+      return true;
+    }
+
     return false;
 
   }
@@ -418,7 +438,7 @@ export class Parser {
 
   /** parse a code block */
   parseCode(): Code | undefined {
-    let token = this.parseToken('do', 'try', 'builtin');
+    let token = this.parseToken('do', 'try');
     if (!token) return undefined;
     let code: Code;
     switch (token.type) {

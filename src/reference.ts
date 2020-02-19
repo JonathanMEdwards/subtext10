@@ -57,7 +57,7 @@ export class Reference extends Base {
     }
 
     // dereference
-    let target: Item = from.space;
+    let target: Item = from.workspace;
     this.path.ids.forEach((id, i) => {
       let guard = this.guards[i];
       target = target.get(id);
@@ -85,7 +85,7 @@ export class Reference extends Base {
 
   // bind reference during analysis
   private bind(from: Item) {
-    assert(this.space.analyzing);
+    assert(this.workspace.analyzing);
     assert(this.tokens && this.tokens.length);
 
     // strip out guards from names
@@ -134,29 +134,37 @@ export class Reference extends Base {
     }
 
     if (!this.dependent) {
+
       /** bind first name of structural reference lexically by searching upward
        * to match first name. Note upwards scan skips from metadata to base
-       * item's container */
+       * item's container. Also looks one level into includes */
       let first = tokenNames[0];
-      for (let up of from.upwards()) {
-        // bind against field names in Block container
-        if (
-          up.value instanceof Block
-          && up.value.fields.find(field => field.name === first)
-        ) {
-          // set lexical scope
-          target = up;
-          break;
+      lexicalBinding: for (let up of from.upwards()) {
+        if (up.value instanceof Block) {
+          for (let field of (up.value as Block).fields) {
+            if (field.name === first) {
+              target = up;
+              break lexicalBinding;
+            }
+            // bind against included fields too
+            if (field.formulaType === 'include') {
+              assert(field.value instanceof Block);
+              for (let included of (field.value as Block).fields) {
+                if (included.name === first) {
+                  target = field;
+                  break lexicalBinding;
+                }
+              }
+            }
+          }
         }
-        continue;
       }
       if (!target) {
         // hit top without binding
-        // FIXME: search builtins, maybe generalized to includes at every level?
-
         throw new StaticError(this.tokens[0], 'Undefined name')
       }
     } else {
+
       // bind dependent reference within previous value
       target = from.previous();
       if (!target) {
@@ -238,12 +246,18 @@ export class Reference extends Base {
     this.path = new Path(ids);
     this.guards = guards;
 
+    /** FIXME: path context is not necessarily the LUB of base and target of
+     * ref. This could happen because the path climbed back down the upward path
+     * to the lexical binding. It can also happen when binding to inclusions.
+     * This may matter for allowing access to conditional fields.
+     *
+    */
     // LUB of structural path must be same as lexical scope
-    if (!this.dependent) {
-      let lub = this.path.lub(from.path);
-      if (lub.length !== this.context) {
-        throw new StaticError(this.tokens[0], 'Structural path scope too high')
-      }
+    // if (!this.dependent) {
+      // let lub = this.path.lub(from.path);
+      // if (lub.length !== this.context) {
+      //   throw new StaticError(this.tokens[0], 'Structural path scope too high')
+      // }
       // TODO: allow higher lexical binding, perhaps to avoid shadowing
       // this.context = lub.length;
       // // no guards used on context
@@ -253,7 +267,7 @@ export class Reference extends Base {
       //     guard => guard === undefined
       //   )
       // )
-    }
+    // }
   }
 
 

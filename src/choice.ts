@@ -6,7 +6,7 @@ import { Block, trap } from "./exports";
 export class Choice extends Block {
 
   eval() {
-    if (this.space.analyzing) {
+    if (this.workspace.analyzing) {
       // eval all options during analysis
       return super.eval();
     }

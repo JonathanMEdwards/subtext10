@@ -1,14 +1,14 @@
-import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap  } from "./exports";
+import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, BuiltinDefinitions  } from "./exports";
 
 /** A subtext workspace */
-export class Space extends Item<never, History> {
+export class Workspace extends Item<never, History> {
 
-  /** Space is at the top of the tree */
+  /** Workspace is at the top of the tree */
   declare container: never;
   _path = Path.empty;
-  _space = this;
+  _workspace = this;
 
-  /** whether analyzing space - effects evaluation logic */
+  /** whether analyzing workspace - effects evaluation logic */
   analyzing = false;
 
   /** serial numbers assigned to FieldIDs */
@@ -32,25 +32,32 @@ export class Space extends Item<never, History> {
     return id;
   }
 
+  /** current version of workspace */
+  get currentVersion() {
+    return this.value!.currentVersion;
+  }
 
   /** dump item at string path in current version */
   dumpAt(path: string): Item {
-    return this.value!.currentVersion.down(path).dump();
+    return this.currentVersion.down(path).dump();
   }
 
   /** compile a doc
    * @param source
-   * @param builtin flag for compiling builtins
+   * @param builtin whether to include builtins first
    * @throws SyntaxError
    */
-  static compile(source: string, builtin = false): Space {
-    let space = new Space;
+  static compile(source: string, builtins = true): Workspace {
+    if (builtins) {
+      source = "builtins = include builtins\n" + source;
+    }
+    let ws = new Workspace;
     let history = new History;
-    space.value = history;
-    history.containingItem = space;
+    ws.value = history;
+    history.containingItem = ws;
     // FIXME: make real history
     let version = new Version;
-    version.id = space.newVersionID('initial');
+    version.id = ws.newVersionID('initial');
     history.add(version);
     version.container = history;
     let head = new Head;
@@ -61,12 +68,14 @@ export class Space extends Item<never, History> {
     parser.requireHead(head);
 
     // analyze all formulas by evaluating doc
-    space.analyzing = true;
-    space.eval();
-    space.analyzing = false;
+    ws.analyzing = true;
+    ws.eval();
+    ws.analyzing = false;
     // TODO: reset doc state after analysis
 
-    return space;
+    return ws;
   }
-}
 
+  /** builtin workspace to be included into other workspaces */
+  static readonly builtins = Workspace.compile(BuiltinDefinitions, false);
+}

@@ -10,7 +10,7 @@ export type TokenType = (
   // keywords - add to matchToken switch statement
   | 'record' | 'choice' | 'table' | 'series' | 'do' | 'builtin' | 'anything'
   | 'nil' | 'try' | 'check' | 'not' | 'else' | 'reject' | 'let' | 'extra'
-  | 'that'
+  | 'that' | 'include'
 )
 
 export class Token {
@@ -217,6 +217,7 @@ export function tokenize(source: string): Token[] {
         case 'nil':
         case 'builtin':
         case 'that':
+        case 'include':
 
           return name;
       }

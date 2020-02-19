@@ -1,11 +1,11 @@
-import { Space, Item, trap, ID, Path, another, Token } from "./exports";
+import { Workspace, Item, trap, ID, Path, another, Token } from "./exports";
 
 /** Every Value is contained in an Item */
 export abstract class Value {
 
   /** Item containing this value */
   containingItem!: Item;
-  get space(): Space { return this.containingItem.space }
+  get workspace(): Workspace { return this.containingItem.workspace }
   get id(): ID { return this.containingItem.id }
 
   /** logical container (skipping base field of metadata) */

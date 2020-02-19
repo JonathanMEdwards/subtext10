@@ -19,6 +19,7 @@ export class Metadata extends Block<Metafield> {
     field.id = id;
     // define as literal output field (a constant)
     field.isInput = false;
+    field.formulaType = 'none';
     field.value = value;
     if (value) {
       value.containingItem = field;
@@ -65,5 +66,6 @@ export class MetaID extends FieldID {
     '^lhs': new MetaID('^lhs'),             // Dependent reference on left of :=
     '^rhs': new MetaID('^rhs'),             // Formula on right of :=
     '^call': new MetaID('^call'),           // Program call
+    '^builtin': new MetaID('^builtin')      // builtin call
   }
 }

@@ -1,8 +1,8 @@
-import { Space, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, assertDefined, cast, arrayLast, Call, Do } from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, cast, arrayLast, Call, Text, evalBuiltin} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not container other items are Base vales. This forms a tree. The top
- * item is a Space. Each contained item carries an ID, and we identify items
+ * item is a Workspace. Each contained item carries an ID, and we identify items
  * by the path of IDs down from the top.
  */
 
@@ -11,13 +11,13 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   /** Physical container */
   container!: Container<this>;
 
-  /** memoized Space */
-  _space?: Space;
-  get space(): Space {
-    if (!this._space) {
-      this._space = this.container.space;
+  /** memoized Workspace */
+  _workspace?: Workspace;
+  get workspace(): Workspace {
+    if (!this._workspace) {
+      this._workspace = this.container.workspace;
     }
-    return this._space;
+    return this._workspace;
   }
 
   /** ID of the item within its container */
@@ -41,11 +41,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return this.container!.up;
   }
 
-  /** iterate upwards through logical containers to Space */
+  /** iterate upwards through logical containers to Workspace */
   *upwards(): Generator<Item> {
     for (
       let item: Item = this;
-      !(item instanceof Space);
+      !(item instanceof Workspace);
       item = item.container.containingItem
     ) {
       yield item;
@@ -147,7 +147,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   /** The previous item in evaluation order. Used by dependent references. */
   previous(): Item | undefined {
     // should only be used during analysis to bind references
-    assert(this.space.analyzing);
+    assert(this.workspace.analyzing);
     let itemIndex = this.container.items.indexOf(this);
     assert(itemIndex >= 0);
     if (itemIndex > 0) {
@@ -176,8 +176,14 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    * call: Call block in ^call, starting with reference to program followed by
    * changes on the arguments
+   *
+   * include: currently includes only builtins
+   *
+   * builtin: ^builtin contains name of builtin as a Text value
+   *
    *  */
-  formulaType!: 'none' | 'literal' | 'reference' | 'code' | 'change' | 'call';
+  formulaType!: 'none' | 'literal' | 'reference' | 'code' | 'change' | 'call'
+    | 'include' | 'builtin';
 
   /** Evaluates if value undefined, or if inside unexecuted code  */
   evalIfNeeded() {
@@ -234,6 +240,15 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           this.replaceValue(body.result);
           break;
 
+        case 'include':
+          this.replaceValue(Workspace.builtins.currentVersion);
+          break;
+
+        case 'builtin':
+          let name = cast(this.get('^builtin').value, Text).value;
+          evalBuiltin(this, name);
+          break;
+
         default:
           trap();
       }
@@ -253,20 +268,20 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     assert(ref.path.length > ref.context);
     // get previous value, which is context of reference
     assert(ref.target);
-    let prev = this.space.down(ref.path.ids.slice(0, ref.context));
+    let prev = this.workspace.down(ref.path.ids.slice(0, ref.context));
     prev.eval();
     // copy previous value
     this.replaceValue(prev);
     // follow dependent path within previous value
     let target = this.down(ref.path.ids.slice(ref.context));
     if (!target.isInput) {
-      throw new StaticError(arrayLast(ref.tokens), 'cannot change an output')
+      throw new StaticError(arrayLast(ref.tokens), 'changing an output')
     }
     // replace target value with value of rhs
     target.eval();
     let source = this.get('^rhs');
     if (!target.value!.sameType(source.value!, source.path, target.path)) {
-      throw new StaticError(ref.tokens[0], 'cannot change type')
+      throw new StaticError(ref.tokens[0], 'changing type of value')
     }
     target.replaceValue(source);
   }
@@ -299,7 +314,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // record copy
     to.source = this;
 
-    if (this.space.analyzing) {
+    if (this.workspace.analyzing) {
       // copy rejection during analysis, which indicates conditionality
       // to.rejected = this.rejected;
     }
@@ -314,10 +329,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     if (
       this.value
       && (
-        // non-code input values are copied
-        (this.isInput && !(this.container instanceof Code))
-        // non-literal output values are copied
-        || (!this.isInput && !this.getMaybe('^formula'))
+        // input values are copied
+        this.isInput
+        // non-formula output values are copied
+        || this.formulaType === 'none'
       )
     ) {
       assert(this.value.containingItem === this);

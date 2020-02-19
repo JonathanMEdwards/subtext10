@@ -1,4 +1,4 @@
-import { Space } from "../src/exports";
+import { Workspace } from "../src/exports";
 /** @module
  *
  * Basic tests
@@ -6,12 +6,12 @@ import { Space } from "../src/exports";
 
 /** Compile and dump at a location to plain JS object */
 function expectDump(source: string, at = '') {
-  return expect(Space.compile(source).dumpAt(at));
+  return expect(Workspace.compile(source).dumpAt(at));
 }
 
 /** Test compiler exceptions */
 function expectCompiling(source: string) {
-  return expect(() => Space.compile(source));
+  return expect(() => Workspace.compile(source));
 }
 
 
@@ -78,9 +78,9 @@ test('change', () => {
   expectDump("a = record{x: 0, y : 0}, b = .x := 1")
     .toEqual({ a: {x: 0, y: 0}, b: {x: 1, y: 0}});
   expectCompiling("a = record{x = 0, y : 0}, b = .x := 1")
-    .toThrow('cannot change an output');
+    .toThrow('changing an output');
   expectCompiling("a = record{x: 0, y : 0}, b = .x := 'foo'")
-    .toThrow('cannot change type');
+    .toThrow('changing type');
   expectDump("a = record{x: 0, y : record{i: 0, j: 0}}, b = .y := do{.i := 1}")
     .toEqual({ a: { x: 0, y: { i: 0, j: 0 } }, b: { x: 0, y: {i: 1, j: 0}}});
 });
@@ -93,7 +93,7 @@ test('call', () => {
   expectCompiling("f = do{x = 0}, a = 1, b = f()")
     .toThrow('Program input not defined');
   expectCompiling("f = do{x: ''}, a = 1, b = f()")
-    .toThrow('cannot change type');
+    .toThrow('changing type');
   expectDump("f = do{x: 0; y: 1}, a = 1, b = f(2)")
     .toEqual({ f: 1, a: 1, b: 2 });
   expectDump("f = do{x: 0; y: 1}, a = 1, b = f 2")
@@ -117,54 +117,20 @@ test('formula', () => {
     .toEqual({ f: 1, a: 1, b: 3 });
 });
 
-
-
-// test('arguments', () => {
-//   expectDump("f = 0 do{arg: 1, := arg}, a = 0 f()")
-//     .toEqual({ f: 1, a: 1});
-//   expectDump("f = 0 do{arg: 1, := arg}, a = 0 f 2")
-//     .toEqual({ f: 1, a: 2});
-//   expectDump("f = 0 do{arg: 1, := arg}, a = 0 f(2)")
-//     .toEqual({ f: 1, a: 2});
-//   expectDump("f = 0 do{arg: 1, := arg}, a = 0 f(arg:=2)")
-//     .toEqual({ f: 1, a: 2 });
-//   expectCompiling("f = 0 do{arg: 1, := arg}, a = 0 f ''")
-//     .toThrow('Type mismatch');
-//   expectCompiling("f = 0 do{arg: 1, := arg}, a = 0 f(2, 3)")
-//     .toThrow('Unexpected argument');
-//   expectCompiling("f = 0 do{arg: 1, := arg}, a = 0 f(2, 3)")
-//     .toThrow('Unexpected argument');
-//   expectCompiling("f = 0 do{arg: 1, := arg}, a = 0 f(foo:=2)")
-//     .toThrow('Name not defined');
-//   expectCompiling("f = 0 do{arg: 1, := arg}, a = 0 f(foo:=2, 3)")
-//     .toThrow('Expecting argument name');
-// });
-
-// test('arithmetic', () => {
-//   expectDump("a = 1 + 2")
-//     .toEqual({ a: 3 });
-//   expectDump("a = 1 +(2)")
-//     .toEqual({ a: 3 });
-//   expectCompiling("a = '' + 0")
-//       .toThrow('Type mismatch');
-//   expectCompiling("a = 1 + ''")
-//     .toThrow('Type mismatch');
-//   expectDump("a = 1 + 2 * 3")
-//     .toEqual({ a: 9 });
-//   expectDump("a = 1 + (2 * 3)")
-//     .toEqual({ a: 7 });
-// });
-
-// test('default subject', () => {
-//   expectDump("fnc = 1 do{a: 1, b: 1, := + a, := + b}")
-//     .toEqual({ fnc: 3 });
-//   expectDump("fnc = 1 do{a: 1, b: 1, := $ + a + b}")
-//     .toEqual({ fnc: 3 });
-//   expectDump("fnc = 1 do{a: 1, b: 1, := + a + b}")
-//     .toEqual({ fnc: 3 });
-//   expectDump("fnc = 1 do{a: 1, b: 1, := + (a + b)}")
-//     .toEqual({ fnc: 3 });
-// });
+test('arithmetic', () => {
+  expectDump("a = 1 + 2")
+    .toEqual({ a: 3 });
+  expectDump("a = 1 +(2)")
+    .toEqual({ a: 3 });
+  expectCompiling("a = '' + 0")
+      .toThrow('changing type');
+  expectCompiling("a = 1 + ''")
+    .toThrow('changing type');
+  expectDump("a = 1 + 2 * 3")
+    .toEqual({ a: 9 });
+  expectDump("a = 1 + (2 * 3)")
+    .toEqual({ a: 7 });
+});
 
 // test('generics', () => {
 //   expectCompiling("a? = 1 =? 2")

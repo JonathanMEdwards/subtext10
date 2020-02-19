@@ -1160,8 +1160,8 @@ Value :=
 	| 'table' Block
 
 BaseValue :=
-	| 					// single-quoted JS string literal
-	| 					// JS number literal
+	| string			// single-quoted JS string literal
+	| number			// JS number literal
 	| '_number_'		// Special missing number
 	| 'nil'				// unit value
 	| 'anything'		// generic value
@@ -1176,6 +1176,8 @@ Op :=
 	| RelPath						// follow
 	| Conditional
 	| Control Block
+	| 'include' Name
+	| 'builtin' Name
 
 Arguments :=
 	| Value 
@@ -1191,7 +1193,6 @@ LastClause := 'else' 'reject'
 
 Control :=
 	| 'do'
-	| 'builtin'			// internal use only
 	| 'not?'
 	| 'test'
 	| 'assert`
