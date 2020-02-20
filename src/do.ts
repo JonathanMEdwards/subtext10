@@ -1,25 +1,47 @@
-import { Block, arrayLast, Field, assert } from "./exports";
+import { Block, arrayLast, Field, assert, StaticError } from "./exports";
 
 /** A Code block is evaluated to produce a result value. The fields of the block
  * are called statements */
 export class Code extends Block {
 
-  /** final result field of block */
-  result!: Field;
+  /** field with result value. Undefined before eval and after rejection.
+   * Defined after analysis regardless of rejection */
+  result: Field | undefined;
+
+  /** whether a field rejected */
+  rejected = false;
+
+  /** whether evaluation is conditional */
+  conditional = false;
 
   eval() {
-    if (this.result) {
-      assert(this.result.evalComplete);
+    if (this.result || this.rejected) {
       return;
     }
 
-    // evaluate all fields
-    // TODO: stop on rejection
-    super.eval();
-
-    // set result to last field
-    // TODO: set result to previous field
-    this.result = arrayLast(this.fields);
+    // evaluate fields until rejection
+    for (let field of this.fields) {
+      field.eval();
+      if (field.conditional) {
+        if (field.isInput) {
+          throw new StaticError(
+            field.id.token!,
+            'input fields must be unconditional'
+          )
+        }
+        this.conditional = true;
+      }
+      if (field.rejected) {
+        this.rejected = true
+        if (!this.workspace.analyzing) {
+          // stop execution unless analyzing
+          this.result = undefined;
+          break;
+        }
+      }
+      // TODO: skip let/check statements
+      this.result = field;
+    }
   }
 
 

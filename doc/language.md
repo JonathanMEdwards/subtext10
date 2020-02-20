@@ -714,9 +714,9 @@ series move(i, at: j)
 ```
 where 1 ≤ `j` ≤ length + 1.
 
-Two series are considered equal by the `=?` program when they have the same number of items with equal values in the same order, and their templates are equal. The `=?` program can only be used to compare series with templates of the same type and the same kind of sorting — it is a static error otherwise. These constraints are necessary to preserve the property that calling a program with equal inputs produces equal results, specifically the `&` program creating new items.
+Two series are considered equal by the `=?` program when they have the same number of items with equal values in the same order, and their templates are equal, and they are sorted and tracked the same. These constraints are necessary to preserve the property that calling a program with equal inputs produces equal results, specifically the `&` program creating new items.
 
-> Maybe we need `currently=?` to compare ignoring the values of the templates, which only affect new insertions.
+> Maybe we need `currently=?` to compare ignoring the values of the templates and sorting/tracking, which only affect new insertions.
 
 ## Searching
 

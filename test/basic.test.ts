@@ -123,7 +123,7 @@ test('arithmetic', () => {
   expectDump("a = 1 +(2)")
     .toEqual({ a: 3 });
   expectCompiling("a = '' + 0")
-      .toThrow('changing type');
+    .toThrow('changing type');
   expectCompiling("a = 1 + ''")
     .toThrow('changing type');
   expectDump("a = 1 + 2 * 3")
@@ -131,6 +131,19 @@ test('arithmetic', () => {
   expectDump("a = 1 + (2 * 3)")
     .toEqual({ a: 7 });
 });
+
+test('conditionals', () => {
+  expectDump("a? = 1 >? 0")
+    .toEqual({ a: 0 })
+  expectDump("a? = 0 >? 1")
+    .toEqual({ a: false })
+  expectCompiling("a = 1 >? 0")
+    .toThrow('conditional fields have names ending in ?')
+  expectCompiling("a? = 0")
+    .toThrow('conditional fields have names ending in ?')
+  expectCompiling("a: 1 >? 0")
+    .toThrow('input fields must be unconditional')
+})
 
 // test('generics', () => {
 //   expectCompiling("a? = 1 =? 2")

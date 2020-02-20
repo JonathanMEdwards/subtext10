@@ -1,4 +1,4 @@
-import { assert, Container, ID, Item, isNumber, Token, Path, Dictionary, Value, trap } from "./exports";
+import { assert, Container, ID, Item, isNumber, Token, Path, Dictionary, Value, trap, StaticError } from "./exports";
 
 /** A Block is a record-like container with a fixed set of items called fields.
  * Each field can have a different type. Each Field has a globally unique
@@ -38,6 +38,32 @@ export class Block<F extends Field = Field> extends Container<F> {
     return this.fields.find(field => field.name === id);
   }
 
+  /** evaluate all fields */
+  eval() {
+    this.fields.forEach(field => {
+      field.eval();
+      if (this.workspace.analyzing) {
+        if (field.isInput && field.conditional) {
+          throw new StaticError(
+            field.id.token!,
+            'input fields must be unconditional'
+          )
+        }
+        // verify conditional naming
+        if (
+          field.id.name && field.id.token
+          && field.id.token.text.endsWith('?') !== field.conditional
+        ) {
+          throw new StaticError(
+            field.id.token,
+            'all and only conditional fields have names ending in ?'
+          )
+        }
+      }
+    })
+  }
+
+
   copy(srcPath: Path, dstPath: Path): this {
     let to = super.copy(srcPath, dstPath);
     to.outlined = this.outlined;
@@ -59,7 +85,8 @@ export class Block<F extends Field = Field> extends Container<F> {
     this.fields.forEach((field, i) => {
       // skip includes
       if (field.formulaType === 'include') return;
-      obj[field.name ?? i + 1] = field.dump();
+      // rejected fields are dumped as false
+      obj[field.name ?? i + 1] = field.rejected ? false : field.dump();
     })
     return obj;
   }

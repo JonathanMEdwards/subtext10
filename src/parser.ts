@@ -144,44 +144,44 @@ export class Parser {
       const nameToken = this.tokens[this.cursor - 2];
       const defType = this.prevToken.type;
 
-      if (nameToken.text.startsWith('^')) {
+      let name = nameToken.text;
+      if (name.startsWith('^')) {
         throw this.setError('Cannot define metadata', nameToken);
-      } else if (nameToken.text.startsWith('~')) {
+      }
+      if (name.startsWith('~')) {
         throw this.setError('Cannot define extra result', nameToken);
       }
-
-      // strip ending ? from name
-      const conditional = nameToken.text.endsWith('?');
-      const unqualName = (
-        field.isConditional
-          ? nameToken.text.slice(0, -1)
-          : nameToken.text
-      );
+      if (name.endsWith('!') || name === '?') {
+        throw this.setError('Invalid name', nameToken);
+      }
+      if (name.endsWith('?')) {
+        // conditional field - strip ? suffix from name
+        name = name.slice(0, -1);
+        if (block instanceof Code) {
+          throw this.setError("Names in programs can't end with ?", nameToken);
+        }
+      } else if (block instanceof Choice) {
+        throw this.setError('Options must end in ?', nameToken);
+      }
 
       // check name is unique
-      if (block.getMaybe(unqualName)) {
+      if (block.getMaybe(name)) {
         throw this.setError('Duplicate name', nameToken);
       }
 
       // FieldID allocated here becomes unique identifier for field
-      field.id = this.space.newFieldID(unqualName, nameToken);
+      field.id = this.space.newFieldID(name, nameToken);
       field.isInput = (defType === ':');
 
-      if (block instanceof Choice) {
-        if (!conditional) {
-          throw this.setError('Options must end in ?', nameToken);
-        }
-        if (!field.isInput) {
-          throw this.setError(
-            'Option must be an input defined with ":"', this.prevToken);
-        }
-      } else if (block instanceof Code) {
-        if (conditional) {
-          throw this.setError("Names in programs can't end with ?", nameToken);
-        }
+      if (block instanceof Choice && !field.isInput) {
+        throw this.setError('Option must be an input (:)', this.prevToken);
       }
     } else {
       // anonymous output formula
+      if (block instanceof Choice) {
+        throw this.setError('Option must be an input (:)', this.prevToken);
+      }
+
       this.cursor = cursor
       field.id = this.space.newFieldID (
         undefined,

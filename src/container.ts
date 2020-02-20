@@ -21,11 +21,6 @@ export abstract class Container<I extends Item> extends Value {
     this.items.push(item);
   }
 
-  /** evaluate all items */
-  eval() {
-    this.items.forEach(item => item.eval());
-  }
-
   /** make copy, bottom up, translating paths contextually */
   copy(srcPath: Path, Path: Path): this {
     let to = super.copy(srcPath, Path);

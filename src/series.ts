@@ -45,8 +45,9 @@ export class Series<E extends Entry = Entry> extends Container<E> {
     // eval template
     this.template.eval();
     // eval entries
-    super.eval();
+    this.entries.forEach(entry => entry.eval());
   }
+
 
   copy(srcPath: Path, dstPath: Path): this {
     let to = super.copy(srcPath, dstPath);
@@ -62,9 +63,6 @@ export class Series<E extends Entry = Entry> extends Container<E> {
   sameType(from: Value, srcPath: Path, dstPath: Path): boolean {
     return (
       from instanceof Series
-      && this.tracked === from.tracked
-      && this.sorted === from.sorted
-      && (this.sorted && this.ascending === from.ascending)
       && this.template.sameType(from.template, srcPath, dstPath)
     )
   }

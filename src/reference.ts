@@ -70,7 +70,7 @@ export class Reference extends Base {
       // TODO - check guards from LUB
 
       // evaluate on way down if value undefined
-      target.evalIfNeeded();
+      if (!target.value) target.eval();
 
       if (target.value instanceof PendingValue) {
         // cyclic dependency - should have been caught during binding
@@ -200,7 +200,7 @@ export class Reference extends Base {
         name = '^code';
       } else {
         // evaluate target if needed
-        target.evalIfNeeded();
+        if (!target.value) target.eval();
         if (target.value instanceof PendingValue) {
           // cyclic dependency
           throw new StaticError(token, 'Circular reference')
@@ -269,7 +269,6 @@ export class Reference extends Base {
       // )
     // }
   }
-
 
   /** make copy, bottom up, translating paths contextually */
   copy(srcPath: Path, dstPath: Path): this {
