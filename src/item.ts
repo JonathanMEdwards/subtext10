@@ -205,9 +205,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           break;
 
         case 'reference':
-          this.replaceValue(
-            cast(this.get('^reference').value, Reference).target!
-          );
+          let ref = cast(this.get('^reference').value, Reference);
+          this.setConditional(ref.conditional);
+          this.rejected = ref.rejected;
+          this.replaceValue(ref.target);
           break;
 
         case 'code':
@@ -224,17 +225,23 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         case 'call':
           let call = cast(this.get('^call').value, Call);
           this.setConditional(call.conditional);
-          if (call.rejected) {
-            // argument rejected
-            this.rejected = true;
-            if (!this.workspace.analyzing) break;
+          this.rejected = call.rejected;
+          if (this.rejected && !this.workspace.analyzing) {
+            // argument rejection
+            break;
           }
+
           // Evaluate code body and copy result
           let body = cast(arrayLast(call.fields).value, Code);
           body.eval();
-          this.setConditional(body.conditional);
-          this.rejected = body.rejected;
           this.replaceValue(body.result);
+          let asserted = call.asserted;
+          this.setConditional(body.conditional && !asserted);
+          this.rejected = body.rejected;
+          if (this.rejected && !this.workspace.analyzing && asserted) {
+            // crash
+            trap();
+          }
           break;
 
         case 'include':
@@ -264,17 +271,23 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     assert(ref.dependent);
     assert(ref.path.length > ref.context);
     // get previous value, which is context of reference
+    this.setConditional(ref.conditional);
+    if (ref.rejected) {
+      // LHS reference rejected
+      this.rejected = true;
+      if (!this.workspace.analyzing) return;
+    }
     assert(ref.target);
     let prev = this.workspace.down(ref.path.ids.slice(0, ref.context));
     prev.eval();
     // copy previous value
     this.replaceValue(prev);
-    // follow dependent path within previous value
+    // follow LHS dependent path within previous value
     let target = this.down(ref.path.ids.slice(ref.context));
     if (!target.isInput) {
       throw new StaticError(arrayLast(ref.tokens), 'changing an output')
     }
-    // replace target value with value of rhs
+    // replace target value with value of RHS
     target.eval();
     let source = this.get('^rhs');
     if (!target.value!.sameType(source.value!, source.path, target.path)) {

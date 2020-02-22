@@ -1,7 +1,7 @@
-import { arrayEquals, Base, Token, Path, Item, assert, MetaID, PendingValue, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do } from "./exports";
+import { arrayEquals, Base, Token, Path, Item, assert, MetaID, PendingValue, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code } from "./exports";
 
 /** Guard on an ID in a reference */
-type Guard = '?' | '!' | undefined;
+export type Guard = '?' | '!' | undefined;
 
 /** Reference to another item in a formula. Only used in metadata, determining
  * the value of the metadata's base item.
@@ -28,16 +28,23 @@ export class Reference extends Base {
   /** Path to follow */
   path!: Path;
 
-  /** index in path to end of contextual part of path. In an structural
+  /** index in path to end of contextual part of path. In a structural
    * reference, the context is the LUB container of the base and target items.
    * In a dependent reference, the context is the path of the previous value */
   context!: number;
 
   /** guards for each ID in path. Context is unguarded */
+  // TODO: only record context part of path?
   guards!: Guard[];
 
-  /** target item of reference */
+  /** target item of reference. Derived during eval, not copied */
   target?: Item;
+
+  /** whether reference is conditional within path */
+  conditional = false;
+
+  /** whether reference was rejected. Derived, not copied */
+  rejected = false;
 
   /** Evaluate reference */
   eval() {
@@ -59,7 +66,6 @@ export class Reference extends Base {
     // dereference
     let target: Item = from.workspace;
     this.path.ids.forEach((id, i) => {
-      let guard = this.guards[i];
       target = target.get(id);
 
       if (this.path.ids[i + 1] instanceof MetaID) {
@@ -67,20 +73,44 @@ export class Reference extends Base {
         return;
       }
 
-      // TODO - check guards from LUB
-
-      // evaluate on way down if value undefined
-      if (!target.value) target.eval();
-
+      // evaluate on way down if needed
+      this.evalIfNeeded(target);
       if (target.value instanceof PendingValue) {
         // cyclic dependency - should have been caught during binding
         trap();
       }
+
+      // check guards within context
+      if (i >= this.context) {
+        let guard = this.guards[i];
+        assert(!!guard === target.conditional);
+        if (target.rejected) {
+          assert(this.conditional);
+          // reject reference
+          this.rejected = true;
+          if (!this.workspace.analyzing) {
+            if (guard === '!') {
+              // crash
+              trap();
+            }
+            return;
+          }
+          // during analysis follow path to get type of result
+        }
+      }
     })
-    // evaluate target deeply
+
+    // evaluate final target deeply
     target.eval();
 
     this.target = target;
+  }
+
+  /** evaluate item if needed to dereference */
+  private evalIfNeeded(item: Item) {
+    if (!item.value && !item.rejected) {
+      item.eval();
+    }
   }
 
   // bind reference during analysis
@@ -120,10 +150,7 @@ export class Reference extends Base {
       assert(change.container instanceof Call);
       let call = change.container.containingItem;
       assert(call.id.toString() === '^call');
-      target = call.previous();
-      if (!target) {
-        throw new StaticError(this.tokens[0], 'No previous value for call');
-      }
+      target = this.previous(call, this.tokens[0]);
       if (target.value instanceof PendingValue) {
         throw new StaticError(this.tokens[0], 'Circular reference')
       }
@@ -133,8 +160,11 @@ export class Reference extends Base {
       return;
     }
 
-    if (!this.dependent) {
+    if (this.dependent) {
 
+      // bind dependent reference within previous value
+      target = this.previous(from, this.tokens[0]);
+    } else {
       /** bind first name of structural reference lexically by searching upward
        * to match first name. Note upwards scan skips from metadata to base
        * item's container. Also looks one level into includes */
@@ -163,13 +193,6 @@ export class Reference extends Base {
         // hit top without binding
         throw new StaticError(this.tokens[0], 'Undefined name')
       }
-    } else {
-
-      // bind dependent reference within previous value
-      target = from.previous();
-      if (!target) {
-        throw new StaticError(this.tokens[0], 'No previous value');
-      }
     }
 
     // target is context of path, which is unguarded
@@ -185,22 +208,38 @@ export class Reference extends Base {
       let guard = tokenGuards[i];
 
       if (type === 'that') {
+
         // skip leading that in dependent path
         assert(i === 0 && this.dependent);
         continue;
       } else if (name[0] === '^') {
-        // next name is metadata - don't evaluate base item
+
+        // don't evaluate base item on path into metadata
+        if (tokenGuards[i - 1] !== undefined) {
+          throw new StaticError(
+            this.tokens[i - 1],
+            'No guard allowed before metadata'
+          );
+        }
       } else if (type === 'call') {
+
         // dereferences formula body in a call
         let call = target.getMaybe('^code');
         if (!call || !(call.value instanceof Do)) {
           throw new StaticError(token, 'Can only call a do-block');
         }
+
+        // erase guard from base field. Call.guard will check it
+        // note conditional access will have been checked on the base field
+        guards.pop();
+        guards.push(undefined);
         // fall through to name lookup
         name = '^code';
       } else {
+
+        // follow path into value
         // evaluate target if needed
-        if (!target.value) target.eval();
+        this.evalIfNeeded(target);
         if (target.value instanceof PendingValue) {
           // cyclic dependency
           throw new StaticError(token, 'Circular reference')
@@ -229,6 +268,21 @@ export class Reference extends Base {
         if (!target) {
           // undefined name
           throw new StaticError(token, 'Undefined name')
+        }
+
+        // check conditional access
+        this.evalIfNeeded(target);
+        if (!!guard !== target.conditional) {
+          throw new StaticError(
+            token,
+            guard
+              ? `invalid reference suffix ${guard}`
+              : 'conditional reference lacks suffix ? or !'
+          );
+        }
+        if (target.conditional && guard === '?') {
+          // reference only conditional with ? suffix. ! crashes
+          this.conditional = true;
         }
       }
 
@@ -268,6 +322,28 @@ export class Reference extends Base {
       //   )
       // )
     // }
+  }
+
+  /** reference previous value, disallow if a data block conditional. This is OK
+   * in code block because will already have rejected
+   *
+   * TODO: maybe allow 'that?' and 'that!' to explicitly guard previous
+   * reference in data block.
+   */
+
+  private previous(from: Item, token: Token): Item {
+    let item = from.previous();
+    if (!item) {
+      throw new StaticError(token, 'No previous value');
+    }
+    if (item.conditional && !(item.container instanceof Code)) {
+      // in data block, prev value can't be conditional
+      throw new StaticError(
+        token,
+        'Previous value is conditional: use explicit guarded reference'
+      )
+    }
+    return item;
   }
 
   /** make copy, bottom up, translating paths contextually */

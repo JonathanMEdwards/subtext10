@@ -1,4 +1,4 @@
-import { Block, arrayLast, Field, assert, StaticError } from "./exports";
+import { Block, arrayLast, Field, assert, StaticError, Guard, Path, cast, Reference } from "./exports";
 
 /** A Code block is evaluated to produce a result value. The fields of the block
  * are called statements */
@@ -54,5 +54,12 @@ export class Do extends Code {
 
 /** A Call is a special Do block that calls get compiled into */
 export class Call extends Do {
-
+  /** whether call is asserting no rejections */
+  get asserted() {
+    // reference in first field
+    let ref = cast(this.fields[0].get('^reference').value, Reference);
+    // name of program
+    let name = ref.tokens[ref.tokens.length - 2].text;
+    return name.endsWith('!');
+  }
 }

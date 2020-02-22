@@ -56,7 +56,9 @@ export class Block<F extends Field = Field> extends Container<F> {
         ) {
           throw new StaticError(
             field.id.token,
-            'all and only conditional fields have names ending in ?'
+            field.conditional
+              ? 'conditional field name must have suffix ?'
+              : 'unconditional field name cannot have suffix ?'
           )
         }
       }
