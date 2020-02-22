@@ -24,6 +24,9 @@ export abstract class Value {
   /** evaluate contents */
   abstract eval(): void;
 
+  /** reset to initially defined state */
+  abstract reset(): void;
+
   /** source of value through copying */
   source?: this;
 

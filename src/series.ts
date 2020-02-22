@@ -48,6 +48,11 @@ export class Series<E extends Entry = Entry> extends Container<E> {
     this.entries.forEach(entry => entry.eval());
   }
 
+  /** reset to initially defined state */
+  reset() {
+    this.template.reset();
+    this.items = [];
+  }
 
   copy(srcPath: Path, dstPath: Path): this {
     let to = super.copy(srcPath, dstPath);
@@ -89,6 +94,8 @@ export class Text extends Series<TextEntry> {
 
   eval() { }
 
+  reset() { }
+  
   copy(srcPath: Path, dstPath: Path): this {
     // just copy string value
     let to = another(this);

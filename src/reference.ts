@@ -1,4 +1,4 @@
-import { arrayEquals, Base, Token, Path, Item, assert, MetaID, PendingValue, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code } from "./exports";
+import { arrayEquals, Base, Token, Path, Item, assert, MetaID, PendingValue, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash } from "./exports";
 
 /** Guard on an ID in a reference */
 export type Guard = '?' | '!' | undefined;
@@ -30,14 +30,18 @@ export class Reference extends Base {
 
   /** index in path to end of contextual part of path. In a structural
    * reference, the context is the LUB container of the base and target items.
-   * In a dependent reference, the context is the path of the previous value */
+   * In a dependent reference, the context is the path of the previous value.
+   * The contextual part of the path is unguarded, and we avoid evaluating it to
+   * prevent evaluation cycles.
+   * */
   context!: number;
 
   /** guards for each ID in path. Context is unguarded */
   // TODO: only record context part of path?
   guards!: Guard[];
 
-  /** target item of reference. Derived during eval, not copied */
+  /** pointer to target item of reference (not a copy). Derived during eval, not
+   * copied */
   target?: Item;
 
   /** whether reference is conditional within path */
@@ -48,7 +52,7 @@ export class Reference extends Base {
 
   /** Evaluate reference */
   eval() {
-    if (this.target) {
+    if (this.target || this.rejected) {
       // already evaluated
       return;
     }
@@ -85,13 +89,11 @@ export class Reference extends Base {
         let guard = this.guards[i];
         assert(!!guard === target.conditional);
         if (target.rejected) {
-          assert(this.conditional);
           // reject reference
           this.rejected = true;
           if (!this.workspace.analyzing) {
             if (guard === '!') {
-              // crash
-              trap();
+              throw new Crash(this.tokens[i - this.context], 'assertion failed')
             }
             return;
           }
@@ -272,7 +274,14 @@ export class Reference extends Base {
 
         // check conditional access
         this.evalIfNeeded(target);
-        if (!!guard !== target.conditional) {
+        let conditional = target.conditional;
+        if (target.container instanceof Code && !target.isInput) {
+          // FIXME: only allow backward references within code
+          // FIXME: outside references to outputs are conditionalized on block
+          assert(target.container.containingItem.path.contains(from.path));
+          conditional = false;
+        }
+        if (!!guard !== conditional) {
           throw new StaticError(
             token,
             guard
@@ -280,7 +289,7 @@ export class Reference extends Base {
               : 'conditional reference lacks suffix ? or !'
           );
         }
-        if (target.conditional && guard === '?') {
+        if (conditional && guard === '?') {
           // reference only conditional with ? suffix. ! crashes
           this.conditional = true;
         }
@@ -346,6 +355,12 @@ export class Reference extends Base {
     return item;
   }
 
+  /** reset to initially defined state */
+  reset() {
+    this.rejected = false;
+    this.target = undefined
+  }
+
   /** make copy, bottom up, translating paths contextually */
   copy(srcPath: Path, dstPath: Path): this {
     // path must already have been bound
@@ -362,7 +377,7 @@ export class Reference extends Base {
       );
 
       to.guards = [
-        ...dstPath.ids.map(_ => undefined),
+        ...dstPath.ids.map(() => undefined),
         ...this.guards.slice(srcPath.length)
       ];
 

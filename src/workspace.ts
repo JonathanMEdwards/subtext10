@@ -71,7 +71,9 @@ export class Workspace extends Item<never, History> {
     ws.analyzing = true;
     ws.eval();
     ws.analyzing = false;
-    // TODO: reset doc state after analysis
+    // reset and recalc after analysis
+    ws.reset();
+    ws.eval();
 
     return ws;
   }

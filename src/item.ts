@@ -239,8 +239,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           this.setConditional(body.conditional && !asserted);
           this.rejected = body.rejected;
           if (this.rejected && !this.workspace.analyzing && asserted) {
-            // crash
-            trap();
+            throw new Crash(call.token, 'assertion failed')
           }
           break;
 
@@ -259,7 +258,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
 
     // evaluate value contents
-    this.value!.eval();
+    if (this.value) this.value.eval();
 
     this.evalComplete = true;
   }
@@ -314,12 +313,27 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return this.container.containingItem.previous();
   }
 
+  /** reset to initially defined state */
+  reset() {
+    if (this.metadata) this.metadata.reset();
+    this.evalComplete = false;
+    assert(this.formulaType);
+    if (this.formulaType !== 'none') {
+      // recalc value
+      this.rejected = false;
+      if (this.value) this.prune();
+      return;
+    }
+    // recurse on predefined values
+    assert(!this.rejected);
+    this.value!.reset();
+  }
+
   /** prune value, so it can be set */
   prune() {
     assert(this.value?.containingItem === this);
     this.value.containingItem = undefined as any;
     this.value = undefined;
-    // this.rejected = false;
   }
 
   /** set value */
@@ -330,15 +344,13 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     value.containingItem = this;
   }
 
-  /** replace current value from another item, translating internal paths */
+  /** replace current value from another item, translating internal path. Just
+   * prunes current value if item or its value are undefined */
   replaceValue(src?: Item) {
     this.prune();
-    if (src) this.copyValue(src);
-  }
-
-  /** copy value of another item, translating internal paths */
-  copyValue(src: Item) {
-    this.setValue(src.value!.copy(src.path, this.path));
+    if (src && src.value) {
+      this.setValue(src.value.copy(src.path, this.path));
+    }
   }
 
   /** source of value through copying */
@@ -401,6 +413,13 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
 /** FIXME: reify into state so unaffected items can operate */
 export class StaticError extends Error {
+  constructor(token: Token, description: string) {
+    super(description + ': ' + token.source.slice(token.start, token.end + 10));
+  }
+}
+
+/** dynamic crash error */
+export class Crash extends Error {
   constructor(token: Token, description: string) {
     super(description + ': ' + token.source.slice(token.start, token.end + 10));
   }

@@ -164,7 +164,15 @@ test('guarded references', () => {
     .toEqual({ a: -1})
   expectDump("x = record{a? = 1 >? 0, b? = a?}, y? = x.a?")
     .toEqual({ x: { a: 0, b: 0 }, y: 0 })
+})
 
+test('assertions', () => {
+  expectDump("a = 1 >! 0")
+    .toEqual({ a: 0 });
+  expectCompiling("a = 0 >! 1")
+    .toThrow('assertion failed: >!')
+  expectCompiling("x = record{a? = 0 >? 1}, y = x.a!")
+    .toThrow('assertion failed: a!')
 })
 
 // test('generics', () => {

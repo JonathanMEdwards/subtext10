@@ -44,7 +44,12 @@ export class Code extends Block {
     }
   }
 
-
+  /** reset to initially defined state */
+  reset() {
+    this.result = undefined;
+    this.rejected = false;
+    super.reset();
+  }
 }
 
 /** A Do block is a procedure that evaluates statements sequentially */
@@ -54,12 +59,16 @@ export class Do extends Code {
 
 /** A Call is a special Do block that calls get compiled into */
 export class Call extends Do {
-  /** whether call is asserting no rejections */
-  get asserted() {
+  /** token naming program */
+  get token() {
     // reference in first field
     let ref = cast(this.fields[0].get('^reference').value, Reference);
     // name of program
-    let name = ref.tokens[ref.tokens.length - 2].text;
-    return name.endsWith('!');
+    return ref.tokens[ref.tokens.length - 2];
+  }
+
+  /** whether call is asserting no rejections */
+  get asserted() {
+    return this.token.text.endsWith('!');
   }
 }

@@ -4,7 +4,9 @@ import { Value, another, Path, escapedString } from "./exports";
 export abstract class Base extends Value {
 
   // base values already evaluated by default
-  eval() { return; }
+  eval() { }
+
+  reset() { }
 }
 
 /**

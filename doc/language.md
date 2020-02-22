@@ -500,7 +500,10 @@ assert {x =? y}
 ```
 will crash if `x` and `y` are unequal.
 
-> We could also replace any `?` with a `!` to turn it into an assertion. This is more flexible and convenient, but it might be too subtle.
+An assertion can also be made by replacing any `?` with a `!`. The above example is equivalent to:
+```Txt
+check x =! y
+```
 
 A `test` block is used for unit tests:
 ```Txt
