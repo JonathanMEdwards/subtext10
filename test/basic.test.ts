@@ -175,40 +175,51 @@ test('assertions', () => {
     .toThrow('assertion failed: a!')
 })
 
+test('try', () => {
+  expectDump("a = try {0 >? 1} else {2}")
+  .toEqual({a: 2})
+  expectDump("a = try {1 >? 0} else {2}")
+  .toEqual({a: 0})
+  expectCompiling("a = try {0 >? 1} else {0 >? 1}")
+    .toThrow('try failed')
+  expectDump("a? = try {0 >? 1} else reject")
+    .toEqual({ a: false })
+  expectCompiling("a = try {0} else {0 >? 1}")
+    .toThrow('try clause must be conditional if not last')
+  expectCompiling("a? = try {0} else reject")
+    .toThrow('try clause must be conditional if not last')
+  expectCompiling("a = try {0 >? 1} else {'foo'}")
+    .toThrow('try clauses must have same type result')
+  expectDump("a = 0 try {>? 1} else {+ 2}")
+    .toEqual({ a: 2 })
+})
+
+
+
+// test('recursive functions', () => {
+//   expectDump("fac = 0 try{check =? 0, := 1} else{:= $ - 1 fac() * $}")
+//     .toEqual({ fac: 1 });
+//   expectDump("fac = 4 try{check =? 0, := 1} else{:= $ - 1 fac() * $}")
+//     .toEqual({ fac: 24 });
+//   expectCompiling("fac = -1 try{check =? 0, := 1} else{:= $ - 1 fac() * $}")
+//     .toThrow('depth limit');
+//   // mutual recursion
+//   expectDump(`
+//     even? = 3 try{check =? 0} else{check - 1 odd?()} else reject,
+//     odd? = 0 do{not =? 0, check - 1 even?()}
+//     `).toEqual({"even?": null, "odd?": null});
+//   expectDump(`
+//     even? = 4 try{check =? 0} else{check - 1 odd?()} else reject,
+//     odd? = 0 do{not =? 0, check - 1 even?()}
+//     `).toEqual({ "even?": 4, "odd?": null });
+// });
+
 // test('generics', () => {
 //   expectCompiling("a? = 1 =? 2")
 //     .not.toThrow();
 //   expectCompiling("a? = 1 =? ''")
 //     .toThrow('Type mismatch');
 // });
-
-// test('conditional functions', () => {
-//   expectDump("a? = 1 =? 2")
-//     .toEqual({ 'a?': null });
-//   expectDump("a? = 2 =? 2")
-//     .toEqual({ 'a?': 2 });
-//   expectCompiling("a = 1 =? 2")
-//     .toThrow('must end in ?');
-//   expectCompiling("a: 1 =? 2")
-//     .toThrow('States can not be conditional');
-//   expectCompiling("a? = 1 + 2")
-//     .toThrow('Name ending in ? must be conditional');
-//   expectCompiling("a? = 1")
-//     .toThrow('Name ending in ? must be conditional');
-//   });
-
-//   test('! assertion', () => {
-//     expectDump("a? = 1 =? 1, b = a!")
-//       .toEqual({ 'a?': 1, b: 1 });
-//     expectCompiling("a? = 1 =? 2, b = a!")
-//       .toThrow('Access via a! rejected');
-//     expectCompiling("f? = 0 do{b = a, a = check 1 =? 2}")
-//       .toThrow('Access via a rejected');
-//     expectDump("a = 1 =! 1")
-//       .toEqual({ a: 1 });
-//     expectCompiling("a = 1 =! 2")
-//       .toThrow('Asserted call rejected');
-//   });
 
 // test('choices', () => {
 //   expectDump("a: choice{x?: 1, y?: ''}")
@@ -231,35 +242,6 @@ test('assertions', () => {
 //     .toEqual({ "a?": null });
 // })
 
-// test('conditional blocks', () => {
-//   expectDump("a: 0 try{check =? 0, := 1} else{:= + $} else ok")
-//   .toEqual({ a: 1 });
-//   expectDump("a = 0 try{check =? 0, := 1} else{:= + $}")
-//   .toEqual({ a: 1 });
-//   expectDump("a = 0 try{check =? 0, := 1} else{:= + $} else ok")
-//   .toEqual({ a: 1 });
-//   expectDump("a = 2 try{check =? 0, := 1} else{:= + $} else ok")
-//     .toEqual({ a: 4 });
-//   expectDump(
-//     "a? = 2 try{check =? 0, := 1} else {check =? 2, := + $} else reject")
-//     .toEqual({ 'a?': 4 });
-//   expectDump(
-//     "a? = 1 try{check =? 0, := 1} else {check =? 2, := + $} else reject")
-//     .toEqual({ 'a?': null });
-//   expectDump("a? = 0 do{ not =? 0}")
-//     .toEqual({ 'a?': null });
-//   expectCompiling("a? = 0 do{ check 0}")
-//     .toThrow('check must be conditional');
-//   expectCompiling("a? = 0 do{ check 0 + 1}")
-//     .toThrow('check must be conditional');
-//   expectCompiling("a = 1 try{check =? 0, := 1} else{check =? 2, := + $}")
-//     .toThrow('Try failed');
-//   expectCompiling("a = 0 try{check =? 0, := 1} else {:= 'foo'}")
-//     .toThrow('Type mismatch');
-//   expectCompiling("a = 0 try{check =? 0, := 'foo'} else ok")
-//     .toThrow('Type mismatch');
-// });
-
 // test('recursive choices', () => {
 //   expectCompiling("a: choice{x?: a, y?: 1}")
 //     .toThrow('Illegal recursive reference');
@@ -271,24 +253,6 @@ test('assertions', () => {
 //     .toEqual({ a: { "x?": 1 }, b: { "x?": 1 } });
 //   expectCompiling("a: choice{x?: b, y?: 1}, b: choice{x?: a, y?: 1}")
 //     .toThrow('Illegal cyclic reference');
-// });
-
-// test('recursive functions', () => {
-//   expectDump("fac = 0 try{check =? 0, := 1} else{:= $ - 1 fac() * $}")
-//     .toEqual({ fac: 1 });
-//   expectDump("fac = 4 try{check =? 0, := 1} else{:= $ - 1 fac() * $}")
-//     .toEqual({ fac: 24 });
-//   expectCompiling("fac = -1 try{check =? 0, := 1} else{:= $ - 1 fac() * $}")
-//     .toThrow('depth limit');
-//   // mutual recursion
-//   expectDump(`
-//     even? = 3 try{check =? 0} else{check - 1 odd?()} else reject,
-//     odd? = 0 do{not =? 0, check - 1 even?()}
-//     `).toEqual({"even?": null, "odd?": null});
-//   expectDump(`
-//     even? = 4 try{check =? 0} else{check - 1 odd?()} else reject,
-//     odd? = 0 do{not =? 0, check - 1 even?()}
-//     `).toEqual({ "even?": 4, "odd?": null });
 // });
 
 // test('formula access', () => {

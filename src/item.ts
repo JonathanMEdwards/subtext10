@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, cast, arrayLast, Call, Text, evalBuiltin} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -301,16 +301,21 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   previous(): Item | undefined {
     // should only be used during analysis to bind references
     assert(this.workspace.analyzing);
-    let itemIndex = this.container.items.indexOf(this);
+    let container = this.container;
+    let itemIndex = container.items.indexOf(this);
     assert(itemIndex >= 0);
-    if (itemIndex > 0) {
-      // previous item in container
-      // TODO: skip over locals
-      return this.container.items[itemIndex - 1];
+    if (
+      !itemIndex
+      || container instanceof Metadata
+      || container instanceof Try
+    ) {
+      // At beginning of container, or in metadata/try
+      // Use previous in grand-container. Scan stops in Version
+      return container.containingItem.previous();
     }
-    // At beginning of container - use previous in its container
-    // scan stopped in Version
-    return this.container.containingItem.previous();
+    // previous item in container
+    // TODO: skip over locals
+    return container.items[itemIndex - 1];
   }
 
   /** reset to initially defined state */

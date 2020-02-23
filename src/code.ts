@@ -1,4 +1,4 @@
-import { Block, arrayLast, Field, assert, StaticError, Guard, Path, cast, Reference } from "./exports";
+import { Block, Field, assert, StaticError, Guard, Path, cast, Reference } from "./exports";
 
 /** A Code block is evaluated to produce a result value. The fields of the block
  * are called statements */
@@ -57,7 +57,9 @@ export class Do extends Code {
 
 }
 
-/** A Call is a special Do block that calls get compiled into */
+/** A Call is a special Do block that calls get compiled into. Contains a
+ * reference to the program body followed by changes on the input arguments. The
+ * final value is the program body modified with all supplied arguments. */
 export class Call extends Do {
   /** token naming program */
   get token() {
