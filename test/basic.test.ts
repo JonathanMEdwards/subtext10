@@ -194,25 +194,41 @@ test('try', () => {
     .toEqual({ a: 2 })
 })
 
+test('recursion', () => {
+  expectCompiling("fac = do{n: 0, n fac()}")
+    .toThrow('recursion outside secondary try clause');
+  expectCompiling("fac = do{n: 0, try {n fac()}}")
+    .toThrow('recursion outside secondary try clause');
+  expectDump(`
+    fac = do{n: 0, try {n <=? 0, 1} else {n - 1 fac() * n}},
+    x = 1 fac()
+    `)
+    .toEqual({ fac: 1, x: 1 });
+  expectDump(`
+    fac = do{n: 0, try {n <=? 0, 1} else {n - 1 fac() * n}},
+    x = 4 fac()
+    `)
+    .toEqual({ fac: 1, x: 24 });
+  expectCompiling("fac = do{n: 0, try {0 <? 0, 1} else {n - 1 fac() * n}}")
+    .toThrow('Workspace too deep');
+})
 
-
-// test('recursive functions', () => {
-//   expectDump("fac = 0 try{check =? 0, := 1} else{:= $ - 1 fac() * $}")
-//     .toEqual({ fac: 1 });
-//   expectDump("fac = 4 try{check =? 0, := 1} else{:= $ - 1 fac() * $}")
-//     .toEqual({ fac: 24 });
-//   expectCompiling("fac = -1 try{check =? 0, := 1} else{:= $ - 1 fac() * $}")
-//     .toThrow('depth limit');
-//   // mutual recursion
-//   expectDump(`
-//     even? = 3 try{check =? 0} else{check - 1 odd?()} else reject,
-//     odd? = 0 do{not =? 0, check - 1 even?()}
-//     `).toEqual({"even?": null, "odd?": null});
-//   expectDump(`
-//     even? = 4 try{check =? 0} else{check - 1 odd?()} else reject,
-//     odd? = 0 do{not =? 0, check - 1 even?()}
-//     `).toEqual({ "even?": 4, "odd?": null });
-// });
+test('mutual recursion', () => {
+  expectDump(`
+    even? = do{n: 0; try{n =? 0} else { n - 1 odd?()} else reject; n}
+    odd? = do{n:1; n not=? 0; n - 1 even?(); n}
+    x? = 1 even?()
+    y? = 2 odd?()
+    `)
+    .toEqual({ "even": 0, "odd": 1, x: false, y: false });
+  expectDump(`
+    even? = do{n: 0; try{n =? 0} else { n - 1 odd?()} else reject; n}
+    odd? = do{n:1; n not=? 0; n - 1 even?(); n}
+    x? = 2 even?()
+    y? = 3 odd?()
+    `)
+    .toEqual({ "even": 0, "odd": 1, x: 2, y: 3 });
+});
 
 // test('generics', () => {
 //   expectCompiling("a? = 1 =? 2")

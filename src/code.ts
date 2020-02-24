@@ -1,4 +1,4 @@
-import { Block, Field, assert, StaticError, Guard, Path, cast, Reference } from "./exports";
+import { Block, Field, assert, StaticError, Guard, Path, cast, Reference, Token, assertDefined, another, arrayLast, Crash, PendingValue } from "./exports";
 
 /** A Code block is evaluated to produce a result value. The fields of the block
  * are called statements */
@@ -50,6 +50,12 @@ export class Code extends Block {
     this.rejected = false;
     super.reset();
   }
+
+  copy(srcPath: Path, dstPath: Path): this {
+    let to = super.copy(srcPath, dstPath);
+    to.conditional = this.conditional;
+    return to;
+  }
 }
 
 /** A Do block is a procedure that evaluates statements sequentially */
@@ -57,20 +63,69 @@ export class Do extends Code {
 
 }
 
-/** A Call is a special Do block that calls get compiled into. Contains a
- * reference to the program body followed by changes on the input arguments. The
- * final value is the program body modified with all supplied arguments. */
+/** A Call is a special Do block used to call a program. It contains a reference
+ * to the program body followed by changes on the input arguments. The final
+ * value is the program body modified with all supplied arguments. */
 export class Call extends Do {
-  /** token naming program */
-  get token() {
-    // reference in first field
-    let ref = cast(this.fields[0].get('^reference').value, Reference);
-    // name of program
-    return ref.tokens[ref.tokens.length - 2];
-  }
 
   /** whether call is asserting no rejections */
-  get asserted() {
-    return this.token.text.endsWith('!');
+  get asserted(): boolean {
+    return this.token!.text.endsWith('!');
   }
+
+  /** Non-generic calls are short-circuited during analysis to allow
+   * recursion. Only the inputs of the program are instantiated to analyze
+   * arguments. The result is taken from the result of the definition.
+  */
+ eval() {
+   if (!this.workspace.analyzing) {
+     // execute argument assignments
+     super.eval();
+     if (!this.rejected) {
+       // pull result out of final instance of code body
+       let body = cast(arrayLast(this.fields).value, Code);
+       body.eval();
+       this.result = body.result;
+       this.rejected = body.rejected;
+       if (body.rejected && this.asserted) {
+         throw new Crash(this.token, 'assertion failed')
+       }
+     }
+     return;
+   }
+
+   // FIXME: can't short-circuit generic calls, unless track instances
+
+   // first field is ref to program definition
+   let first = this.fields[0];
+   let ref = cast(first.get('^reference').value, Reference)
+   ref.eval();
+   first.conditional = ref.conditional;
+
+   // copy just inputs of code
+   let def = cast(ref.target!.value, Code);
+   let inputDefs = another(def);
+   first.setValue(inputDefs);
+   def.fields.forEach(field => {
+     if (!field.isInput) return;
+     // copy context is entire definition
+     inputDefs.add(field.copy(def.containingItem.path, first.path))
+   })
+
+   // analyze argument assignments
+   this.fields.slice(1).forEach(arg => {
+     arg.eval();
+     // detect if arguments might reject
+     if (arg.conditional) this.conditional = true;
+   })
+
+   // detect if code body is conditional
+   if (def.conditional && !this.asserted) {
+     this.conditional = true;
+   }
+
+   // use result of definition
+   this.result = assertDefined(def.result);
+  }
+
 }

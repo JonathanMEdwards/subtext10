@@ -361,6 +361,7 @@ export class Parser {
     }
     let call = new Call;
 
+    call.token = arrayLast(ref.tokens);
     // first field of call is reference to program
     ref.tokens.push(Token.mimic('call', this.prevToken));
     let prog = new Field;

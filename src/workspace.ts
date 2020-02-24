@@ -42,6 +42,9 @@ export class Workspace extends Item<never, History> {
     return this.currentVersion.down(path).dump();
   }
 
+  /** queue of deferred analysis functions */
+  analysisQueue: (() => void)[] = [];
+
   /** compile a doc
    * @param source
    * @param builtin whether to include builtins first
@@ -70,6 +73,12 @@ export class Workspace extends Item<never, History> {
     // analyze all formulas by evaluating doc
     ws.analyzing = true;
     ws.eval();
+
+    // execute deffered analysis
+    while (ws.analysisQueue.length) {
+      (ws.analysisQueue.shift()!)();
+    }
+
     ws.analyzing = false;
     // reset and recalc after analysis
     ws.reset();

@@ -225,6 +225,14 @@ export class Reference extends Base {
         }
       } else if (type === 'call') {
 
+        // detect illegal recursion
+        if (target.value instanceof PendingValue) {
+          throw new Crash(
+            this.tokens[i - 1],
+            'recursion outside secondary try clause'
+          );
+        }
+
         // dereferences formula body in a call
         let call = target.getMaybe('^code');
         if (!call || !(call.value instanceof Do)) {

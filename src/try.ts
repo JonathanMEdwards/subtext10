@@ -14,40 +14,59 @@ export class Try extends Do {
       return;
     }
 
-    // evaluate clauses until success
+    if (this.workspace.analyzing) {
+
+      // during analysis first clause becomes result, other clauses queued for
+      // later to allow recursion
+      let first = this.fields[0];
+      for (let field of this.fields) {
+        /** function to analyze clause */
+        const analyzeClause = () => {
+          field.eval();
+          if (
+            !field.conditional && (
+              this.conditional
+              || field !== arrayLast(this.fields)
+            )
+          ) {
+            throw new StaticError(
+              field.id.token!,
+              'try clause must be conditional if not last'
+            )
+          }
+          if (field === first) {
+            // set first clause as result during analysis
+            this.result = first;
+          } else if (
+            // check type matches with first clause
+            !field.value!.sameType(first.value!, first.path, field.path)
+          ) {
+            throw new StaticError(
+              field.id.token!,
+              'try clauses must have same type result'
+            )
+          }
+        }
+        if (field === first) {
+          // immediately analyze first clause, setting result type
+          analyzeClause();
+        } else {
+          // defer non-first clauses so they can make recursive calls
+          this.workspace.analysisQueue.push(analyzeClause);
+        }
+        continue;
+      }
+      return;
+    }
+
+    // at runtime evaluate clauses until success
     for (let field of this.fields) {
       field.eval();
-      if (this.workspace.analyzing) {
-        if (
-          !field.conditional && (
-            this.conditional
-            || field !== arrayLast(this.fields)
-          )
-        ) {
-          throw new StaticError(
-            field.id.token!,
-            'try clause must be conditional if not last'
-          )
-        }
-        let first = this.fields[0];
-        if (field === first) {
-          // set first clause as result during analysis
-          this.result = first;
-        } else if (
-          // check type matches with first clause
-          !field.value!.sameType(first.value!, first.path, field.path)
-        ) {
-          throw new StaticError(
-            field.id.token!,
-            'try clauses must have same type result'
-          )
-        }
-      } else if (!field.rejected) {
+      if (!field.rejected) {
         // stop on success when not analyzing
         this.result = field;
         break;
       }
-      continue;
     }
 
     // reject or crash on fall-through

@@ -177,6 +177,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    * copied */
   evalComplete?: boolean;
 
+  /** max depth of items */
+  static readonly DepthLimit = 100;
+
   /** Evaluate metadata and value */
   eval() {
     if (this.value) {
@@ -194,6 +197,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
       // set PendingValue to catch evaluation cycles
       this.setValue(new PendingValue);
+
+      if (this.path.length > Item.DepthLimit) {
+        throw new Crash(this.container.token!, 'Workspace too deep')
+      }
 
       // evaluate metadata
       this.metadata?.eval();
@@ -226,21 +233,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           let call = cast(this.get('^call').value, Call);
           this.setConditional(call.conditional);
           this.rejected = call.rejected;
-          if (this.rejected && !this.workspace.analyzing) {
-            // argument rejection
-            break;
-          }
-
-          // Evaluate code body and copy result
-          let body = cast(arrayLast(call.fields).value, Code);
-          body.eval();
-          this.replaceValue(body.result);
-          let asserted = call.asserted;
-          this.setConditional(body.conditional && !asserted);
-          this.rejected = body.rejected;
-          if (this.rejected && !this.workspace.analyzing && asserted) {
-            throw new Crash(call.token, 'assertion failed')
-          }
+          this.replaceValue(call.result);
           break;
 
         case 'include':
@@ -278,7 +271,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
     assert(ref.target);
     let prev = this.workspace.down(ref.path.ids.slice(0, ref.context));
-    prev.eval();
+    // prev.eval(); // suppressed for arg assignment analysis
     // copy previous value
     this.replaceValue(prev);
     // follow LHS dependent path within previous value
@@ -425,7 +418,10 @@ export class StaticError extends Error {
 
 /** dynamic crash error */
 export class Crash extends Error {
-  constructor(token: Token, description: string) {
-    super(description + ': ' + token.source.slice(token.start, token.end + 10));
+  constructor(token?: Token, description = 'crash') {
+    super(
+      description + ': '
+      + token?.source?.slice(token.start, token.end + 10)
+    );
   }
 }

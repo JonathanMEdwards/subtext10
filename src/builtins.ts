@@ -82,7 +82,12 @@ export const BuiltinDefinitions = `
 / = do{in: 0; divisor: 2; builtin /}
 round-down = do{in: 0; builtin round-down}
 skip-white = do{in: ''; builtin skip-white}
+=? = do{in: 0, with: 0, builtin =?}
+not=? = do{in: 0, with: 0, builtin not=?}
 >? = do{in: 0, with: 0, builtin >?}
+>=? = do{in: 0, with: 0, builtin >=?}
+<? = do{in: 0, with: 0, builtin <?}
+<=? = do{in: 0, with: 0, builtin <=?}
 `
 
 builtins['+'] = (a: number, b: number) => a + b;
@@ -92,6 +97,22 @@ builtins['/'] = (a: number, b: number) => a / b;
 builtins['round-down'] = (a: number) => Math.floor(a);
 builtins['skip-white'] = (s: string) => s.trimStart();
 
+builtinConditionals['=?'] = (a: number, b: number) => {
+  return { accepted: a === b, value: b };
+}
+builtinConditionals['not=?'] = (a: number, b: number) => {
+  return { accepted: a !== b, value: b };
+}
+
 builtinConditionals['>?'] = (a: number, b: number) => {
   return { accepted: a > b, value: b };
+}
+builtinConditionals['>=?'] = (a: number, b: number) => {
+  return { accepted: a >= b, value: b };
+}
+builtinConditionals['<?'] = (a: number, b: number) => {
+  return { accepted: a < b, value: b };
+}
+builtinConditionals['<=?'] = (a: number, b: number) => {
+  return { accepted: a <= b, value: b };
 }

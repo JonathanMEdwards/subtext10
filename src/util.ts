@@ -76,6 +76,12 @@ export function arrayLast<T>(array: T[]): T {
   return array[array.length - 1];
 }
 
+// /** allow negative indices from end. -1 is last element */
+// export function arrayBack<T>(array: T[], index: number): T {
+//   if (index >= 0 || array.length < - index) trap();
+//   return array[array.length + index];
+// }
+
 /** remove first occurence of a value in an array */
 export function arrayRemove<T>(array: T[], value: T) {
   let i = array.indexOf(value);
