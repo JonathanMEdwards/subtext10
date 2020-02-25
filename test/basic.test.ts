@@ -230,6 +230,13 @@ test('mutual recursion', () => {
     .toEqual({ "even": 0, "odd": 1, x: 2, y: 3 });
 });
 
+test('dynamic input defaults', () => {
+  expectDump("f = do{x:0, y: x + 1}, a = 1 f()")
+    .toEqual({f: 1, a: 2})
+  expectDump("f = do{x:0, y: x + 1}, a = 1 f(+ 1)")
+    .toEqual({f: 1, a: 3})
+})
+
 // test('generics', () => {
 //   expectCompiling("a? = 1 =? 2")
 //     .not.toThrow();

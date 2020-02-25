@@ -148,7 +148,7 @@ export class Reference extends Base {
       assert(this.tokens.length === 1);
       assert(from.id.toString() === '^rhs');
       let change = from.container.containingItem;
-      assert(change.formulaType === 'change');
+      assert(change.formulaType === 'changeInput');
       assert(change.container instanceof Call);
       let call = change.container.containingItem;
       assert(call.id.toString() === '^call');
@@ -363,8 +363,7 @@ export class Reference extends Base {
     return item;
   }
 
-  /** reset to initially defined state */
-  reset() {
+  initialize() {
     this.rejected = false;
     this.target = undefined
   }

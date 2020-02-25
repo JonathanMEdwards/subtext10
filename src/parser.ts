@@ -374,7 +374,7 @@ export class Parser {
     let input = new Field;
     input.id = this.space.newFieldID(undefined, this.prevToken);
     call.add(input);
-    input.formulaType = 'change';
+    input.formulaType = 'changeInput';
     // LHS is dependent ref to first input
     let lhs = new Reference;
     lhs.tokens = [

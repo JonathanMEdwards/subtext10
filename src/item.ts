@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -132,6 +132,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    * code: value is result of a Code block in ^code
    *
    * change: dependent reference in ^lhs, formula in ^rhs
+   * changeInput: special change used for input of a call
    *
    * call: Call block in ^call, starting with reference to program followed by
    * changes on the arguments
@@ -142,8 +143,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    *  */
   formulaType: (
-    'none' | 'literal' | 'reference' | 'code' | 'change' | 'call' | 'include'
-    | 'builtin'
+    'none' | 'literal' | 'reference' | 'code' | 'change' | 'changeInput'
+    | 'call' | 'include' | 'builtin'
   ) = 'none';
 
   /** whether input or output item */
@@ -226,6 +227,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           break;
 
         case 'change':
+        case 'changeInput':
           this.change();
           break;
 
@@ -271,7 +273,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
     assert(ref.target);
     let prev = this.workspace.down(ref.path.ids.slice(0, ref.context));
-    // prev.eval(); // suppressed for arg assignment analysis
+    // prev.eval(); // don't think this is needed
     // copy previous value
     this.replaceValue(prev);
     // follow LHS dependent path within previous value
@@ -287,7 +289,15 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
     this.setConditional(source.conditional);
     if (source.rejected) this.rejected = true;
+
     if (source.value) target.replaceValue(source);
+    if (this.formulaType === 'changeInput') {
+      // initialize call body to recalc input defaults
+      // preserving primary input value
+      let input = assertDefined(target.value);
+      target.container.initialize();
+      target.setValue(input);
+    }
   }
 
   /** The previous item in evaluation order. Used by dependent references. */
@@ -311,9 +321,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return container.items[itemIndex - 1];
   }
 
-  /** reset to initially defined state */
-  reset() {
-    if (this.metadata) this.metadata.reset();
+  /** initialize all values */
+  initialize() {
+    if (this.metadata) this.metadata.initialize();
     this.evalComplete = false;
     assert(this.formulaType);
     if (this.formulaType !== 'none') {
@@ -324,7 +334,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
     // recurse on predefined values
     assert(!this.rejected);
-    this.value!.reset();
+    this.value!.initialize();
   }
 
   /** prune value, so it can be set */

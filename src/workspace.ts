@@ -80,8 +80,8 @@ export class Workspace extends Item<never, History> {
     }
 
     ws.analyzing = false;
-    // reset and recalc after analysis
-    ws.reset();
+    // initialize and recalc after analysis
+    ws.initialize();
     ws.eval();
 
     return ws;

@@ -65,9 +65,9 @@ export class Block<F extends Field = Field> extends Container<F> {
     })
   }
 
-  /** reset to initially defined state */
-  reset() {
-    this.fields.forEach(field => field.reset());
+  /** initialize all values */
+  initialize() {
+    this.fields.forEach(field => field.initialize());
   }
 
   copy(srcPath: Path, dstPath: Path): this {

@@ -44,11 +44,11 @@ export class Code extends Block {
     }
   }
 
-  /** reset to initially defined state */
-  reset() {
+  /** initialize all values */
+  initialize() {
     this.result = undefined;
     this.rejected = false;
-    super.reset();
+    super.initialize();
   }
 
   copy(srcPath: Path, dstPath: Path): this {
@@ -106,6 +106,7 @@ export class Call extends Do {
    let def = cast(ref.target!.value, Code);
    let inputDefs = another(def);
    first.setValue(inputDefs);
+   first.evalComplete = true;
    def.fields.forEach(field => {
      if (!field.isInput) return;
      // copy context is entire definition
