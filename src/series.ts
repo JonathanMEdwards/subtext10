@@ -1,4 +1,4 @@
-import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value } from "./exports";
+import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap } from "./exports";
 
 /** A Series contains a variable-zed sequence of items of a fixed type. The
  * items are called entries and have numeric IDs, which are ordinal numbers in
@@ -12,7 +12,7 @@ export class Series<E extends Entry = Entry> extends Container<E> {
   sorted = false;
   ascending = true;
 
-  /** Template is entry with id=NaN */
+  /** Template is entry with id 0 */
   template!: E;
 
   // items are entries
@@ -64,10 +64,26 @@ export class Series<E extends Entry = Entry> extends Container<E> {
     return to;
   }
 
-  sameType(from: Value, srcPath: Path, dstPath: Path): boolean {
+  changeableFrom(from: Value, fromPath: Path, thisPath: Path): boolean {
     return (
       from instanceof Series
-      && this.template.sameType(from.template, srcPath, dstPath)
+      && this.template.changeableFrom(from.template, fromPath, thisPath)
+    )
+  }
+
+  get isGeneric() {
+    return this.template.value!.isGeneric;
+  }
+
+  /** value equality */
+  equals(other: Series) {
+    assert(!(other instanceof Text))
+    return (
+      this.tracked == other.tracked
+      && this.sorted == other.sorted
+      && this.ascending == other.ascending
+      && this.template.equals(other.template)
+      && super.equals(other)
     )
   }
 
@@ -101,6 +117,23 @@ export class Text extends Series<TextEntry> {
     to.source = this;
     to.value = this.value;
     return to;
+  }
+
+  get isGeneric() { return false; }
+
+  changeableFrom(from: Value, fromPath: Path, thisPath: Path): boolean {
+    // FIXME: compatible Series
+    return from instanceof Text
+  }
+
+
+  /** value equality */
+  equals(other: Series): boolean {
+    if (other instanceof Text) {
+      return this.value === other.value;
+    }
+    // FIXME: Text-Series equality
+    trap();
   }
 
   // dump as string

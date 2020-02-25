@@ -38,8 +38,8 @@ export class Try extends Do {
             // set first clause as result during analysis
             this.result = first;
           } else if (
-            // check type matches with first clause
-            !field.value!.sameType(first.value!, first.path, field.path)
+            // check type compatible with first clause
+            !first.value!.changeableFrom(field.value!, field.path, first.path)
           ) {
             throw new StaticError(
               field.id.token!,

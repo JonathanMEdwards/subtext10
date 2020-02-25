@@ -25,5 +25,10 @@ export * from "./code";
 export * from "./try";
 export * from "./choice";
 export * from "./series";
-export * from "./builtins";
 export * from "./workspace";
+import { Workspace } from "./workspace";
+export * from "./builtins";
+import { builtinDefinitions } from "./builtins";
+
+/** builtin workspace to be included into other workspaces */
+export const builtinWorkspace = Workspace.compile(builtinDefinitions, false);

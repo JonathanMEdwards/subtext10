@@ -31,5 +31,15 @@ export abstract class Container<I extends Item> extends Value {
     return to;
   }
 
-
+  /** value equality */
+  equals(other: any) {
+    return (
+      other instanceof Container
+      && this.items.length === other.items.length
+      && this.items.every(
+        // TODO: only need to check input items
+        (item, i) => item.equals(other.items[i])
+      )
+    )
+  }
 }

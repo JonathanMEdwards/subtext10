@@ -237,12 +237,38 @@ test('dynamic input defaults', () => {
     .toEqual({f: 1, a: 3})
 })
 
-// test('generics', () => {
-//   expectCompiling("a? = 1 =? 2")
-//     .not.toThrow();
-//   expectCompiling("a? = 1 =? ''")
-//     .toThrow('Type mismatch');
-// });
+test('generics', () => {
+  expectDump("a? = 1 =? 2")
+    .toEqual({a: false});
+  expectCompiling("a? = 1 =? ''")
+    .toThrow('changing type of value');
+  expectDump(`
+  a = record{x: 0, y: ''}
+  b = a
+  c? = a =? b
+  `)
+    .toEqual({
+      a: { x: 0, y: '' },
+      b: { x: 0, y: '' },
+      c: { x: 0, y: '' }
+    });
+  expectDump(`
+  a = record{x: 0, y: ''}
+  b = a do{.x := 1}
+  c? = a =? b
+  `)
+    .toEqual({
+      a: { x: 0, y: '' },
+      b: { x: 1, y: '' },
+      c: false
+    });
+  expectCompiling(`
+  a = record{x: 0, y: ''}
+  b = record{x: 0, y: ''}
+  c? = a =? b
+  `)
+    .toThrow('changing type of value')
+});
 
 // test('choices', () => {
 //   expectDump("a: choice{x?: 1, y?: ''}")

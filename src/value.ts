@@ -38,15 +38,18 @@ export abstract class Value {
     return to;
   }
 
-  /** equality */
+  /** type equality */
+  changeableFrom(from: Value, fromPath: Path, thisPath: Path): boolean {
+    return this.constructor === from.constructor;
+  }
+
+  /** value equality, assuming type equality */
   equals(other: any): boolean {
     trap();
   }
 
-  /** compare types within a path context */
-  sameType(from: Value, srcPath: Path, dstPath: Path): boolean {
-    return this.constructor === from.constructor;
-  }
+  /** whether contains an input field with an Anything value */
+  abstract get isGeneric(): boolean;
 
   /** dump into a plain JS value for testing */
   abstract dump(): any;

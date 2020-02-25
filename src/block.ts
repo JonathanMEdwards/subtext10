@@ -76,12 +76,18 @@ export class Block<F extends Field = Field> extends Container<F> {
     return to;
   }
 
-  sameType(from: Block, srcPath: Path, dstPath: Path) {
+  /** whether contains an input field with an Anything value */
+  get isGeneric() {
+    return this.fields.some(field => field.isInput && field.value!.isGeneric)
+  }
+
+  // type compatibility
+  changeableFrom(from: Block, fromPath: Path, thisPath: Path) {
     return (
-      super.sameType(from, srcPath, dstPath)
+      super.changeableFrom(from, fromPath, thisPath)
       && this.fields.length === from.fields.length
       && this.fields.every((field, i) =>
-        field.sameType(from.fields[i], srcPath, dstPath))
+        field.changeableFrom(from.fields[i], fromPath, thisPath))
     )
   }
 

@@ -396,22 +396,20 @@ export class Reference extends Base {
     return to;
   }
 
-  equals(other: any) {
-    return (
-      other instanceof Reference
-      && this.path.equals(other.path)
-      && arrayEquals(this.guards, other.guards)
-    );
-  }
-
   /** References are the same type if they reference the same location
    * contextually */
-  sameType(from: Value, srcPath: Path, dstPath: Path): boolean {
+  changeableFrom(from: Value, fromPath: Path, thisPath: Path): boolean {
     return (
       from instanceof Reference
+      // FIXME: compare translated guards
       && arrayEquals(this.guards, from.guards)
-      && this.path.equals(from.path.translate(srcPath, dstPath))
+      && this.path.equals(from.path.translate(fromPath, thisPath))
     )
+  }
+
+  // equality assumes changeableFrom is true, which requires equality
+  equals(other: any) {
+    return true;
   }
 
   // dump path as dotted string

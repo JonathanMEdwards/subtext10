@@ -1,4 +1,4 @@
-import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, BuiltinDefinitions  } from "./exports";
+import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions  } from "./exports";
 
 /** A subtext workspace */
 export class Workspace extends Item<never, History> {
@@ -86,7 +86,5 @@ export class Workspace extends Item<never, History> {
 
     return ws;
   }
-
-  /** builtin workspace to be included into other workspaces */
-  static readonly builtins = Workspace.compile(BuiltinDefinitions, false);
 }
+

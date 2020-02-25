@@ -7,6 +7,8 @@ export abstract class Base extends Value {
   eval() { }
 
   initialize() { }
+
+  get isGeneric() { return false }
 }
 
 /**
@@ -73,6 +75,13 @@ export class Anything extends Base {
     return other instanceof Anything;
   }
 
+  get isGeneric() { return true }
+
+  // anything can be assigned
+  changeableFrom(from: Value, fromPath: Path, thisPath: Path): boolean {
+    return true;
+  }
+
   // dump as undefined
   dump() { return undefined };
 }
@@ -81,7 +90,7 @@ export class Anything extends Base {
 export class PendingValue extends Base {
 
   equals(other: any) {
-    return other instanceof PendingValue;
+    return false;
   }
 
   // dump as special object

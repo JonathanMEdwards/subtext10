@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -239,7 +239,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           break;
 
         case 'include':
-          this.replaceValue(Workspace.builtins.currentVersion);
+          this.replaceValue(builtinWorkspace.currentVersion);
           break;
 
         case 'builtin':
@@ -284,7 +284,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // replace target value with value of RHS
     target.eval();
     let source = this.get('^rhs');
-    if (!target.value!.sameType(source.value!, source.path, target.path)) {
+    if (!target.value!.changeableFrom(source.value!, source.path, target.path)) {
       throw new StaticError(ref.tokens[0], 'changing type of value')
     }
     this.setConditional(source.conditional);
@@ -397,21 +397,33 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return to;
   }
 
-  /** compare types within a path context */
-  sameType(from: Item, srcPath: Path, dstPath: Path): boolean {
+  /** Type-checking for change operations. Can this item be changed from
+   * another. Recurses within a path context */
+  changeableFrom(from: Item, fromPath: Path, thisPath: Path): boolean {
     return (
       this.id === from.id
       && this.isInput === from.isInput
+      && this.conditional === from.conditional
       && this.formulaType === from.formulaType
       && (
         this.formulaType !== 'none'
-        || this.value!.sameType(from.value!, srcPath, dstPath)
+        || this.value!.changeableFrom(from.value!, fromPath, thisPath)
       )
       && !!this.metadata === !!from.metadata
       && (
         !this.metadata
-        || this.metadata.sameType(from.metadata!, srcPath, dstPath)
+        || this.metadata.changeableFrom(from.metadata!, fromPath, thisPath)
       )
+    )
+  }
+
+  /** item equality, assuming changeableFrom is true */
+  equals(other: Item) {
+    return (
+      this.id === other.id
+      && this.rejected === other.rejected
+      && !!this.value === !!other.value
+      && (!this.value || this.value.equals(other.value))
     )
   }
 

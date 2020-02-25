@@ -56,8 +56,12 @@ export function evalBuiltin(item: Item, name: string) {
     let value = new Text;
     value.value = result
     item.setValue(value);
-  } else {
+  } else if (!result.containingItem) {
+    // Use detached Value
     item.setValue(result);
+  } else {
+    // copy attached value
+    item.setValue(result.copy(result.containingItem.path, item.path));
   }
 }
 
@@ -75,19 +79,19 @@ let builtinConditionals: (
 ) = {};
 
 /** definition of builtins */
-export const BuiltinDefinitions = `
+export const builtinDefinitions = `
 + = do{in: 0; plus: 0; builtin +}
 - = do{in: 0; subtrahend: 1; builtin -}
 * = do{in: 0; multiplicand: 2; builtin *}
 / = do{in: 0; divisor: 2; builtin /}
 round-down = do{in: 0; builtin round-down}
 skip-white = do{in: ''; builtin skip-white}
-=? = do{in: 0, with: 0, builtin =?}
-not=? = do{in: 0, with: 0, builtin not=?}
 >? = do{in: 0, with: 0, builtin >?}
 >=? = do{in: 0, with: 0, builtin >=?}
 <? = do{in: 0, with: 0, builtin <?}
 <=? = do{in: 0, with: 0, builtin <=?}
+=? = do{in: anything, to: in, builtin =?}
+not=? = do{in: anything, to: in, builtin not=?}
 `
 
 builtins['+'] = (a: number, b: number) => a + b;
@@ -96,13 +100,6 @@ builtins['*'] = (a: number, b: number) => a * b;
 builtins['/'] = (a: number, b: number) => a / b;
 builtins['round-down'] = (a: number) => Math.floor(a);
 builtins['skip-white'] = (s: string) => s.trimStart();
-
-builtinConditionals['=?'] = (a: number, b: number) => {
-  return { accepted: a === b, value: b };
-}
-builtinConditionals['not=?'] = (a: number, b: number) => {
-  return { accepted: a !== b, value: b };
-}
 
 builtinConditionals['>?'] = (a: number, b: number) => {
   return { accepted: a > b, value: b };
@@ -116,3 +113,21 @@ builtinConditionals['<?'] = (a: number, b: number) => {
 builtinConditionals['<=?'] = (a: number, b: number) => {
   return { accepted: a <= b, value: b };
 }
+
+builtinConditionals['=?'] = (a: builtinValue, b: builtinValue) => {
+  // signature guarantees same types
+  if (a instanceof Value) {
+    assert(b instanceof Value);
+    return {accepted: a.equals(b), value: b}
+  }
+  return { accepted: a === b, value: b };
+}
+builtinConditionals['not=?'] = (a: builtinValue, b: builtinValue) => {
+  // signature guarantees same types
+  if (a instanceof Value) {
+    assert(b instanceof Value);
+    return {accepted: !a.equals(b), value: b}
+  }
+  return { accepted: a !== b, value: b };
+}
+
