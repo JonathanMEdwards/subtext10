@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -244,7 +244,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
         case 'builtin':
           let name = cast(this.get('^builtin').value, Text).value;
-          evalBuiltin(this, name);
+          evalBuiltin(cast(this, Statement), name);
           break;
 
         default:
@@ -316,9 +316,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       // Use previous in grand-container. Scan stops in Version
       return container.containingItem.previous();
     }
-    // previous item in container
-    // TODO: skip over locals
-    return container.items[itemIndex - 1];
+    // previous item in container, skipping certain statements
+    while (itemIndex) {
+      let prev = container.items[--itemIndex]
+      if (prev instanceof Statement && prev.dataflow) continue;
+      // also skip includes
+      if (prev.formulaType === 'include') continue;
+      return prev;
+    }
+    // skip to container
+    return container.containingItem.previous();
   }
 
   /** initialize all values */

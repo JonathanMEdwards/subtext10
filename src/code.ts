@@ -1,8 +1,12 @@
-import { Block, Field, assert, StaticError, Guard, Path, cast, Reference, Token, assertDefined, another, arrayLast, Crash, PendingValue, trap } from "./exports";
+import { Block, Field, assert, StaticError, Guard, Path, cast, Reference, Token, assertDefined, another, arrayLast, Crash, PendingValue, trap, arrayReverse } from "./exports";
 
 /** A Code block is evaluated to produce a result value. The fields of the block
  * are called statements */
-export class Code extends Block {
+export class Code extends Block<Statement> {
+
+  get statements(): Statement[] {
+    return this.items;
+  }
 
   /** field with result value. Undefined before eval and after rejection.
    * Defined after analysis regardless of rejection */
@@ -19,28 +23,35 @@ export class Code extends Block {
       return;
     }
 
-    // evaluate fields until rejection
-    for (let field of this.fields) {
-      field.eval();
-      if (field.conditional) {
-        if (field.isInput) {
+    // set result as last statement, skipping backwards as needed
+    // do this first to prevent deep value eval from recursing needlessly
+    for (let statement of arrayReverse(this.statements)) {
+      if (statement.dataflow) continue;
+      statement.used = true;
+      this.result = statement;
+      break;
+    }
+    assert(this.result);
+
+    // evaluate statements until rejection
+    for (let statement of this.statements) {
+      statement.eval();
+      if (statement.conditional) {
+        if (statement.isInput) {
           throw new StaticError(
-            field.id.token!,
+            statement.id.token!,
             'input fields must be unconditional'
           )
         }
         this.conditional = true;
       }
-      if (field.rejected) {
+      if (statement.rejected) {
         this.rejected = true
-        if (!this.workspace.analyzing) {
-          // stop execution unless analyzing
-          this.result = undefined;
-          break;
-        }
+        // keep going during analysis
+        if (this.workspace.analyzing) continue;
+        this.result = undefined
+        break;
       }
-      // TODO: skip let/check statements
-      this.result = field;
     }
   }
 
@@ -54,6 +65,24 @@ export class Code extends Block {
   copy(srcPath: Path, dstPath: Path): this {
     let to = super.copy(srcPath, dstPath);
     to.conditional = this.conditional;
+    return to;
+  }
+}
+
+/** Statement is a field of a code block */
+export class Statement extends Field {
+
+  /** dataflow qualifier: check/let/extra */
+  dataflow?: 'let' | 'check' | 'extra';
+
+  /** during analysis, whether field is used */
+  used?: boolean;
+
+  get name() { return this.id.name }
+
+  copy(srcPath: Path, dstPath: Path): this {
+    let to = super.copy(srcPath, dstPath);
+    to.dataflow = this.dataflow;
     return to;
   }
 }
@@ -95,8 +124,8 @@ export class Call extends Do {
     }
 
     // analyzing
-    // first field is ref to program definition
-    let first = this.fields[0];
+    // first statement is ref to program definition
+    let first = this.statements[0];
     let ref = cast(first.get('^reference').value, Reference)
     ref.eval();
     first.conditional = ref.conditional;
@@ -134,7 +163,7 @@ export class Call extends Do {
     })
 
     // analyze argument assignments
-    this.fields.slice(1).forEach(arg => {
+    this.statements.slice(1).forEach(arg => {
       arg.eval();
       // detect if arguments might reject
       if (arg.conditional) this.conditional = true;

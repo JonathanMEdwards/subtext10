@@ -9,7 +9,7 @@ export class Block<F extends Field = Field> extends Container<F> {
   /** whether block is displayed as an outline or a single line */
   outlined = true;
 
-  get fields() {
+  get fields(): F[] {
     return this.items;
   }
 
@@ -107,16 +107,7 @@ export class Block<F extends Field = Field> extends Container<F> {
 /** Field is an Item with a FieldID and a Value */
 export class Field<I extends FieldID = FieldID, V extends Value = Value> extends Item<I, V> {
 
-  /** dataflow qualifier: check/let/extra */
-  dataflow?: 'let' | 'check' | 'extra';
-
   get name() { return this.id.name }
-
-  copy(srcPath: Path, dstPath: Path): this {
-    let to = super.copy(srcPath, dstPath);
-    to.dataflow = this.dataflow;
-    return to;
-  }
 }
 
 /** space-unique ID of a Field. Immutable and interned */

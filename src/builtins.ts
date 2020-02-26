@@ -1,15 +1,16 @@
-import { Item, cast, Do, assert, Numeric, Character, Text, Dictionary, Value } from "./exports"
+import { Item, cast, Do, assert, Numeric, Character, Text, Dictionary, Value, Statement } from "./exports"
 
 /** evaluate a builtin call. Assumes input fields present in containing block.
  * Arguments have already been type-checked and assigned */
-export function evalBuiltin(item: Item, name: string) {
-  let block = cast(item.container, Do);
+export function evalBuiltin(statement: Statement, name: string) {
+  let block = cast(statement.container, Do);
   // extract input values. Convert atomic values to JS values
   let inputs: builtinValue[] = (
-    block.fields
-      .filter(field => field.isInput)
-      .map(field => {
-        let value = field.value!;
+    block.statements
+      .filter(statement => statement.isInput)
+      .map(input => {
+        input.used = true;
+        let value = input.value!;
         // extract JS values
         if (
           value instanceof Numeric
@@ -25,14 +26,15 @@ export function evalBuiltin(item: Item, name: string) {
 
   // evaluate builtin function
   let result: builtinValue | undefined;
+  statement.used = true;
   if (name.endsWith('?')) {
 
     // conditional
     let { accepted, value } = builtinConditionals[name](...inputs);
-    item.rejected = !accepted;
-    if (item.workspace.analyzing) {
+    statement.rejected = !accepted;
+    if (statement.workspace.analyzing) {
       // analyze item as conditional
-      item.conditional = true;
+      statement.conditional = true;
       // return value unconditionally to define its type
       result = value;
     } else {
@@ -46,22 +48,22 @@ export function evalBuiltin(item: Item, name: string) {
   }
 
   // set result into item if defined
-  item.prune();
+  statement.prune();
   if (result === undefined) {
   } else if (typeof result === 'number') {
     let value = new Numeric;
     value.value = result
-    item.setValue(value);
+    statement.setValue(value);
   } else if (typeof result === 'string') {
     let value = new Text;
     value.value = result
-    item.setValue(value);
+    statement.setValue(value);
   } else if (!result.containingItem) {
     // Use detached Value
-    item.setValue(result);
+    statement.setValue(result);
   } else {
     // copy attached value
-    item.setValue(result.copy(result.containingItem.path, item.path));
+    statement.setValue(result.copy(result.containingItem.path, statement.path));
   }
 }
 

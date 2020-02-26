@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -116,28 +116,30 @@ export class Parser {
 
   /** Define a field in a block */
   requireField(block: Block): Field {
-    const field = new Field;
+    const field = block instanceof Code ? new Statement : new Field;
     block.add(field);
 
     // dataflow qualifiers
-    if (this.parseToken('let')) {
-      field.dataflow = 'let';
-    } else if (this.parseToken('check')) {
-      field.dataflow = 'check';
-      if (!(block instanceof Code)) {
-        throw this.setError(
-          'check only allowed in program blocks',
-          this.prevToken);
-      }
-    } else if (this.parseToken('extra')) {
-      field.dataflow = 'extra';
-      if (!(block instanceof Code)) {
-        throw this.setError(
-          'extra only allowed in program blocks',
-          this.prevToken);
+    if (block instanceof Code) {
+      assert(field instanceof Statement);
+      if (this.parseToken('let')) {
+        field.dataflow = 'let';
+      } else if (this.parseToken('check')) {
+        field.dataflow = 'check';
+        if (!(block instanceof Code)) {
+          throw this.setError(
+            'check only allowed in program blocks',
+            this.prevToken);
+        }
+      } else if (this.parseToken('extra')) {
+        field.dataflow = 'extra';
+        if (!(block instanceof Code)) {
+          throw this.setError(
+            'extra only allowed in program blocks',
+            this.prevToken);
+        }
       }
     }
-
     // name definition
     const cursor = this.cursor;
     if (this.parseToken('name') && this.parseToken(':', '=')) {
@@ -362,16 +364,16 @@ export class Parser {
     let call = new Call;
 
     call.token = arrayLast(ref.tokens);
-    // first field of call is reference to program
+    // first statement of call is reference to program
     ref.tokens.push(Token.mimic('call', this.prevToken));
-    let prog = new Field;
+    let prog = new Statement;
     prog.id = this.space.newFieldID(undefined, this.prevToken);
     call.add(prog);
     prog.formulaType = 'reference';
     prog.setMeta('^reference', ref);
 
-    // second field of call is input argument change operation
-    let input = new Field;
+    // second statement of call is input argument change operation
+    let input = new Statement;
     input.id = this.space.newFieldID(undefined, this.prevToken);
     call.add(input);
     input.formulaType = 'changeInput';
@@ -391,7 +393,7 @@ export class Parser {
 
     if (rightValue) {
       // unparenthesized value argument
-      let arg = new Field;
+      let arg = new Statement;
       arg.formulaType = 'change';
       let lhs = new Reference;
       lhs.tokens = [
@@ -424,7 +426,7 @@ export class Parser {
         }
         // move formula to RHS of arg2 change operation
         let anon = arg;
-        arg = new Field;
+        arg = new Statement;
         arg.formulaType = 'change';
         let lhs = new Reference;
         lhs.tokens = [

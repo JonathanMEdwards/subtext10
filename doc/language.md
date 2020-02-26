@@ -152,9 +152,9 @@ y = do {
   * 2
 }
 ```
-Like all blocks, a `do` block is a series of items. In this example there are three items, one per line, and they are output items whose value is calculated from their formula. Unlike in previous examples, these are anonymous outputs, lacking a name and the following `=`.  
+Like all blocks, a `do` block is a series of items, which we call _statements_. In this example there are three statements, one per line, and they are output items whose value is calculated from their formula. Unlike in previous examples, these are anonymous outputs, lacking a name and the following `=`.  
 
-The first item is just a reference to `x` but the last two items are calls without a preceding input value: `+ 1` and `* 2`. In that case the value of the previous item is used as the left input. We can see this as the value of items flowing downward from the result of one formula into the start of the next formula. The result is the bottom value, which becomes the value of `y`. Note how this downward dataflow corresponds exactly to the rightward dataflow in the formula `x + 1 + 2`, with the result being the final value on the right. Thus data flows in formulas from left to right, and in outlined blocks from top to bottom. This matchs the reading order of English prose. 
+The first statement is just a reference to `x` but the last two statements are calls without a preceding input value: `+ 1` and `* 2`. In that case the value of the previous statement is used as the left input. We can see this as the value of statements flowing downward from the result of one formula into the start of the next formula. The result is the bottom value, which becomes the value of `y`. Note how this downward dataflow corresponds exactly to the rightward dataflow in the formula `x + 1 + 2`, with the result being the final value on the right. Thus data flows in formulas from left to right, and in outlined blocks from top to bottom. This matchs the reading order of English prose. 
 
 A formula is a single-line representation of a `do` block, but it will only look like a series of infix calls when the `do` block follows the pattern shown above: a series of anonymous outputs with the first being a literal or reference and the following ones single calls without a  preceding value. Anything else will use the general notation for blocks in a line, with brackets and semicolons. For example, if we had named one of the items:
 ```
@@ -167,7 +167,7 @@ y = do {
 y = do {x; incremented = + 1; * 2}
 ```
 
-There are two advantages of using outlines over lines. First, a large outline can be more readable than a very long line. Secondly, the UI shows the values computed for each output on an extra line below them, as in computational notebooks like Jupyter. Thus outlining an item turns the formula into a nested “mini-notebook” showing every step of the computation.
+There are two advantages of using outlines over single lines. First, a large outline can be more readable than a very long line. Secondly, the UI shows the values computed for each output on an extra line below them, as in computational notebooks like Jupyter. Thus outlining an item turns the formula into a nested “mini-notebook” showing every step of the computation.
 
 > We might want to make vertical dataflow more explicit by using `that` at the beginning of formulas, as in:
 ```
@@ -196,7 +196,7 @@ plus = do {
   x + y
 }
 ```
-When this program is called, as in `1 plus 2`, the value on the left, 1, becomes the value of the first input item, named `x`. The value 2 becomes the value of the second input item, named `y`, resulting in:
+When this program is called, as in `1 plus 2`, the value on the left, 1, becomes the value of the first input statement, named `x`. The value 2 becomes the value of the second input statement, named `y`, resulting in:
 ```
 do {
   x: 1
@@ -204,14 +204,14 @@ do {
   x + y
 }
 ```
-The value of the last item, 3, becomes the result of the call.
+The value of the last statement, 3, becomes the result of the call.
 
 We can abbreviate programs with just one input. For example:
 ```
 0
 increment = do{+ 1}
 ```
-Here the 0 preceding the definition of `increment` serves as the default input value to the program. When `increment` is called, the previous value will be inserted as the first item. This abbreviation is especially convenient with sequential programs, like `find`, that automatically supply a default previous value, saving the duplication of specifying it explicitly. 
+Here the 0 preceding the definition of `increment` serves as the default input value to the program. When `increment` is called, the previous value will be inserted as the first statement. This abbreviation is especially convenient with sequential programs, like `find`, that automatically supply a default previous value, saving the duplication of specifying it explicitly. 
 
 There is another abbreviation for defining programs. For example,
 ```
@@ -225,7 +225,7 @@ increment2 = do {
   + 1
 }
 ```
-The first item of the `do` block is not an input, but neither does it use the previous value as `increment` does. In this case, the first item is treated as the input of the program. In other words, the input to a call of `increment2()` will replace the first value (0) of the formula
+The first statement of the `do` block is not an input, but neither does it use the previous value as `increment` does. In this case, the first statement is treated as the input of the program. In other words, the input to a call of `increment2()` will replace the first value (0) of the formula
 
 > Possibly this is too subtle, and it might be better to first refactor a formula to have an explicit input item that allows it to be called. For example `0 + 1` could be refactored into `do{in:0; + 1}` to make it callable.
 
@@ -424,6 +424,7 @@ polarity = do {
 }
 x = 1 polarity() // = 'positive'
 ```
+
 A `try` block contains `do` blocks called _clauses_, separated by the `else` keyword. The first clause is executed, and if it succeeds its result becomes the result of the entire `try` block, skipping all the other clauses. But if the first clause rejects, then the second clause will be executed, and if it succeeds it supplies the result of the `try` block and skips the rest. Successive clauses are executed until one succeeds. The results of all the clauses must be the same type of value, otherwise it is a static error (except maybe this isn’t an error for `check try`)
 
 If none of the clauses succeeds the `try` block crashes. This is considered a programming error: a `try` block must exhaustively test all possible cases.  _In the future we will try to infer exhaustiveness statically, but for now it is a dynamic check._ To reject instead of crashing, the statement `else reject` can be placed at the end of the `try` block. For example:
@@ -491,7 +492,7 @@ not {a?}
 The `not` block evaluates its contents, rejecting if they succeed, and succeeding if they reject (in which case the input value into the `not` is passed on).
 Note that `not` is a block, as is `try`. Only blocks catch rejections.
 
-> But it might be convenient to allow `not` and `assert` item qualifiers, like `check`, capturing rejects in the item’s formula without the need for extra curly brackets.
+> But it might be convenient to allow `not` and `assert` qualifiers, like `check`, capturing rejects in the statement’s formula without the need for extra curly brackets.
 
 ### Assertions and tests
 The `assert` block converts a rejection into a crash. This is used to detect situations that should be impossible and which therefore indicate a programming error. For example

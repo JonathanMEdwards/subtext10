@@ -1,4 +1,4 @@
-import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions  } from "./exports";
+import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions, Code, Statement, StaticError, Try, Call  } from "./exports";
 
 /** A subtext workspace */
 export class Workspace extends Item<never, History> {
@@ -82,6 +82,18 @@ export class Workspace extends Item<never, History> {
     ws.analyzing = false;
     // initialize and recalc after analysis
     ws.initialize();
+    // check for unused code statements
+    for (let item of ws.visit()) {
+      if (
+        item instanceof Statement &&
+        !item.used
+        && item.dataflow !== 'check'
+        && !(item.container instanceof Try)
+        && !(item.container instanceof Call)
+      ) {
+        throw new StaticError(item.id.token!, 'unused value')
+      }
+    }
     ws.eval();
 
     return ws;

@@ -62,7 +62,7 @@ test('circular references', () => {
 test('do block', () => {
   expectDump("a = do{1}")
     .toEqual({ a: 1 });
-  expectDump("a = do{1; 2}")
+  expectDump("a = do{check 1; 2}")
     .toEqual({ a: 2 });
   expectDump("a = do{1; that}")
     .toEqual({ a: 1 });
@@ -73,6 +73,21 @@ test('do block', () => {
   expectDump("a = 0; b = do{that}")
     .toEqual({ a: 0, b: 0 });
 });
+
+test('statement skipping', () => {
+  expectCompiling("a = do{1; 2}")
+    .toThrow('unused value');
+  expectDump("a = do{1; check 2}")
+    .toEqual({ a: 1 });
+  expectCompiling("a = do{1; let x = + 2}")
+    .toThrow('unused value');
+  expectDump("a = do{1; let x = 2; + x}")
+    .toEqual({ a: 3 });
+  expectDump("a = do{1; let x = + 2; x}")
+    .toEqual({ a: 3 });
+  expectCompiling("a = do{1; let x = + 2; 3}")
+    .toThrow('unused value');
+})
 
 test('change', () => {
   expectDump("a = record{x: 0, y : 0}, b = .x := 1")
@@ -94,27 +109,29 @@ test('call', () => {
     .toThrow('Program input not defined');
   expectCompiling("f = do{x: ''}, a = 1, b = f()")
     .toThrow('changing type');
-  expectDump("f = do{x: 0; y: 1}, a = 1, b = f(2)")
-    .toEqual({ f: 1, a: 1, b: 2 });
-  expectDump("f = do{x: 0; y: 1}, a = 1, b = f 2")
-    .toEqual({ f: 1, a: 1, b: 2 });
-  expectDump("f = do{x: 0; y: 1}, a = 1, b = f(.y := 2)")
-    .toEqual({ f: 1, a: 1, b: 2 });
-  expectCompiling("f = do{x: 0; y: 1}, a = 1, b = f(.z := 2)")
+  expectDump("f = do{x: 0; y: x}, a = 1, b = f(2)")
+    .toEqual({ f: 0, a: 1, b: 2 });
+  expectDump("f = do{x: 0; y: x}, a = 1, b = f 2")
+    .toEqual({ f: 0, a: 1, b: 2 });
+  expectDump("f = do{x: 0; y: x}, a = 1, b = f(.y := 2)")
+    .toEqual({ f: 0, a: 1, b: 2 });
+  expectCompiling("f = do{x: 0; y: x}, a = 1, b = f(.z := 2)")
     .toThrow('Undefined name');
-  expectCompiling("f = do{x: 0; y: 1}, a = 1, b = f(.y := 2, 2)")
+  expectCompiling("f = do{x: 0; y: x}, a = 1, b = f(.y := 2, 2)")
     .toThrow('Only first argument can be anonymous');
 });
 
 test('formula', () => {
   expectDump("f = do{x: 0}, a = 1, b = a f()")
     .toEqual({ f: 0, a: 1, b: 1});
-  expectDump("f = do{x: 0; y: 1}, a = 1, b = a f(2)")
-    .toEqual({ f: 1, a: 1, b: 2 });
-  expectDump("f = do{x: 0; y: 1}, a = 1, b = a f 2")
-    .toEqual({ f: 1, a: 1, b: 2 });
-  expectDump("f = do{x: 0; y: 1}, a = 1, b = a f 2 f 3")
-    .toEqual({ f: 1, a: 1, b: 3 });
+  expectDump("f = do{x: 0; y: x}, a = 1, b = a f()")
+    .toEqual({ f: 0, a: 1, b: 1 });
+  expectDump("f = do{x: 0; y: x}, a = 1, b = a f(2)")
+    .toEqual({ f: 0, a: 1, b: 2 });
+  expectDump("f = do{x: 0; y: x}, a = 1, b = a f 2")
+    .toEqual({ f: 0, a: 1, b: 2 });
+  expectDump("f = do{x: 0; y: x}, a = 1, b = a f 2 f 3")
+    .toEqual({ f: 0, a: 1, b: 3 });
 });
 
 test('arithmetic', () => {
@@ -200,39 +217,41 @@ test('recursion', () => {
   expectCompiling("fac = do{n: 0, try {n fac()}}")
     .toThrow('recursion outside secondary try clause');
   expectDump(`
-    fac = do{n: 0, try {n <=? 0, 1} else {n - 1 fac() * n}},
+    fac = do{n: 0; try {check n <=? 0; 1} else {n - 1 fac() * n}},
     x = 1 fac()
     `)
     .toEqual({ fac: 1, x: 1 });
   expectDump(`
-    fac = do{n: 0, try {n <=? 0, 1} else {n - 1 fac() * n}},
+    fac = do{n: 0; try {check n <=? 0; 1} else {n - 1 fac() * n}},
     x = 4 fac()
     `)
     .toEqual({ fac: 1, x: 24 });
-  expectCompiling("fac = do{n: 0, try {0 <? 0, 1} else {n - 1 fac() * n}}")
+  expectCompiling("fac = do{n: 0; try {check 0 <? 0, 1} else {n - 1 fac() * n}}")
     .toThrow('Workspace too deep');
 })
 
 test('mutual recursion', () => {
   expectDump(`
-    even? = do{n: 0; try{n =? 0} else { n - 1 odd?()} else reject; n}
-    odd? = do{n:1; n not=? 0; n - 1 even?(); n}
+    even? = do{n: 0; try{n =? 0} else { check n - 1 odd?(); n} else reject}
+    odd? = do{n:1; check n not=? 0; check n - 1 even?(); n}
     x? = 1 even?()
     y? = 2 odd?()
     `)
-    .toEqual({ "even": 0, "odd": 1, x: false, y: false });
+    .toEqual({ even: 0, odd: 1, x: false, y: false });
   expectDump(`
-    even? = do{n: 0; try{n =? 0} else { n - 1 odd?()} else reject; n}
-    odd? = do{n:1; n not=? 0; n - 1 even?(); n}
+    even? = do{n: 0; try{n =? 0} else { check n - 1 odd?(); n} else reject}
+    odd? = do{n:1; check n not=? 0; check n - 1 even?(); n}
     x? = 2 even?()
     y? = 3 odd?()
     `)
-    .toEqual({ "even": 0, "odd": 1, x: 2, y: 3 });
+    .toEqual({ even: 0, odd: 1, x: 2, y: 3 });
 });
 
 test('dynamic input defaults', () => {
   expectDump("f = do{x:0, y: x + 1}, a = 1 f()")
     .toEqual({f: 1, a: 2})
+  expectDump("f = do{x:0, y: x + 1}, a = 1 f(+ 1)")
+    .toEqual({f: 1, a: 3})
   expectDump("f = do{x:0, y: x + 1}, a = 1 f(+ 1)")
     .toEqual({f: 1, a: 3})
 })

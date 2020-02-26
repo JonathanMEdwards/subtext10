@@ -1,4 +1,4 @@
-import { arrayEquals, Base, Token, Path, Item, assert, MetaID, PendingValue, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash } from "./exports";
+import { arrayEquals, Base, Token, Path, Item, assert, MetaID, PendingValue, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement } from "./exports";
 
 /** Guard on an ID in a reference */
 export type Guard = '?' | '!' | undefined;
@@ -75,6 +75,11 @@ export class Reference extends Base {
       if (this.path.ids[i + 1] instanceof MetaID) {
         // metadata is not inside base item, so skip evaluating it
         return;
+      }
+
+      // mark code statements used
+      if (target instanceof Statement) {
+        target.used = true;
       }
 
       // evaluate on way down if needed
