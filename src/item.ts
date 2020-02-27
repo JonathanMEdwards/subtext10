@@ -440,8 +440,22 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
 /** FIXME: reify into state so unaffected items can operate */
 export class StaticError extends Error {
-  constructor(token: Token, description: string) {
-    super(description + ': ' + token.source.slice(token.start, token.end + 10));
+  constructor(token: Token | Item | undefined, description: string) {
+    super(description + ': ' + StaticError.context(token));
+  }
+  private static context(token?: Token | Item): string {
+    if (token instanceof Item) {
+      if (token instanceof Field) {
+        token = token.id.token;
+      } else {
+        token = undefined;
+      }
+    }
+    return (
+      token instanceof Token
+        ? token.source.slice(token.start, token.end + 10)
+        : 'unknown'
+    )
   }
 }
 

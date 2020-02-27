@@ -44,10 +44,7 @@ export class Block<F extends Field = Field> extends Container<F> {
       field.eval();
       if (this.workspace.analyzing) {
         if (field.isInput && field.conditional) {
-          throw new StaticError(
-            field.id.token!,
-            'input fields must be unconditional'
-          )
+          throw new StaticError(field, 'input fields must be unconditional')
         }
         // verify conditional naming
         if (
@@ -55,7 +52,7 @@ export class Block<F extends Field = Field> extends Container<F> {
           && field.id.token.text.endsWith('?') !== field.conditional
         ) {
           throw new StaticError(
-            field.id.token,
+            field,
             field.conditional
               ? 'conditional field name must have suffix ?'
               : 'unconditional field name cannot have suffix ?'

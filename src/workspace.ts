@@ -91,7 +91,7 @@ export class Workspace extends Item<never, History> {
         && !(item.container instanceof Try)
         && !(item.container instanceof Call)
       ) {
-        throw new StaticError(item.id.token!, 'unused value')
+        throw new StaticError(item, 'unused value')
       }
     }
     ws.eval();

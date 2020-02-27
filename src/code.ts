@@ -31,17 +31,16 @@ export class Code extends Block<Statement> {
       this.result = statement;
       break;
     }
-    assert(this.result);
+    if (!this.result) {
+      throw new StaticError(this.containingItem, 'code block has no result')
+    }
 
     // evaluate statements until rejection
     for (let statement of this.statements) {
       statement.eval();
       if (statement.conditional) {
         if (statement.isInput) {
-          throw new StaticError(
-            statement.id.token!,
-            'input fields must be unconditional'
-          )
+          throw new StaticError(statement, 'input fields must be unconditional')
         }
         this.conditional = true;
       }

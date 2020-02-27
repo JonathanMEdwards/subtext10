@@ -79,6 +79,8 @@ test('statement skipping', () => {
     .toThrow('unused value');
   expectDump("a = do{1; check 2}")
     .toEqual({ a: 1 });
+  expectCompiling("a = do{check 1; check 2}")
+    .toThrow('code block has no result');
   expectCompiling("a = do{1; let x = + 2}")
     .toThrow('unused value');
   expectDump("a = do{1; let x = 2; + x}")

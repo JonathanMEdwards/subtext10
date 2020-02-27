@@ -30,7 +30,7 @@ export class Try extends Do {
             )
           ) {
             throw new StaticError(
-              field.id.token!,
+              field,
               'try clause must be conditional if not last'
             )
           }
@@ -42,7 +42,7 @@ export class Try extends Do {
             !first.value!.changeableFrom(field.value!, field.path, first.path)
           ) {
             throw new StaticError(
-              field.id.token!,
+              field,
               'try clauses must have same type result'
             )
           }
