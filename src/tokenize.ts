@@ -22,7 +22,7 @@ export class Token {
   { }
 
   /** Copy an existing token giving a different type */
-  static mimic(type: TokenType, token: Token): Token {
+  static fake(type: TokenType, token: Token): Token {
     return new Token(type, token.start, token.end, token.source);
   }
 

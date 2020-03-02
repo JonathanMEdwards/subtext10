@@ -90,7 +90,7 @@ export class Block<F extends Field = Field> extends Container<F> {
 
   // dump as an object
   dump() {
-    let obj: Dictionary<any> = {};
+    let obj: Dictionary<unknown> = {};
     this.fields.forEach((field, i) => {
       // skip includes
       if (field.formulaType === 'include') return;

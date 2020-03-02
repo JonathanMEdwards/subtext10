@@ -231,7 +231,7 @@ The first statement of the `do` block is not an input, but neither does it use t
 
 As a result of these abbreviations, every item is a program that can be called elsewhere. This design avoids premature abstraction. In most languages before code can be reused it must first be abstracted out into a separate definition, and replaced with a call to that definition. In Subtext every item’s definition can be reused elsewhere. 
 
-Note that, unlike other languages, a program is not a separate entity or value — it is always “inside” the definition of an item, not its value. In the first example, 
+Note that, unlike other languages, a program is not a separate entity or value — it is always the formula defininig an item, not the actual value of the item. In the first example, 
 ```
 plus = do {
   x: 0
@@ -244,38 +244,28 @@ the value of `plus` is just 1, the result of executing the program, not a specia
 > In fact programs really are “first-class” values, but they are only used in the UI and planned metaprogramming capabilities.
 
 ### Block modification
-So far all of the examples have used arithmetic. But it is very common to work with blocks, particularly records,  as they are often the rows of tables. Take the record:
+So far all of the examples have used arithmetic. But it is very common to work with blocks, particularly records,  as they are the rows of tables. Take the record:
 ```
 x: record {
   name: ''
   number: 0
 }
 ```
-This block contains two input items: `name` which is an initially empty text, and `number` which is initially the number `0`.
+This block contains two input items: `name`, which is an initially empty text, and `number`, which is initially the number `0`.
 
-The essential operations on a block are to read and change individual items. We read the items using paths, like `x.name` and `x.number`. To change a item we use a _change operation_:
+The essential operations on a block are to read and change individual items. We read the items using paths, like `x.name` and `x.number`. To change an item we use a _change operation_ with the special operator `:=`:
 ```
-x.name := 'Joe'
+x do{.name := 'Joe'}
 ```
-We pronounce this “x dot name becomes text Joe”. The result of a change operation is a block equal to the value of `x` except with the item `name` changed to `'Joe'`, and keeping the prior value of `number`. Note that the value of `x` is not changed as a result of this operation: a new and different block value is produced. We might give this new value a name, as in:
+_How is this pronounced?_ The result of this operation is a record equal to the value of `x` except with the item `name` changed to `'Joe'`, while keeping the prior value of `number`. Note that the value of the item `x` is not changed as a result of this operation: a new and different record value is produced. We might name the item with this this new value:
 ```
-y = x.name := 'Joe'
+y = x do{.name := 'Joe'}
 ```
-We can chain multiple updates using a `do` block:
-```
-y = do{x.name := 'Joe'; .number := 2}
-```
-Note how `.number :=` applies to the result of the previous update. We could rephrase this more symmetrically as
+We can also combine multiple changes:
 ```
 y = x do{.name := 'Joe'; .number := 2}
 ```
-Here `.name :=` applies to the value of `x`, which flows into the `do` block from the left.
-
-The following is wrong:
-```
-y = do{x.name := 'Joe'; x.number := 2}
-```
-The update to `name` is lost because the update to `number` goes back to the original value of x. This will be reported as an  _unused value_ static error.
+Note how `.number :=` applies to the result of the previous change.
 
 Change operations can delve into nested blocks by using a dotted path to the left of the `:=`
 ```
@@ -296,7 +286,7 @@ y = x do{.address := do{.street := '12 Main St'; .city := 'Springville'}}
 Note how the block is nested: `.address := do{.street := ...}`. Here `.address :=` passes the current value of `x.address` as the input to the `do` block on its right, and then changes the `address` item to be the result. This is an example of _default inputs_. We saw earlier how the first call in a `do` block can take its input from the previous item before the `do` block. The change operation `:=` works similarly — any formula on the right will by default input from the current value of the item named on the left. Thus for example:
 
 ```
-y = x.number := + 1
+y = x do{.number := + 1}
 ```
 will increment the value of the `number` item. Note how this looks like an _assignment statement_ in an imperative language, which modifies values “in place”. Subtext only modifies by creating new values, so in the above example `x` is not changed. Some functional languages force you to rebuild such new values “bottom up”. The Subtext `:=` operation does that automatically, copying an entire tree-structured value with one path inside it replaced. Defaulting of inputs allows a `:=` to extract the current value at a path and transform it.
 
@@ -312,7 +302,7 @@ ternary-program = do {
 }
 x = 1 ternary-program(2, .input3 := 3)
 ```
-The syntax `.input3 := 3` is actually a change operation applied to the `do` block. It changes the value of the `input3` input item to 3. The same thing happens with the second input: `.input2 := 2` , but that is hidden in the syntax.
+The syntax `.input3 := 3` is actually a change operation on the `do` block of `ternary-program`. It changes the value of the `input3` input item to 3. The same thing happens with the second input, which is interpreted to mean `.input2 := 2`.
 
 ### Local variables
 
@@ -377,7 +367,7 @@ When a program executes (including formulas), exactly one of the following thing
 
 If a program may reject it is called _conditional_, a program that never rejects is called _unconditional_. The name of a conditional program has a question mark appended to it. For example, the equality program `=?` tests whether two values are equal, rejecting if they aren’t. It is called like this: `x =? y`. You can tell that a program is conditional by the presence of a `?` inside it, which indicates a point where it may reject.
 
-By convention, comparison programs like `=?` and `<?` will result in their right-hand input value when they succeed,  so that they can be chained, as in `x <? y <? z`. But often conditionals are executed only to test whether they reject, and their result is not otherwise used. To help avoid programming mistakes it is an error to produce a value that is not used. To indicate that a value is not intended to be used, an output item can start with `check`. That will also pass on the value of the previous item as with `let`. In most situations, conditional programs should be called in a `check` formula. For example:
+By convention, comparison programs like `=?` and `<?` will result in their right-hand input value when they succeed,  so that they can be chained, as in `x <? y <? z`. But often conditionals are executed only to test whether they reject, and their result is not otherwise used. To help avoid programming mistakes, it is considered an error to produce a value that is not used. To indicate that a value is not intended to be used, an output item can start with `check`. That will also pass on the value of the previous item as with `let`. In most situations, conditional programs should be called in a `check` formula. For example:
 ```
 // incorrect
 do {
@@ -402,9 +392,9 @@ x do {
 
 ```
 
-> An alternative to prefixing `check` (and `let`) is to suffix `\` or `skip`.
+> An alternative to prefixing `check` (and `let`) is to suffix `\`.
 
-Only output items can use a conditional program, not input items. See _Missing values_ for alternative techniques.
+Only output items can be conditional, not input items, which would introduce problematic _null_ values. See _Missing values_ for further discussion of alternative techniques.
 
 When a program rejects, what happens depends on the kind of block it is inside. Inside a `do` block (and other program blocks to be introduced later), rejection halts further execution, and causes the whole program block to reject. What happens next depends on the kind of block containing that block — if it is also a `do` block then the rejection continues to propagates into the containing block. This proceeds until the rejection reaches one of several kinds of block that handle rejections, for example the `try` block\_.  Rejection is like \_exception catching\_ in conventional languages, except that it is the single kind of exception supported, and it carries no extra information visible to the program.
 
@@ -472,7 +462,7 @@ The `optionally` block is like a `try` block, except that if none of the clauses
 > `try {...} else reject` could be instead `try? {...}`. Likewise `optionally {...}` could be just `try {...}`. To crash on incompleteness, `try! {...}`. This design is more consistent with the way other conditional forms are handled, but it may be too subtle.
 
 ### Boolean operations
-Subtext does not use Boolean values like conventional languages do for making decisions. The standard Boolean operations can be done with `try` blocks instead. Here is the recipe for writing boolean operations:
+Subtext does not use Boolean Algebra like conventional languages do. The standard Boolean operations can be done with `try` blocks instead. Here is the recipe for writing boolean operations:
 ```
 // a? OR b?
 try {
@@ -555,14 +545,16 @@ Choices are made with the _choice operation_ `|=`. For example:
 ```Txt
 a-literal = expr |= literal 1
 ```
-This pronounced “a-literal equals expr choosing literal one”. The `|=` expects a choice value on its left (`expr`) and to its right the name of an option without the question mark (`literal`), followed by a formula resulting in a value for the option. The formula can be left out, which will change the option to its default value (0 for `literal`):
+This pronounced “a-literal equals expr choosing literal one”. The `|=` expects a choice value on its left (`expr`) and to its right the name of an option without the question mark (`literal`), followed by a formula resulting in a value for the option. The right hand formula can be left out, which will change the option to its default value (0 for `literal`):
 ```Txt
 a-literal = expr |= literal
 ```
-Note the similarity between the choice operation `|=` and the change operation `:=`. As with `:=` we can use a `do` block to nest choices:
+
+The choice operation `|=` is similar to the change operation `:=`, except that it doesn’t require a dependent path on the left (one starting with `.`). However `|=` can also be used with a dependent path, which is useful when chaining nested choices:
 ```Txt
-a-plus = expr |= plus do{left |= literal 2, right |= literal 2}
+a-plus = expr |= plus do{.left |= literal 2; .right |= literal 2}
 ```
+Note how, like a `:=`, the result of `.left |= literal 2` is the containing `plus` term, not the `left` term. That allows chaining the subsequent `.right |= literal 2` statement.
 
 Sometimes there is no value of interest to associate with an option — we want it to indicate just that we made the choice. This is called an _enumeration_ in many languages. We use the special value `nil` in this case:
 ```Txt
@@ -572,9 +564,9 @@ color: choice {
   green?: nil
 }
 ```
-The value `nil` is called a _unit value_ in some languages: it contains no information, and is the sole value within its datatype. As such `nil` options have no value chosen:
+The value `nil` is called a _unit value_ in some languages: it contains no information, and is the sole value within its datatype. As such `nil` options can be chosen without supplying a value:
 ```Txt
-red = color |= red
+color |= red
 ```
 
 ### Pattern matching

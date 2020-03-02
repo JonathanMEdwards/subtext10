@@ -36,6 +36,11 @@ export class Metafield extends Field<MetaID> {
    * goes to ^lhs */
   previous(): Item | undefined {
     if (this.id === MetaID.ids['^rhs']) {
+      if (this.container.getMaybe('^option')) {
+        // don't allow previous value access when choosing option
+        // that would depend on whether option was previously chosen
+        return undefined;
+      }
       // previous value of rhs is the lhs
       let lhs = assertDefined(this.container.getMaybe('^lhs'));
       let ref = cast(lhs.value, Reference);
@@ -65,6 +70,7 @@ export class MetaID extends FieldID {
     '^code': new MetaID('^code'),           // Code block
     '^lhs': new MetaID('^lhs'),             // Dependent reference on left of :=
     '^rhs': new MetaID('^rhs'),             // Formula on right of :=
+    '^option': new MetaID('^option'),       // option name on |=
     '^call': new MetaID('^call'),           // Program call
     '^builtin': new MetaID('^builtin')      // builtin call
   }

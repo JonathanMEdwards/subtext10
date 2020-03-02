@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, PendingValue, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -120,8 +120,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   }
 
   /**
-   * How value is computed. The formula is stored in various metadata
-   * fields depending on this tag.
+   * How value is computed. The formula is stored in various metadata fields
+   * depending on this tag.
    *
    * none: value is a constant in item.value. Used for literal outputs.
    *
@@ -132,7 +132,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    * code: value is result of a Code block in ^code
    *
    * change: dependent reference in ^lhs, formula in ^rhs
+   *
    * changeInput: special change used for input of a call
+   *
+   * choose: dependent reference in ^lhs, option name in ^option, optional
+   * formula in ^rhs
    *
    * call: Call block in ^call, starting with reference to program followed by
    * changes on the arguments
@@ -144,7 +148,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *  */
   formulaType: (
     'none' | 'literal' | 'reference' | 'code' | 'change' | 'changeInput'
-    | 'call' | 'include' | 'builtin'
+    | 'choose' | 'call' | 'include' | 'builtin'
   ) = 'none';
 
   /** whether input or output item */
@@ -228,6 +232,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
         case 'change':
         case 'changeInput':
+        case 'choose':
           this.change();
           break;
 
@@ -258,12 +263,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     this.evalComplete = true;
   }
 
-  /** evaluate change operation */
+  /** evaluate change/choose operation */
   private change() {
     // lhs and rhs in metadata already evaluated
     let ref = cast(this.get('^lhs').value, Reference);
     assert(ref.dependent);
-    assert(ref.path.length > ref.context);
     // get previous value, which is context of reference
     this.setConditional(ref.conditional);
     if (ref.rejected) {
@@ -278,9 +282,35 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     this.replaceValue(prev);
     // follow LHS dependent path within previous value
     let target = this.down(ref.path.ids.slice(ref.context));
-    if (!target.isInput) {
+    if (!target.isInput && target !== this) {
+      // allow modifying that in |=
       throw new StaticError(arrayLast(ref.tokens), 'changing an output')
     }
+
+    // choose
+    if (this.formulaType === 'choose') {
+      let choice = target.value;
+      if (!(choice instanceof Choice)) {
+        throw new StaticError(arrayLast(ref.tokens), 'expecting choice');
+      }
+      // choose option
+      let optionText = cast(this.get('^option').value, Text);
+      let option = target.getMaybe(optionText.value);
+      if (!option) {
+        throw new StaticError(optionText.token, 'no such option');
+      }
+      choice.setChoice(choice.fields.indexOf(option as Field));
+      if (!this.getMaybe('^rhs')) {
+        // no value - default to initial value of option
+        return;
+      }
+      // fall through to set option value
+      target = option;
+    } else {
+      // changes need to be within previous value
+      assert(ref.path.length > ref.context);
+    }
+
     // replace target value with value of RHS
     target.eval();
     let source = this.get('^rhs');

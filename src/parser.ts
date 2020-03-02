@@ -145,12 +145,14 @@ export class Parser {
     if (this.parseToken('name') && this.parseToken(':', '=')) {
       // named field
       field.isInput = (this.prevToken.type === ':');
-      if (block instanceof Choice && !field.isInput) {
-        throw this.setError('Option must be an input (:)', this.prevToken);
-      }
-
       // define field ID
       this.fieldID(field, this.tokens[this.cursor - 2]);
+      if (block instanceof Choice) {
+        if (!field.isInput) {
+          throw this.setError('Option must be an input (:)', this.prevToken);
+        }
+        field.conditional = true;
+      }
     } else {
       // anonymous output formula
       this.cursor = cursor
@@ -175,7 +177,7 @@ export class Parser {
       field.id = this.space.newFieldID(
         undefined,
         // fake = token pointing to start of formula
-        Token.mimic('=', this.cursorToken)
+        Token.fake('=', this.cursorToken)
       );
       return;
     }
@@ -213,6 +215,11 @@ export class Parser {
     field.id = this.space.newFieldID(name, nameToken);
   }
 
+  /** peek formula terminator */
+  peekTerminator() {
+    return this.peekToken(',', ';', ')', '}', '\n', 'end');
+  }
+
   /** Require a formula defining a field. Sets formulaType and metadata */
   requireFormula(field: Field): void {
     let startToken = this.cursorToken;
@@ -222,7 +229,7 @@ export class Parser {
     }
     // parse multiterm formula into a do-block
     let block: Do | undefined;
-    while (!this.peekToken(',', ';', ')', '}', '\n', 'end')) {
+    while (!this.peekTerminator()) {
       if (!block) {
         // move first term into multi-term do-block
         block = new Do;
@@ -283,15 +290,38 @@ export class Parser {
 
     // reference
     let ref = this.parseReference();
+    if (!ref && this.peekToken('|=')) {
+      // implicit 'that' to left of |=
+      ref = new Reference;
+      ref.tokens = [Token.fake('that', this.cursorToken)];
+    }
     if (ref) {
-      if (this.matchToken(':=')) {
-        // change operation
+      if (
+        this.matchToken(':=')
+        // treat |= after structural path as separate operation
+        || (ref.dependent && this.matchToken('|='))
+      ) {
+        // change/choose operation
         if (!ref.dependent) {
-          throw this.setError('Change operation requires dependent path', ref.tokens[0]);
+          throw this.setError(`|= requires dot-path`, ref.tokens[0]);
         }
 
-        field.formulaType = 'change';
         field.setMeta('^lhs', ref);
+        field.formulaType = this.prevToken.type === ':=' ? 'change' : 'choose';
+
+        if (field.formulaType === 'choose') {
+          // option name
+          let option = new Text;
+          option.token = this.requireToken('name');
+          option.value = option.token.text;
+          if (option.value.endsWith('?')) {
+            throw this.setError(`option name shouldn't have ?`, option.token)
+          }
+          field.setMeta('^option', option);
+          // formula is optional
+          if (this.peekTerminator()) return true;
+        }
+
         // parse formula into ^rhs
         let rhs = field.setMeta('^rhs', undefined);
         this.requireFormula(rhs);
@@ -365,7 +395,7 @@ export class Parser {
 
     call.token = arrayLast(ref.tokens);
     // first statement of call is reference to program
-    ref.tokens.push(Token.mimic('call', this.prevToken));
+    ref.tokens.push(Token.fake('call', this.prevToken));
     let prog = new Statement;
     prog.id = this.space.newFieldID(undefined, this.prevToken);
     call.add(prog);
@@ -380,13 +410,13 @@ export class Parser {
     // LHS is dependent ref to first input
     let lhs = new Reference;
     lhs.tokens = [
-      Token.mimic('that', this.prevToken),
-      Token.mimic('arg1', this.prevToken)
+      Token.fake('that', this.prevToken),
+      Token.fake('arg1', this.prevToken)
     ]
     input.setMeta('^lhs', lhs);
     // RHS is structural reference to input value
     let rhsRef = new Reference;
-    rhsRef.tokens = [Token.mimic('input', this.prevToken)]
+    rhsRef.tokens = [Token.fake('input', this.prevToken)]
     let rhs = input.setMeta('^rhs');
     rhs.formulaType = 'reference';
     rhs.setMeta('^reference', rhsRef);
@@ -397,8 +427,8 @@ export class Parser {
       arg.formulaType = 'change';
       let lhs = new Reference;
       lhs.tokens = [
-        Token.mimic('that', startToken),
-        Token.mimic('arg2', startToken)
+        Token.fake('that', startToken),
+        Token.fake('arg2', startToken)
       ]
       arg.setMeta('^lhs', lhs);
       let rhs = arg.setMeta('^rhs');
@@ -430,8 +460,8 @@ export class Parser {
         arg.formulaType = 'change';
         let lhs = new Reference;
         lhs.tokens = [
-          Token.mimic('that', argToken),
-          Token.mimic('arg2', argToken)
+          Token.fake('that', argToken),
+          Token.fake('arg2', argToken)
         ]
         arg.setMeta('^lhs', lhs);
         let rhs = arg.setMeta('^rhs', anon.value);
@@ -539,7 +569,7 @@ export class Parser {
       tokens.push(this.prevToken);
     } else if (this.peekToken('.', '~')) {
       // leading . or ~ simulates leading 'that'
-      tokens.push(Token.mimic('that', this.cursorToken));
+      tokens.push(Token.fake('that', this.cursorToken));
     }
 
     // rest of path
@@ -599,7 +629,6 @@ export class Parser {
       text.value = stringUnescape(this.prevToken.text.slice(1, -1));
       return text;
     }
-
 
     if (this.matchToken('nil')) {
       let nil = new Nil;

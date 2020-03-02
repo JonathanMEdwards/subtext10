@@ -1,4 +1,4 @@
-import { arrayEquals, Base, Token, Path, Item, assert, MetaID, PendingValue, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement } from "./exports";
+import { arrayEquals, Base, Token, Path, Item, assert, MetaID, PendingValue, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice } from "./exports";
 
 /** Guard on an ID in a reference */
 export type Guard = '?' | '!' | undefined;
@@ -93,7 +93,12 @@ export class Reference extends Base {
       if (i >= this.context) {
         let guard = this.guards[i];
         assert(!!guard === target.conditional);
-        if (target.rejected) {
+        if (
+          target.rejected || (
+            target.container instanceof Choice
+            && target !== target.container.choice
+          )
+        ) {
           // reject reference
           this.rejected = true;
           if (!this.workspace.analyzing) {
