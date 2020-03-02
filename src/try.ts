@@ -1,9 +1,9 @@
-import { Do, StaticError, arrayLast, Crash, Field } from "./exports";
+import { Do, StaticError, arrayLast, Crash, Field, Code } from "./exports";
 
 /** a try block is the basic control structure of Subtext. It contains a sequnce
  * of do-blocks called clauses. The clauses are executed in order until one does
  * not reject */
-export class Try extends Do {
+export class Try extends Code {
 
   /** evaluate, setting this.result to first successful clause, else
    * this.rejected. this.conditional true if fall-through rejects instead of crashing

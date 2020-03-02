@@ -70,7 +70,7 @@ test('do block', () => {
     .toEqual({ a: 0 });
   expectDump("a = 0; b = that")
     .toEqual({ a: 0, b: 0 });
-  expectDump("a = 0; b = do{that}")
+  expectDump("a = 0; b = with{that}")
     .toEqual({ a: 0, b: 0 });
 });
 
@@ -94,13 +94,21 @@ test('statement skipping', () => {
 test('change', () => {
   expectDump("a = record{x: 0, y : 0}, b = .x := 1")
     .toEqual({ a: {x: 0, y: 0}, b: {x: 1, y: 0}});
-  expectDump("a = record{x: 0, y : 0}, b = a do{.x := 1}")
+  expectDump("a = record{x: 0, y : 0}, b = a with{.x := 1}")
     .toEqual({ a: {x: 0, y: 0}, b: {x: 1, y: 0}});
   expectCompiling("a = record{x = 0, y : 0}, b = .x := 1")
     .toThrow('changing an output');
   expectCompiling("a = record{x: 0, y : 0}, b = .x := 'foo'")
     .toThrow('changing type');
-  expectDump("a = record{x: 0, y : record{i: 0, j: 0}}, b = .y := do{.i := 1}")
+  expectDump(`
+  a = record{x: 0, y : record{i: 0, j: 0}}
+  b = .y := with{.i := 1}
+  `)
+    .toEqual({ a: { x: 0, y: { i: 0, j: 0 } }, b: { x: 0, y: {i: 1, j: 0}}});
+  expectDump(`
+  a = record{x: 0, y : record{i: 0, j: 0}}
+  b = .y := with{.i := + 1}
+  `)
     .toEqual({ a: { x: 0, y: { i: 0, j: 0 } }, b: { x: 0, y: {i: 1, j: 0}}});
 });
 
@@ -277,7 +285,7 @@ test('generics', () => {
     });
   expectDump(`
   a = record{x: 0, y: ''}
-  b = a do{.x := 1}
+  b = a with{.x := 1}
   c? = a =? b
   `)
     .toEqual({
@@ -301,6 +309,8 @@ test('choices', () => {
   expectCompiling("a: choice{x? = 1, y?: ''}")
     .toThrow('Option must be an input (:)');
   expectDump("a = choice{x?: 1, y?: ''}; b = that |= y 'foo'")
+    .toEqual({ a: { x: 1 }, b: { y: 'foo' } });
+  expectDump("a = choice{x?: 1, y?: ''}; b = with{ |= y 'foo'}")
     .toEqual({ a: { x: 1 }, b: { y: 'foo' } });
   expectDump("a = choice{x?: 1, y?: ''}; b = |= y 'foo'")
     .toEqual({ a: { x: 1 }, b: { y: 'foo' } });

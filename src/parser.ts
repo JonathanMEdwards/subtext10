@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -227,12 +227,12 @@ export class Parser {
     if (!this.parseTerm(field, true)) {
       throw this.setError('expecting a formula')
     }
-    // parse multiterm formula into a do-block
-    let block: Do | undefined;
+    // parse multiterm formula into a code block
+    let block: Code | undefined;
     while (!this.peekTerminator()) {
       if (!block) {
-        // move first term into multi-term do-block
-        block = new Do;
+        // move first term into multi-term code block
+        block = new Code;
         let first = new Field;
         first.id = this.space.newFieldID(undefined, startToken);
         if (field.metadata) {
@@ -482,11 +482,14 @@ export class Parser {
 
   /** parse a code block */
   parseCode(): Code | undefined {
-    let token = this.parseToken('do', 'try');
+    let token = this.parseToken('do', 'with', 'try');
     if (!token) return undefined;
     switch (token.type) {
       case 'do':
         return this.requireBlock(new Do);
+
+      case 'with':
+        return this.requireBlock(new With);
 
       case 'try':
         return this.requireTry()
@@ -540,7 +543,7 @@ export class Parser {
       let field = new Field;
       block.add(field);
       this.fieldID(field, nameToken);
-      let clause = new Do;
+      let clause = new Code;
       field.formulaType = 'code';
       field.setMeta('^code', clause);
       this.requireBlock(clause);

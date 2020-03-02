@@ -88,10 +88,10 @@ export const builtinDefinitions = `
 / = do{in: 0; divisor: 2; builtin /}
 round-down = do{in: 0; builtin round-down}
 skip-white = do{in: ''; builtin skip-white}
->? = do{in: 0, with: 0, builtin >?}
->=? = do{in: 0, with: 0, builtin >=?}
-<? = do{in: 0, with: 0, builtin <?}
-<=? = do{in: 0, with: 0, builtin <=?}
+>? = do{in: 0, than: 0, builtin >?}
+>=? = do{in: 0, than: 0, builtin >=?}
+<? = do{in: 0, than: 0, builtin <?}
+<=? = do{in: 0, than: 0, builtin <=?}
 =? = do{in: anything, to: in, builtin =?}
 not=? = do{in: anything, to: in, builtin not=?}
 `

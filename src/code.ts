@@ -86,15 +86,21 @@ export class Statement extends Field {
   }
 }
 
-/** A Do block is a procedure that evaluates statements sequentially */
+/** A Do block is a procedure that evaluates statements sequentially without
+ * using the previous value */
 export class Do extends Code {
+  private _nominal: undefined;
+}
 
+/** A With block is a Do block that uses the previous value */
+export class With extends Code {
+  private _nominal: undefined;
 }
 
 /** A Call is a special Do block used to call a program. It contains a reference
  * to the program body followed by changes on the input arguments. The final
  * value is the program body modified with all supplied arguments. */
-export class Call extends Do {
+export class Call extends Code {
 
   /** whether call is asserting no rejections */
   get asserted(): boolean {

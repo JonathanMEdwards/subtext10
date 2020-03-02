@@ -49,7 +49,7 @@ export class Block<F extends Field = Field> extends Container<F> {
         // verify conditional naming
         if (
           field.id.name && field.id.token
-          && field.id.token.text.endsWith('?') !== field.conditional
+          && field.id.token.text.endsWith('?') !== !!field.conditional
         ) {
           throw new StaticError(
             field,

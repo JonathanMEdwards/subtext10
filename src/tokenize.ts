@@ -10,7 +10,7 @@ export type TokenType = (
   // keywords - add to matchToken switch statement
   | 'record' | 'choice' | 'table' | 'series' | 'do' | 'builtin' | 'anything'
   | 'nil' | 'try' | 'check' | 'not' | 'else' | 'reject' | 'let' | 'extra'
-  | 'that' | 'include'
+  | 'that' | 'include' | 'with'
 )
 
 export class Token {
@@ -203,6 +203,7 @@ export function tokenize(source: string): Token[] {
       switch (name) {
         case 'record':
         case 'do':
+        case 'with':
         case 'choice':
         case 'try':
         case 'check':

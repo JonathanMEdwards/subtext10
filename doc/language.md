@@ -253,17 +253,18 @@ x: record {
 ```
 This block contains two input items: `name`, which is an initially empty text, and `number`, which is initially the number `0`.
 
-The essential operations on a block are to read and change individual items. We read the items using paths, like `x.name` and `x.number`. To change an item we use a _change operation_ with the special operator `:=`:
+The essential operations on a block are to read and change individual items. We read the items using paths, like `x.name` and `x.number`. To change an item we use a _change operation_ with the special operator `:=`
 ```
-x do{.name := 'Joe'}
+x with{.name := 'Joe'}
 ```
-_How is this pronounced?_ The result of this operation is a record equal to the value of `x` except with the item `name` changed to `'Joe'`, while keeping the prior value of `number`. Note that the value of the item `x` is not changed as a result of this operation: a new and different record value is produced. We might name the item with this this new value:
+This is pronounced “x with name becoming Joe”. The result of this operation is a record equal to the value of `x` except with the item `name` changed to `'Joe'`, while keeping the prior value of `number`. We used a `with` block to contain the change operation, which is like a `do` block except that it feeds the previous value into a series of operations, rather than starting with a value. The equivalent `do` block would be:
 ```
-y = x do{.name := 'Joe'}
+do{x; .name := 'Joe'}
 ```
-We can also combine multiple changes:
+
+We can chain multiple changes together:
 ```
-y = x do{.name := 'Joe'; .number := 2}
+x with{.name := 'Joe'; .number := 2}
 ```
 Note how `.number :=` applies to the result of the previous change.
 
@@ -276,19 +277,19 @@ x: record {
     street: ''
     city: ''
 }
-y = x do{.address.street := '12 Main St'; .address.city := 'Springville'}
+y = x with{.address.street := '12 Main St'; .address.city := 'Springville'}
 ```
 
 Instead of using dotted paths, we can nest `do` blocks:
 ```
-y = x do{.address := do{.street := '12 Main St'; .city := 'Springville'}}
+y = x with{.address := with{.street := '12 Main St'; .city := 'Springville'}}
 ```
-Note how the block is nested: `.address := do{.street := ...}`. Here `.address :=` passes the current value of `x.address` as the input to the `do` block on its right, and then changes the `address` item to be the result. This is an example of _default inputs_. We saw earlier how the first call in a `do` block can take its input from the previous item before the `do` block. The change operation `:=` works similarly — any formula on the right will by default input from the current value of the item named on the left. Thus for example:
+Note how the block is nested: `.address := with{.street := ...}`. Here `.address :=` passes the current value of `x.address` as the input to the `with` block on its right, and then changes the `address` item to be the result. This is an example of _default inputs_. We saw earlier how calls can take an input from the previous item. The change operation `:=` works similarly — any formula on the right will by default input from the current value of the item named on the left. Thus for example:
 
 ```
-y = x do{.number := + 1}
+y = x with{.number := + 1}
 ```
-will increment the value of the `number` item. Note how this looks like an _assignment statement_ in an imperative language, which modifies values “in place”. Subtext only modifies by creating new values, so in the above example `x` is not changed. Some functional languages force you to rebuild such new values “bottom up”. The Subtext `:=` operation does that automatically, copying an entire tree-structured value with one path inside it replaced. Defaulting of inputs allows a `:=` to extract the current value at a path and transform it.
+will increment the value of the `number` item. Note how this looks like an _assignment statement_ in an imperative language, which modifies values “in place”. Subtext only modifies by creating new values, so in the above example `x` is not changed. Some functional languages force you to rebuild such new values “bottom up”. The Subtext `:=` operation does that automatically, copying an entire tree-structured value with one subtree replaced. Defaulting of inputs allows a `:=` to extract the current value at a path and transform it.
 
 Change operations can only be done on input items, those defined with `:`, not outputs defined with '='.
 
@@ -552,7 +553,7 @@ a-literal = expr |= literal
 
 The choice operation `|=` is similar to the change operation `:=`, except that it doesn’t require a dependent path on the left (one starting with `.`). However `|=` can also be used with a dependent path, which is useful when chaining nested choices:
 ```Txt
-a-plus = expr |= plus do{.left |= literal 2; .right |= literal 2}
+a-plus = expr |= plus with{.left |= literal 2; .right |= literal 2}
 ```
 Note how, like a `:=`, the result of `.left |= literal 2` is the containing `plus` term, not the `left` term. That allows chaining the subsequent `.right |= literal 2` statement.
 

@@ -161,7 +161,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
   /** whether item can reject having a value. Determined during analysis */
   conditional = false;
-  setConditional(b: boolean) {
+
+  setConditional(b?: boolean) {
     if (!b) return;
     if (this.workspace.analyzing) {
       this.conditional = true;
@@ -330,10 +331,14 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
   }
 
+  /** whether this item uses the value of the previous item */
+  usesPrevious = false;
+
   /** The previous item in evaluation order. Used by dependent references. */
   previous(): Item | undefined {
     // should only be used during analysis to bind references
     assert(this.workspace.analyzing);
+    this.usesPrevious = true;
     let container = this.container;
     let itemIndex = container.items.indexOf(this);
     assert(itemIndex >= 0);
@@ -409,6 +414,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     to.formulaType = this.formulaType;
     to.isInput = this.isInput;
     to.conditional = this.conditional;
+    to.usesPrevious = this.usesPrevious;
 
     // record copy
     to.source = this;

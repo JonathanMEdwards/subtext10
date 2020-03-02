@@ -35,6 +35,7 @@ export class Metafield extends Field<MetaID> {
   /** Previous item in metadata is previous item of the base data. Except ^rhs
    * goes to ^lhs */
   previous(): Item | undefined {
+    this.usesPrevious = true;
     if (this.id === MetaID.ids['^rhs']) {
       if (this.container.getMaybe('^option')) {
         // don't allow previous value access when choosing option

@@ -292,7 +292,7 @@ export class Reference extends Base {
 
         // check conditional access
         this.evalIfNeeded(target);
-        let conditional = target.conditional;
+        let conditional = !!target.conditional;
         if (target.container instanceof Code && !target.isInput) {
           // FIXME: only allow backward references within code
           // FIXME: outside references to outputs are conditionalized on block

@@ -1,4 +1,4 @@
-import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions, Code, Statement, StaticError, Try, Call  } from "./exports";
+import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions, Code, Statement, StaticError, Try, Call, Do, With  } from "./exports";
 
 /** A subtext workspace */
 export class Workspace extends Item<never, History> {
@@ -82,7 +82,7 @@ export class Workspace extends Item<never, History> {
     ws.analyzing = false;
     // initialize and recalc after analysis
     ws.initialize();
-    // check for unused code statements
+    // check for unused code statements and validate do/with blocks
     for (let item of ws.visit()) {
       if (
         item instanceof Statement &&
@@ -92,6 +92,12 @@ export class Workspace extends Item<never, History> {
         && !(item.container instanceof Call)
       ) {
         throw new StaticError(item, 'unused value')
+      }
+      if (item.value instanceof Do && item.usesPrevious) {
+        throw new StaticError(item, 'do-block cannot use previous value')
+      }
+      if (item.value instanceof With && !item.usesPrevious) {
+        throw new StaticError(item, 'with-block must use previous value')
       }
     }
     ws.eval();
