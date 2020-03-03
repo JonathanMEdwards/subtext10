@@ -224,10 +224,6 @@ test('try', () => {
 })
 
 test('recursion', () => {
-  expectCompiling("fac = do{n: 0, n fac()}")
-    .toThrow('recursion outside secondary try clause');
-  expectCompiling("fac = do{n: 0, try {n fac()}}")
-    .toThrow('recursion outside secondary try clause');
   expectDump(`
     fac = do{n: 0; try {check n <=? 0; 1} else {n - 1 fac() * n}},
     x = 1 fac()
@@ -238,6 +234,10 @@ test('recursion', () => {
     x = 4 fac()
     `)
     .toEqual({ fac: 1, x: 24 });
+  expectCompiling("fac = do{n: 0, n fac()}")
+    .toThrow('Recursive call outside secondary try clause');
+  expectCompiling("fac = do{n: 0, try {n fac()}}")
+    .toThrow('Recursive call outside secondary try clause');
   expectCompiling("fac = do{n: 0; try {check 0 <? 0, 1} else {n - 1 fac() * n}}")
     .toThrow('Workspace too deep');
 })
@@ -318,8 +318,10 @@ test('choices', () => {
     .toEqual({ a: { x: 1 }, b: { y: 'foo' } });
   expectDump("a = choice{x?: 1, y?: ''}; b = a |= y")
     .toEqual({ a: { x: 1 }, b: { y: '' } });
-  expectCompiling("a = choice{x?: 1, y?: ''}; b = a |= x + 1")
-    .toThrow('No previous value');
+  expectDump("a = choice{x?: 1, y?: ''}; b = a |= x + 1; c = b |= x")
+    .toEqual({ a: { x: 1 }, b: { x: 2 }, c: {x: 1} });
+  expectDump("a = choice{x?: 1, y?: ''}; b = a |= x + 1; c = b |= x + 1")
+    .toEqual({ a: { x: 1 }, b: { x: 2 }, c: {x: 2} });
   expectCompiling("a = choice{x?: 1, y?: ''}; b = a |= x 'foo'")
     .toThrow('changing type of value');
   expectCompiling("a = choice{x?: 1, y?: ''}; b = a |= z 'foo'")
@@ -332,18 +334,46 @@ test('choices', () => {
     .toThrow('conditional reference lacks suffix ?');
 })
 
-// test('recursive choices', () => {
-//   expectCompiling("a: choice{x?: a, y?: 1}")
-//     .toThrow('Illegal recursive reference');
-//   expectDump("a: choice{x?: 1, y?: a}")
-//     .toEqual({ a: { "x?": 1 } });
-//   expectDump("a: choice{x?: 1, y?: a}, b = a do{y? := $}")
-//     .toEqual({ a: { "x?": 1 }, b: { "y?": { "x?": 1 }} });
-//   expectDump("a: choice{x?: 1, y?: b}, b: choice{x?: 1, y?: a}")
-//     .toEqual({ a: { "x?": 1 }, b: { "x?": 1 } });
-//   expectCompiling("a: choice{x?: b, y?: 1}, b: choice{x?: a, y?: 1}")
-//     .toThrow('Illegal cyclic reference');
-// });
+test('recursive choices', () => {
+  expectDump("a: choice{x?: 1, y?: a}")
+  .toEqual({ a: { x: 1 } });
+  expectDump("a = choice{x?: 1, y?: a}")
+  .toEqual({ a: { x: 1 } });
+  expectCompiling("a: choice{x?: a, y?: 1}")
+    .toThrow('Circular reference');
+  expectDump("a: choice{x?: 1, y?: a}; b = a |= y")
+  .toEqual({ a: { x: 1 }, b: { y: { x: 1 }} });
+  expectDump("a: choice{x?: 1, y?: b}, b: choice{z?: 1, w?: a}")
+    .toEqual({ a: { x: 1 }, b: { z: 1 } });
+  expectDump(`
+  a: choice{x?: 1, y?: b}
+  b: choice{z?: 1, w?: a}
+  c = a |= y
+  `)
+   .toEqual({ a: { x: 1 }, b: { z: 1 }, c: { y: { z: 1 } } });
+  expectDump(`
+  a: choice{x?: 1, y?: b}
+  b: choice{z?: 1, w?: a}
+  c = a |= y |= w
+  `)
+    .toEqual({
+      a: { x: 1 },
+      b: { z: 1 },
+      c: { y: { w: { x: 1 } } }
+    });
+  expectDump(`
+  a: choice{x?: 1, y?: b}
+  b: choice{z?: 1, w?: a}
+  c = a |= y b
+  `)
+    .toEqual({
+      a: { x: 1 },
+      b: { z: 1 },
+      c: { y: { z: 1 } }
+    });
+  expectCompiling("a: choice{x?: b, y?: 1}, b: choice{x?: a, y?: 1}")
+    .toThrow('Circular reference');
+});
 
 // test('formula access', () => {
 //   expectDump("a = 0 do{foo = 1}, b = a~foo")

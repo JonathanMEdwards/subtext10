@@ -1,4 +1,4 @@
-import { Do, StaticError, arrayLast, Crash, Field, Code } from "./exports";
+import { Do, StaticError, arrayLast, Crash, Field, Code, assert } from "./exports";
 
 /** a try block is the basic control structure of Subtext. It contains a sequnce
  * of do-blocks called clauses. The clauses are executed in order until one does
@@ -51,8 +51,11 @@ export class Try extends Code {
           // immediately analyze first clause, setting result type
           analyzeClause();
         } else {
-          // defer non-first clauses so they can make recursive calls
-          this.workspace.analysisQueue.push(analyzeClause);
+          // defer secondary clauses so they can make recursive calls
+          assert(field.evaluated === false);
+          field.evaluated = undefined;
+          field.deferral = analyzeClause;
+          this.workspace.analysisQueue.push(field);
         }
         continue;
       }

@@ -130,5 +130,5 @@ export class FieldID {
 
 /** data block */
 export class Record extends Block {
-
+  private _nominal: undefined;
 }

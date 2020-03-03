@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -266,13 +266,12 @@ export class Parser {
     // literal value
     let literal = this.parseLiteral();
     if (literal) {
-      if (field.isInput) {
+      if (field.isInput && literal instanceof Base) {
         // literal input is stored as formula to allow reset
         field.formulaType = 'literal';
         field.setMeta('^literal', literal);
       } else {
-        // literal output stored directly in value of field without a formula
-        // to avoid infinite regress
+        // non-base inputs and literal outputs stored directly in value of field
         field.formulaType = 'none';
         field.value = literal;
         literal.containingItem = field;

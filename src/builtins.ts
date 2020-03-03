@@ -48,7 +48,6 @@ export function evalBuiltin(statement: Statement, name: string) {
   }
 
   // set result into item if defined
-  statement.prune();
   if (result === undefined) {
   } else if (typeof result === 'number') {
     let value = new Numeric;

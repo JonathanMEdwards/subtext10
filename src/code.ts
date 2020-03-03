@@ -1,4 +1,4 @@
-import { Block, Field, assert, StaticError, Guard, Path, cast, Reference, Token, assertDefined, another, arrayLast, Crash, PendingValue, trap, arrayReverse } from "./exports";
+import { Block, Field, assert, StaticError, Guard, Path, cast, Reference, Token, assertDefined, another, arrayLast, Crash, trap, arrayReverse } from "./exports";
 
 /** A Code block is evaluated to produce a result value. The fields of the block
  * are called statements */
@@ -160,7 +160,7 @@ export class Call extends Code {
     // copy just inputs of code
     let inputDefs = another(def);
     first.setValue(inputDefs);
-    first.evalComplete = true;
+    first.evaluated = true;
     def.fields.forEach(field => {
       if (!field.isInput) return;
       // copy context is entire definition

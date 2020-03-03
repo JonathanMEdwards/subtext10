@@ -1,4 +1,4 @@
-import { arrayEquals, Base, Token, Path, Item, assert, MetaID, PendingValue, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice } from "./exports";
+import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice } from "./exports";
 
 /** Guard on an ID in a reference */
 export type Guard = '?' | '!' | undefined;
@@ -84,10 +84,6 @@ export class Reference extends Base {
 
       // evaluate on way down if needed
       this.evalIfNeeded(target);
-      if (target.value instanceof PendingValue) {
-        // cyclic dependency - should have been caught during binding
-        trap();
-      }
 
       // check guards within context
       if (i >= this.context) {
@@ -123,6 +119,8 @@ export class Reference extends Base {
     if (!item.value && !item.rejected) {
       item.eval();
     }
+    // resolve deferred item
+    item.resolve();
   }
 
   // bind reference during analysis
@@ -163,7 +161,7 @@ export class Reference extends Base {
       let call = change.container.containingItem;
       assert(call.id.toString() === '^call');
       target = this.previous(call, this.tokens[0]);
-      if (target.value instanceof PendingValue) {
+      if (target.evaluated === undefined) {
         throw new StaticError(this.tokens[0], 'Circular reference')
       }
       this.path = target.path;
@@ -235,12 +233,14 @@ export class Reference extends Base {
         }
       } else if (type === 'call') {
 
-        // detect illegal recursion
-        if (target.value instanceof PendingValue) {
-          throw new Crash(
-            this.tokens[i - 1],
-            'recursion outside secondary try clause'
-          );
+        if (target.evaluated === undefined) {
+          // illegal recursion
+          // FIXME - appears now caught by evaling reference
+          trap();
+          // throw new Crash(
+          //   this.tokens[i - 1],
+          //   'recursion outside secondary try clause'
+          // );
         }
 
         // dereferences formula body in a call
@@ -260,9 +260,11 @@ export class Reference extends Base {
         // follow path into value
         // evaluate target if needed
         this.evalIfNeeded(target);
-        if (target.value instanceof PendingValue) {
+        if (!target.value) {
           // cyclic dependency
-          throw new StaticError(token, 'Circular reference')
+          // FIXME - Don't think this can happen anymore
+          trap();
+          // throw new StaticError(token, 'Circular reference')
         }
         if (name === '~') {
           // access extra results in metadata
@@ -289,9 +291,17 @@ export class Reference extends Base {
           // undefined name
           throw new StaticError(token, 'Undefined name')
         }
+        this.evalIfNeeded(target);
+        if (!target.value) {
+          // cyclic dependency
+          let lastToken = arrayLast(this.tokens);
+          if (lastToken.type === 'call') {
+            throw new StaticError(lastToken, 'Recursive call outside secondary try clause')
+          }
+          throw new StaticError(lastToken, 'Circular reference')
+        }
 
         // check conditional access
-        this.evalIfNeeded(target);
         let conditional = !!target.conditional;
         if (target.container instanceof Code && !target.isInput) {
           // FIXME: only allow backward references within code
@@ -318,7 +328,8 @@ export class Reference extends Base {
       guards.push(guard);
     }
 
-    if (target.value instanceof PendingValue) {
+    target.resolve();
+    if (target.evaluated === undefined) {
       // cyclic dependency
       throw new StaticError(arrayLast(this.tokens), 'Circular reference')
     }
@@ -363,7 +374,11 @@ export class Reference extends Base {
     if (!item) {
       throw new StaticError(token, 'No previous value');
     }
-    if (item.conditional && !(item.container instanceof Code)) {
+    if (
+      item.conditional
+      && !(item.container instanceof Code)
+      && !(item.container instanceof Choice)
+    ) {
       // in data block, prev value can't be conditional
       throw new StaticError(
         token,

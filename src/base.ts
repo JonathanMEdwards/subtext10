@@ -1,7 +1,7 @@
 import { Value, another, Path, escapedString } from "./exports";
 
 /** Base items contain no other items */
-export abstract class Base extends Value {
+export class Base extends Value {
 
   // base values already evaluated by default
   eval() { }
@@ -9,6 +9,8 @@ export abstract class Base extends Value {
   initialize() { }
 
   get isGeneric() { return false }
+
+  dump() {}
 }
 
 /**
@@ -84,15 +86,4 @@ export class Anything extends Base {
 
   // dump as undefined
   dump() { return undefined };
-}
-
-/** PendingValue is used to detect cyclic formulas */
-export class PendingValue extends Base {
-
-  equals(other: any) {
-    return false;
-  }
-
-  // dump as special object
-  dump() { return { '': 'Pending'} };
 }

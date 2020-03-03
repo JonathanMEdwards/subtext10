@@ -1,4 +1,4 @@
-import { MetaID, VersionID, assert, FieldID, Base, another, Token, Item, trap, StaticError, Block, Value, arrayEquals, PendingValue, arrayLast } from "./exports";
+import { MetaID, VersionID, assert, FieldID, Base, another, Token, Item, trap, StaticError, Block, Value, arrayEquals, arrayLast } from "./exports";
 
 /**
  * ID of an item. Immutable and interned, so can use ===

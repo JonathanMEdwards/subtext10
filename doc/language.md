@@ -557,6 +557,8 @@ a-plus = expr |= plus with{.left |= literal 2; .right |= literal 2}
 ```
 Note how, like a `:=`, the result of `.left |= literal 2` is the containing `plus` term, not the `left` term. That allows chaining the subsequent `.right |= literal 2` statement.
 
+Note that `|=` always initializes the chosen option to its orginally defined value, even if it was already chose and had a different value. Likewise, the optional expression to the right of the option will be given a previous value that is the initially defined value of the option. Thus for example `|= literal + 1` will always result in 1. This is useful when program arguments are choices, for example `f(|= red)` will choose the initial value of the `red` option of a choice argument.
+
 Sometimes there is no value of interest to associate with an option — we want it to indicate just that we made the choice. This is called an _enumeration_ in many languages. We use the special value `nil` in this case:
 ```Txt
 color: choice {

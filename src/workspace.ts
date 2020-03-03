@@ -1,4 +1,4 @@
-import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions, Code, Statement, StaticError, Try, Call, Do, With  } from "./exports";
+import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions, Code, Statement, StaticError, Try, Call, Do, With, assert  } from "./exports";
 
 /** A subtext workspace */
 export class Workspace extends Item<never, History> {
@@ -8,8 +8,8 @@ export class Workspace extends Item<never, History> {
   _path = Path.empty;
   _workspace = this;
 
-  /** whether analyzing workspace - effects evaluation logic */
-  analyzing = false;
+  /** whether eval() should do analysis */
+  analyzing: boolean = false;
 
   /** serial numbers assigned to FieldIDs */
   fieldSerial = 0;
@@ -42,8 +42,8 @@ export class Workspace extends Item<never, History> {
     return this.currentVersion.down(path).dump();
   }
 
-  /** queue of deferred analysis functions */
-  analysisQueue: (() => void)[] = [];
+  /** queue of items with deferred analysis */
+  analysisQueue: Item[] = [];
 
   /** compile a doc
    * @param source
@@ -76,7 +76,14 @@ export class Workspace extends Item<never, History> {
 
     // execute deffered analysis
     while (ws.analysisQueue.length) {
-      (ws.analysisQueue.shift()!)();
+      let item = ws.analysisQueue.shift()!;
+      // ignore pruned structures
+      for (let up = item; up; up = up.container.containingItem) {
+        if (up instanceof Workspace) {
+          item.resolve();
+          break;
+        }
+      }
     }
 
     ws.analyzing = false;

@@ -31,10 +31,23 @@ export class Choice extends Block {
       return;
     }
     // analyze all choices
-    this.fields.forEach(field => {
-      // TODO: defer analysis of secondary choices
-      assert(field.isInput && field.conditional);
-      field.eval();
+    // validate option definitions
+    this.fields.forEach(option => {
+      assert(option.isInput && option.conditional);
+    })
+    // analyze first option
+    this.fields[0].eval();
+    // defer analysis of rest of options to permit recursion
+    this.fields.slice(1).forEach(option => {
+      if (option.evaluated || option.deferral) {
+        // skip options that are already evaluated or deferred
+        return;
+      }
+      option.evaluated = undefined
+      option.deferral = (
+        () => { option.eval(); }
+      )
+      this.workspace.analysisQueue.push(option);
     })
   }
 
