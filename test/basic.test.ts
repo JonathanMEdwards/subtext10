@@ -214,11 +214,11 @@ test('try', () => {
   expectDump("a? = try {0 >? 1} else reject")
     .toEqual({ a: false })
   expectCompiling("a = try {0} else {0 >? 1}")
-    .toThrow('try clause must be conditional if not last')
+    .toThrow('clause must be conditional if not last')
   expectCompiling("a? = try {0} else reject")
-    .toThrow('try clause must be conditional if not last')
+    .toThrow('clause must be conditional if not last')
   expectCompiling("a = try {0 >? 1} else {'foo'}")
-    .toThrow('try clauses must have same type result')
+    .toThrow('clauses must have same type result')
   expectDump("a = 0 try {>? 1} else {+ 2}")
     .toEqual({ a: 2 })
 })
@@ -375,6 +375,48 @@ test('recursive choices', () => {
     .toThrow('Circular reference');
 });
 
+test('exports', () => {
+  expectDump("a = do{1; export 2}, b = a~")
+    .toEqual({a: 1, b: 2})
+  expectDump("a = do{do{1; export 2}}, b = a~")
+    .toEqual({a: 1, b: 2})
+  expectDump("a = do{1; export foo = 2}, b = a~")
+    .toEqual({ a: 1, b: { foo: 2 } })
+  expectDump(`
+  a = do {
+    try
+      clause1? = {1 >? 0; export 2 }
+      clause2? = else {1; export 'foo'}}
+  b = a~
+  `)
+    .toEqual({ a: 0, b: {clause1: 2} })
+  expectDump(`
+  a = do {
+    try
+      clause1? = {0 >? 1; export 2 }
+      clause2? = else {2; export 'foo'}}
+  b = a~
+  `)
+    .toEqual({ a: 2, b: {clause2: 'foo'} })
+  expectDump(`
+  a = do {
+    try
+      clause1? = {0 >? 1; export 2 }
+      clause2? = else {2; export 'foo'}}
+  b? = a~clause2?
+  `)
+    .toEqual({ a: 2, b: 'foo' })
+  expectDump(`
+  a = do {
+    try
+      clause1? = {0 >? 1; export 2 }
+      clause2? = else {2; export 'foo'}}
+  b? = a~clause1?
+  `)
+    .toEqual({ a: 2, b: false })
+
+})
+
 // test('formula access', () => {
 //   expectDump("a = 0 do{foo = 1}, b = a~foo")
 //     .toEqual({ a: 0, b: 1 });
@@ -385,9 +427,9 @@ test('recursive choices', () => {
 //   expectCompiling("a: 0 do{foo = 1}, b = a~foo")
 //     .toThrow('Undefined formula access');
 //   // set command
-//   expectDump("a = 0 do{foo = := $ + 1}, b = a~foo")
+//   expectDump("a = 0 do{foo = := ~ + 1}, b = a~foo")
 //     .toEqual({ a: 1, b: 1 });
-//   expectDump("a = 0 do{foo = := $ + 1}, b = a~, c = b.foo")
+//   expectDump("a = 0 do{foo = := ~ + 1}, b = a~, c = b.foo")
 //     .toEqual({ a: 1, b: {foo: 1} , c: 1 });
 //   // conditional
 //   expectDump(

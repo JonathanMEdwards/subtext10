@@ -32,7 +32,7 @@ This section summarizes the notable programming language features of Subtext.
 * One IF to rule them all: there is a single mechanism of conditionality: partial programs which either return a result or reject their input. Inspired by SNOBOL, this single mechanism provides conventional control structures, backtracking logic, pattern matching, assertions, and data invariants.
 * Programs are not abstract entities, defined in one place then used in others. Instead programs, sometimes represented as formulas, compute a result from concrete inputs. Any such computation can be reused, with a conventional-looking call syntax, optionally replacing its input values. All programs are continuously executing on concrete input values. Programs can be edited live, immediately seeing the execution results, as in a spreadsheet.
 * Calling a program is materialized as inlining a copy of it. Lexical closures fall out of the way that relative paths within a subtree are mapped through copies.
-* programs can have extra results, which do not need to be captured at the call site as in conventional approaches. The extra results of a program are a record. Extra results of conditional clauses are combined into a discriminated union. The extra results of a loop are collected into a list.
+* programs can have extra _exported_ results, which do not need to be deconstructed at the call site as in conventional approaches. The exports of a program form a record. Exports of conditional clauses are combined into a discriminated union. Exports of a loop are collected into a list.
 * Subtext is statically (parametrically) typed, but types are not mentioned in the language nor error messages. Concrete values serve as witnesses of types. 
 * Lists are homogeneuoulst typed. Lists of records serve as a table.
 * Lists can be tracked by automatically assigning hidden unique IDs to their items. Tracking supports stable links into lists that act like database foreign keys with referential ingegrit maintenance. Tracking also supports precise workspace versioning and mergeing. 
@@ -321,15 +321,15 @@ temp ...
 ```
 A `let` item is also hidden from references outside the block.
 
-### Extra results
+### Exports
 
-The result of a program is the value of the last item. However we often would like to return extra results from a program. For example, integral division would like to return not only the integral ratio but the fractional remainder as well:
+The result of a program is the value of the last item. However we often would like to get extra results from a program. For example, integral division would like to produce not only the integral ratio but also the fractional remainder as well. We allow extra values to be _exported_ from a program. For example:
 ```
 integral-divide = do {
   numerator: 1
   divisor: 1
   ratio = numerator /(divisor) floor()
-  extra remainder = numerator -(ratio * divisor)
+  export remainder = numerator -(ratio * divisor)
 }
 x = 5 integral-divide 3  // 1
 y = x~remainder // 2
@@ -340,18 +340,17 @@ Skipping to the definition of `x`, we see that it calls the program `integral-di
 2. Its input item `numerator` becomes `5`
 3. Its input item `divisor` becomes `3`
 4. The output item `ratio` is calculated to be 1 using the `floor` program to round-down the division
-5. The extra result `remainder` is calculated from `ratio` as 2. 
-6. The `extra` statement acts like a `let`, passing on the previous value, so `ratio` becomes the final result of the program. 
-7. After the call, the item `y` references `x~remainder`, which is the extra result `remainder` produced in the computation of `x`.
+5. The remainder is exported with the name`remainder`
+6. The `export` statement acts like a `let`, passing on the previous value, so `ratio` becomes the final result of the program. 
+7. After the call, the item `y` references `x~remainder`, which imports the export `remainder` produced in the computation of `x`. We pronounce `x~remainder` as “x import remainder”.
 
-What is going on here is that `x~` accesses the _extra result_ of the program that computed the value of `x`. The extra result of a `do` block is a record containing the values of the outputs prefaced with `extra`. The extra result `remainder` can be accessed as `x~.remainder`, or `x~remainder` for short. We also could have equivalently said `y = ~remainder` to access the extra result of the previous item without naming it.
+What is going on here is that `x~` imports the exported value of the program that computed the value of `x`. A `do` block exports a record containing the values of all the `export` statements. The export `remainder` can be accessed as `x~.remainder`, or `x~remainder` for short. We also could have equivalently said `y = ~remainder` to import the export of the previous item without naming it.
 
-Note that in the example above, `x` is defined as `5 integral-divide 3`, which is equivalent to the `do` block: `do {5; integral-divide 3}`. There are no `extra` statements in this `do` block. In that case, the extra result of the last item (the call to `integral-divide`) is promoted to be the extra result of the whole block. That allows us to say `x~remainder`. You can also declare a single value to be the extra result of the entire block explicitly with a statement `extra ...` that does not name the result, and which is only allowed if there are no other `extra` statements in the block. 
-So when there are no `extra` statements, there is an implicit `extra ~` at the end of the block exporting the extra results of the final item.
+Note that in the example above, `x` is defined as `x = 5 integral-divide 3`, which is equivalent to the `do` block: `x = do {5; integral-divide 3}`. There are no `export` statements in this `do` block. In that case, if the last statement (the call to `integral-divide`) has an export then it is exported from the whole do-block. That allows us to say `x~remainder`. You can also declare a single value to be the export of the entire block explicitly with a statement `export ...` that does not name the result, and which is only allowed if there are no other `export` statements in the block. This when there are no `export` statements, there is an implicit `export ~` at the end of the block re-exporting the exports of the final statement.
 
 ### TODO: Reference binding
 
-The syntax uses conventional _lexical binding_, but the UI will not be constrained by that, nor subject to lexical shadowing. References starting with `.`, `~`, or `that` are _dependent_ on the previous value.
+The syntax uses conventional _lexical binding_, but the UI will not be constrained by that, nor subject to lexical shadowing. References starting with `.`, `~` or `that` are _dependent_ on the previous value.
 
 > When the UI lets the developer make references that can’t be expressed lexically, we might want to automatically fix that by adding names to anonymous items and renaming shadowed items.
 
@@ -397,7 +396,7 @@ x do {
 
 Only output items can be conditional, not input items, which would introduce problematic _null_ values. See _Missing values_ for further discussion of alternative techniques.
 
-When a program rejects, what happens depends on the kind of block it is inside. Inside a `do` block (and other program blocks to be introduced later), rejection halts further execution, and causes the whole program block to reject. What happens next depends on the kind of block containing that block — if it is also a `do` block then the rejection continues to propagates into the containing block. This proceeds until the rejection reaches one of several kinds of block that handle rejections, for example the `try` block\_.  Rejection is like \_exception catching\_ in conventional languages, except that it is the single kind of exception supported, and it carries no extra information visible to the program.
+When a program rejects, what happens depends on the kind of block it is inside. Inside a `do` block (and other program blocks to be introduced later), rejection halts further execution, and causes the whole program block to reject. What happens next depends on the kind of block containing that block — if it is also a `do` block then the rejection continues to propagates into the containing block. This proceeds until the rejection reaches one of several kinds of block that handle rejections, for example the `try` block.  Rejection is like _exception catching_ in conventional languages, except that it is the single kind of exception supported, and it carries no extra information visible to the program.
 
 A `try` block is a program that can respond to a rejection by doing something else — it fills the role of the ubiquitous _IF_ statement in conventional languages. Here is an example:
 ```Txt
@@ -619,7 +618,7 @@ check n[1] =? 1
 check n[2] =? 2
 ```
 
-When an item is accessed, the `~index` extra result is the index value:
+When an item is accessed, the index value is exported as `~index`:
 ```
 x = n[i]
 check x~index =? i
@@ -918,7 +917,7 @@ Sometimes when matching sequential patterns like this we want to combine the ent
 check selected() =? 'foobar'
 ```
 
-Another useful matching program is `match-number?` which matches a numeric text and returns its numeric value as an extra result `~value`. For example:
+Another useful matching program is `match-number?` which matches a numeric text and exports its numeric value as `~value`. For example:
 ```
 '123foo' 
 match-number?()
@@ -966,19 +965,19 @@ eval-expr = program {
 }
 ```
 
-When we produce a recursive choice like `expr` while parsing text it is sometimes called an AST (Abstract Syntax Tree). Often that requires a lot of repetitive code in the parser to assemble the AST as it is being parsed. We can produce an AST just by adding extra results to the parsing code, as follows:
+When we produce a recursive choice like `expr` while parsing text it is sometimes called an AST (Abstract Syntax Tree). Often that requires a lot of repetitive code in the parser to assemble the AST as it is being parsed. We can produce an AST just by exporting from the parsing code, as follows:
 
 ```Txt
 '1+1' 
 match-expr? = try literal? = {
   match-number?()
-  extra ~value 
+  export ~value 
 } else plus? = {
   match-expr?()
-  extra left = ~
+  export left = ~
   match? '+'
   match-expr?()
-  extra right = ~ 
+  export right = ~ 
 } else reject
 
 eval-expr = program {
@@ -994,7 +993,7 @@ test {
 }
 ```
 
-The extra result of a `try` block is a choice, and the extra result of a recursive `try` block is a recursive choice. So the extra result of `match-expr` is an AST. The clauses of the `try` block are labeled `literal?` and `plus?` like in the `expr` choice. Completing the correspondence, the matched number is returned as the extra result of the `literal?` clause, and the left and right ASTs are returned as named extra results of the `plus?` clause. So the extra result of `match-expr` matches the earlier definition of `expr`.  In `eval-expr`, `ast: match-expr~` says the input of the program must be the extra result of `match-expr`. The rest of the code is identical to `eval-expr`.
+The export of a `try` block is a choice, and the export of a recursive `try` block is a recursive choice. So the export of `match-expr` is an AST. The clauses of the `try` block are labeled `literal?` and `plus?` like in the `expr` choice. Completing the correspondence, the matched number is returned as the export of the `literal?` clause, and the left and right ASTs are exported with corresponding name from the `plus?` clause. So the export of `match-expr` matches the earlier definition of `expr`.  In `eval-expr`, `ast: match-expr~` says the input of the program must be the export of `match-expr`. The rest of the code is identical to `eval-expr`.
 
 ### Repeats
 
@@ -1024,18 +1023,18 @@ The recursive call `continue?()` has a question mark because the repeat block ca
 > 
 > When repeats are nested it may be useful to have continue specify a name of the block as in `continue foo-loop()`. 
 
-> Perhaps a `visit` block that can be multiply-recursive, and collects the extra results in the order of execution, concatenating them as in a “flat map”. Combined with skipping of conditional extras, this allows arbitrary search algorithms to be easily written.
+> Perhaps a `visit` block that can be multiply-recursive, and collects the exports in order of execution, concatenating them as in a “flat map”. Combined with skipping of conditional exports, this allows arbitrary search algorithms to be easily written.
 
  
-## Repeated extra results
+## Repeated exports
 
-When we parse a CSV we typically want to produce a series of the numeric values. We can do that by adding an extra result:
+When we parse a CSV we typically want to produce a series of the numeric values. We can do that by adding an export:
 
 ```
 '1,2,3'
 csv = repeat { 
   match-number?()
-  extra ~value
+  export ~value
   optionally {
     match? ','
     continue?()
@@ -1045,7 +1044,7 @@ csv = repeat {
 check csv~ =? (series{0} & 1 & 2 & 3)
 ```
 
-Recall that the extra result of a `do` block is a record, and the extra result of a `try` block is a choice. The extra result of a `repeat` block is a series, with each item containing the extra result of an iteration of the block. The statement `extra ~value` declares the result of the block to be the numeric value from the prior call to `match-number?()`. So the extra result of the entire `repeat` is a series of matched numbers. 
+Recall that the export of a `do` block is a record, and the export of a `try` block is a choice. The export of a `repeat` block is a series, with each item containing the export of an iteration of the block. The statement `export ~value` exports the numeric value from the prior call to `match-number?()`. So the export of the entire `repeat` is a series of matched numbers. 
 
 ### Scanning
 
@@ -1144,7 +1143,7 @@ Name := Word | Operator
 Word := [a-z A-Z] ([a-z A-Z 0-9 _ \-]* [[a-z A-Z 0-9])? // can't be keyword
 Operator := '+'|'-'|'*'|'/'|'='|'not='|'>'|'>='|'<'|'<='|'&'|'&&'
 
-Dataflow := 'check' | 'let' | 'extra'
+Dataflow := 'check' | 'let' | 'export'
 
 Formula := Value? Op*
 
@@ -1210,7 +1209,7 @@ Path := GuardedName? RelPath
 RelPath := step*
 Step :=
 	| '.' GuardedName			// data
-	| '~' GuardedName?			// extra result
+	| '~' GuardedName?			// import
 	| '^' GuardedName?			// metadata - internal use only
 	| '[' Formula? ']'			// Index
 ```

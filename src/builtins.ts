@@ -57,12 +57,9 @@ export function evalBuiltin(statement: Statement, name: string) {
     let value = new Text;
     value.value = result
     statement.setValue(value);
-  } else if (!result.containingItem) {
-    // Use detached Value
-    statement.setValue(result);
   } else {
-    // copy attached value
-    statement.setValue(result.copy(result.containingItem.path, statement.path));
+    // set or copy value
+    statement.setOrCopyValue(result);
   }
 }
 

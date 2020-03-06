@@ -86,15 +86,17 @@ export class Workspace extends Item<never, History> {
       }
     }
 
-    ws.analyzing = false;
-    // initialize and recalc after analysis
+    // initialize to force recalc after analysis
     ws.initialize();
+
+    ws.analyzing = false;
     // check for unused code statements and validate do/with blocks
     for (let item of ws.visit()) {
       if (
         item instanceof Statement &&
         !item.used
         && item.dataflow !== 'check'
+        && item.dataflow !== 'export'
         && !(item.container instanceof Try)
         && !(item.container instanceof Call)
       ) {

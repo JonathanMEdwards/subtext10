@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -121,7 +121,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         }
         if (copy.formulaType === 'none') {
           let value = assertDefined(copy.value);
-          copy.prune();
+          copy.detachValue();
           initial.setValue(value);
         }
         return initial;
@@ -135,13 +135,25 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
   /** set a metadata field by name. Must not already exist. Value can be
    * undefined */
-  setMeta(name: string, value?: Value): Field {
+  setMeta(name: string, value?: Value): Metafield {
     if (!this.metadata) {
       // allocate metadata block
       this.metadata = new Metadata;
       this.metadata.containingItem = this;
     }
     return this.metadata.set(name, value);
+  }
+
+  /** create or replace metadata with copy of value of item */
+  copyMeta(name: string, item: Item): Metafield {
+    let meta = this.getMaybe(name) as Metafield;
+    if (meta) {
+      meta.detachValue();
+    } else {
+      meta = this.setMeta(name);
+    }
+    meta.copyValue(item);
+    return meta;
   }
 
   /**
@@ -210,6 +222,23 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    * this.evaluated should be set undefined */
   deferral?: () => void;
 
+  /** resolve deferral, leaving item evaluated */
+  resolve() {
+    let deferral = this.deferral;
+    if (!deferral) return;
+    assert(this.workspace.analyzing);
+    // set item unevaluated, with deferral to catch cycles
+    this.evaluated = false;
+    this.deferral = () => {
+      throw new StaticError(this, 'circular dependency')
+    }
+    // execute thunk
+    deferral();
+    // item should have been evaluated
+    assert(this.evaluated);
+    this.deferral = undefined;
+  }
+
   /** max depth of items */
   static readonly DepthLimit = 100;
 
@@ -255,23 +284,17 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           break;
 
         case 'code':
-          let code = cast(this.get('^code').value, Code);
-          this.setConditional(code.conditional);
-          this.rejected = code.rejected;
-          this.copyValue(code.result);
+          this.result(cast(this.get('^code').value, Code));
+          break;
+
+        case 'call':
+          this.result(cast(this.get('^call').value, Call));
           break;
 
         case 'change':
         case 'changeInput':
         case 'choose':
           this.change();
-          break;
-
-        case 'call':
-          let call = cast(this.get('^call').value, Call);
-          this.setConditional(call.conditional);
-          this.rejected = call.rejected;
-          this.copyValue(call.result);
           break;
 
         case 'include':
@@ -294,21 +317,25 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     this.evaluated = true;
   }
 
-  /** resolve deferral, leaving item evaluated */
-  resolve() {
-    let deferral = this.deferral;
-    if (!deferral) return;
-    assert(this.workspace.analyzing);
-    // set item unevaluated, with deferral to catch cycles
-    this.evaluated = false;
-    this.deferral = () => {
-      throw new StaticError(this, 'circular dependency')
+  /** get result of code or call */
+  private result(code: Code) {
+    this.setConditional(code.conditional);
+    this.rejected = code.rejected;
+    this.copyValue(code.result);
+
+    if (code.export) {
+      let exportField = this.copyMeta('^export', code.export);
+      exportField.setConditional(code.conditional);
+      exportField.rejected = code.rejected;
+    } else {
+      let exportField = this.getMaybe('^export');
+      if (exportField) {
+        // runtime rejection of export
+        assert(code.rejected);
+        exportField.rejected = true;
+        exportField.detachValue();
+      }
     }
-    // execute thunk
-    deferral();
-    // item should have been evaluated
-    assert(this.evaluated);
-    this.deferral = undefined;
   }
 
   /** evaluate change/choose operation */
@@ -373,7 +400,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     this.setConditional(source.conditional);
     if (source.rejected) this.rejected = true;
 
-    target.prune()
+    target.detachValue()
     target.copyValue(source);
     if (this.formulaType === 'changeInput') {
       // initialize call body to recalc input defaults
@@ -423,13 +450,14 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
   /** initialize all values */
   initialize() {
+    this.resolve();
     if (this.metadata) this.metadata.initialize();
     this.evaluated = false;
     assert(this.formulaType);
     if (this.formulaType !== 'none') {
       // recalc value
       this.rejected = false;
-      if (this.value) this.prune();
+      if (this.value) this.detachValue();
       return;
     }
     // recurse on predefined values
@@ -437,8 +465,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     this.value!.initialize();
   }
 
-  /** prune value, so it can be set */
-  prune() {
+  /** detach value, so a new one can be set */
+  detachValue() {
     assert(this.value?.containingItem === this);
     this.value.containingItem = undefined as any;
     this.value = undefined;
@@ -457,6 +485,17 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   copyValue(src?: Item) {
     if (src && src.value) {
       this.setValue(src.value.copy(src.path, this.path));
+    }
+  }
+
+  /** set or copy a Value, depending on whether it is attached */
+  setOrCopyValue(value: Value) {
+    if (value.containingItem) {
+      // copy attached value
+      this.setValue(value.copy(value.containingItem.path, this.path));
+    } else {
+      // set detached Value
+      this.setValue(value);
     }
   }
 
@@ -506,7 +545,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           to.metadata.containingItem = to;
         }
         let newValue = newCopy.value!;
-        newCopy.prune();
+        newCopy.detachValue();
         to.setValue(newValue);
         // evaluate
         to.eval();

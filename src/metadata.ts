@@ -20,9 +20,8 @@ export class Metadata extends Block<Metafield> {
     // define as literal output field (a constant)
     field.isInput = false;
     field.formulaType = 'none';
-    field.value = value;
     if (value) {
-      value.containingItem = field;
+      field.setValue(value);
     }
 
     return field;
@@ -72,7 +71,7 @@ export class MetaID extends FieldID {
 
   /** predefined metadata IDs */
   static ids: Dictionary<MetaID> = {
-    '^~': new MetaID('^~'),                 // Extra results
+    '^export': new MetaID('^export'),       // Exported value
     '^literal': new MetaID('^literal'),     // Literal formula
     '^reference': new MetaID('^reference'), // Reference formula
     '^code': new MetaID('^code'),           // Code block

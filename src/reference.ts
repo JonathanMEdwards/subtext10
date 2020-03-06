@@ -16,9 +16,8 @@ export type Guard = '?' | '!' | undefined;
 export class Reference extends Base {
 
   /** Tokens of path in source. May have leading 'that' token. Name tokens have
-   * leading ^ and trailing ?/!. '~' token used for extra results.
-   * Special tokens used for binding calls: call, arg1, arg2, input.
-   * Number tokens are used for testing */
+   * leading ^/~ and trailing ?/!. Special tokens used for binding calls: call,
+   * arg1, arg2, input. Number tokens are used for testing */
   tokens!: Token[];
 
   /** reference is dependent if starts with 'that' */
@@ -267,8 +266,8 @@ export class Reference extends Base {
           // throw new StaticError(token, 'Circular reference')
         }
         if (name === '~') {
-          // access extra results in metadata
-          name = '^~';
+          // exports are in metadata
+          name = '^export';
         }
       }
 

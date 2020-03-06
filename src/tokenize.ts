@@ -4,12 +4,12 @@ import { arrayLast } from "./exports";
  */
 
 export type TokenType = (
-  ':' | '=' | ':=' | '|=' | '.' | ',' | ';' | '{' | '}' | '(' | ')' | '~'
+  ':' | '=' | ':=' | '|=' | '.' | ',' | ';' | '{' | '}' | '(' | ')'
   | '[' | ']' | 'string' | 'number' | '_number_' | 'name' | 'end' | '\n'
   | 'call' | 'arg1' | 'arg2' | 'input'
   // keywords - add to matchToken switch statement
   | 'record' | 'choice' | 'table' | 'series' | 'do' | 'builtin' | 'anything'
-  | 'nil' | 'try' | 'check' | 'not' | 'else' | 'reject' | 'let' | 'extra'
+  | 'nil' | 'try' | 'check' | 'not' | 'else' | 'reject' | 'let' | 'export'
   | 'that' | 'include' | 'with'
 )
 
@@ -169,10 +169,9 @@ export function tokenize(source: string): Token[] {
     if (match(')')) return ')';
     if (match('[')) return '[';
     if (match(']')) return ']';
-    if (match('~')) return '~';
 
-    // match name, optionally prefixed by metadata character
-    if (matchAlpha() || match('^')) {
+    // match name, optionally prefixed by metadata or importcharacter
+    if (matchAlpha() || match('^') || match('~')) {
       while (true) {
         // allow internal hyphen and underscore
         if (match('-') || match('_')) {
@@ -208,7 +207,7 @@ export function tokenize(source: string): Token[] {
         case 'try':
         case 'check':
         case 'let':
-        case 'extra':
+        case 'export':
         case 'not':
         case 'else':
         case 'reject':

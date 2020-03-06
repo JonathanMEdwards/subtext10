@@ -131,11 +131,15 @@ export class Parser {
             'check only allowed in program blocks',
             this.prevToken);
         }
-      } else if (this.parseToken('extra')) {
-        field.dataflow = 'extra';
+      } else if (this.parseToken('export')) {
+        field.dataflow = 'export';
         if (!(block instanceof Code)) {
           throw this.setError(
-            'extra only allowed in program blocks',
+            'export only from program blocks',
+            this.prevToken);
+        } else if (block instanceof Try) {
+          throw this.setError(
+            'export from Try must be inside clause',
             this.prevToken);
         }
       }
@@ -189,7 +193,7 @@ export class Parser {
       throw this.setError('Cannot define metadata', nameToken);
     }
     if (name.startsWith('~')) {
-      throw this.setError('Cannot define extra result', nameToken);
+      throw this.setError('Cannot define export', nameToken);
     }
     if (name.endsWith('!') || name === '?') {
       throw this.setError('Invalid name', nameToken);
@@ -242,7 +246,7 @@ export class Parser {
         }
         let value = field.value;
         if (value) {
-          field.prune();
+          field.detachValue();
           first.setValue(value);
         }
         block.add(first);
@@ -463,7 +467,9 @@ export class Parser {
           Token.fake('arg2', argToken)
         ]
         arg.setMeta('^lhs', lhs);
-        let rhs = arg.setMeta('^rhs', anon.value);
+        let rhsValue = anon.value;
+        if (rhsValue) anon.detachValue();
+        let rhs = arg.setMeta('^rhs', rhsValue);
         rhs.formulaType = anon.formulaType;
         if (anon.metadata) {
           rhs.metadata = anon.metadata;
@@ -556,9 +562,9 @@ export class Parser {
   }
 
   /** Returns a Reference with tokens[] containing name tokens which may include
-   * a leading ^ and trailing ?/!. Will contain leading 'that' for dependent
-   * path. Also contains '~' tokens for extra results. Also contains number
-   * tokens for testing. [] indexing will return a ReferenceFormula instead. */
+   * a leading ^/~ and trailing ?/!. Will contain leading 'that' for dependent
+   * path. Also contains number tokens for testing. [] indexing will return a
+   * ReferenceFormula instead. */
   parseReference(): Reference | undefined {
     let tokens: Token[] = [];
 
@@ -567,10 +573,13 @@ export class Parser {
       if (this.prevToken.text[0] === '^') {
         throw this.setError("Reference can't start with ^", this.cursorToken);
       }
-
+      if (this.prevToken.type === 'name' && this.prevToken.text[0] === '~') {
+        // leading ~-name simulates leading 'that'
+        tokens.push(Token.fake('that', this.prevToken));
+      }
       tokens.push(this.prevToken);
-    } else if (this.peekToken('.', '~')) {
-      // leading . or ~ simulates leading 'that'
+    } else if (this.peekToken('.')) {
+      // leading . simulates leading 'that'
       tokens.push(Token.fake('that', this.cursorToken));
     }
 
@@ -588,14 +597,23 @@ export class Parser {
         tokens.push(this.cursorToken);
         this.cursor++;
         continue;
-      } else if (this.matchToken('~')) {
-        tokens.push(this.prevToken);
-        if (this.peekToken('~')) {
-          throw this.setError("repeated ~", this.cursorToken);
-        }
-        if (this.peekToken('name')) {
-          // extra result name without separating dot
-          tokens.push(this.prevToken);
+      } else if (this.peekToken('name') && this.cursorToken.text[0] === '~') {
+        // import with optionally suffixed field name
+        let importToken = this.cursorToken;
+        this.cursor++;
+        // split token into ~ and suffix
+        tokens.push(new Token(
+          'name',
+          importToken.start,
+          importToken.start + 1,
+          importToken.source))
+        if (importToken.text.length > 1) {
+          // add fake token for suffixed name of export
+          tokens.push(new Token(
+            'name',
+            importToken.start + 1,
+            importToken.end,
+            importToken.source))
         }
         continue;
       }
