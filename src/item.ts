@@ -226,7 +226,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   resolve() {
     let deferral = this.deferral;
     if (!deferral) return;
-    assert(this.workspace.analyzing);
+    if (this.isDetached()) {
+      debugger;
+    } else {
+      assert(this.workspace.analyzing);
+    }
     // set item unevaluated, with deferral to catch cycles
     this.evaluated = false;
     this.deferral = () => {
@@ -311,8 +315,15 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       }
     }
 
-    // evaluate value contents
-    if (this.value) this.value.eval();
+    // evaluate value contents deeply
+    // Don't do this on the function bodies in a Call
+    // FIXME: this looks like a huge mistake
+    // Should have separated shallow and deep evaluation
+    // maybe causes some of the needs for deferred evaluation
+    // evalIfNeeded was another workaround
+    if (this.value && !(this.container instanceof Call)) {
+      this.value.eval();
+    }
 
     this.evaluated = true;
   }
@@ -401,6 +412,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     if (source.rejected) this.rejected = true;
 
     target.detachValue()
+    assert(source.value);
     target.copyValue(source);
     if (this.formulaType === 'changeInput') {
       // initialize call body to recalc input defaults
@@ -472,6 +484,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     this.value = undefined;
   }
 
+  /** whether item has been detached */
+  isDetached(): boolean {
+    for (let up: Item = this; up; up = up.container.containingItem) {
+      if (up instanceof Workspace) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /** set value */
   setValue(value: Value) {
     assert(!this.value);
@@ -513,12 +535,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   source?: this;
 
   /** original source of this item via copying. That is, its definition */
-  // get origin(): this {
-  //   return this.source ? this.source.origin : this;
-  // }
+  get origin(): this {
+    return this.source ? this.source.origin : this;
+  }
 
   /** make copy, bottom up, translating paths contextually */
   copy(srcPath: Path, dstPath: Path): this {
+    if (this.path.length > Item.DepthLimit) {
+      throw new Crash(this.container.token!, 'Workspace too deep')
+    }
+
     let to = another(this);
     to.id = this.id;
     to.formulaType = this.formulaType;
@@ -538,6 +564,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         this.resolve();
         let newCopy = this.copy(srcPath, dstPath);
         // tranfer new copy to original deferred copy already in workspace
+        assert(to.id === newCopy.id);
+        to.formulaType = newCopy.formulaType;
+        to.isInput = newCopy.isInput;
         to.conditional = newCopy.conditional;
         to.usesPrevious = newCopy.usesPrevious
         if (newCopy.metadata) {

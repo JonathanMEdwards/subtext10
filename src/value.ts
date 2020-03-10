@@ -30,6 +30,11 @@ export abstract class Value {
   /** source of value through copying */
   source?: this;
 
+  /** original source of this value via copying. That is, its definition */
+  get origin(): this {
+    return this.source ? this.source.origin : this;
+  }
+
   /** make copy, bottom up, translating paths contextually */
   copy(srcPath: Path, dstPath: Path): this {
     let to = another(this);

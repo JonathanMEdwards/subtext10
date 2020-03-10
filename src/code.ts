@@ -1,4 +1,4 @@
-import { Block, Field, assert, StaticError, Guard, Path, cast, Reference, Token, assertDefined, another, arrayLast, Crash, trap, arrayReverse, Value, Record, Item } from "./exports";
+import { Block, Field, assert, StaticError, Guard, Path, cast, Reference, Token, assertDefined, another, arrayLast, Crash, trap, arrayReverse, Value, Record, Item, Metafield } from "./exports";
 
 /** A Code block is evaluated to produce a result value. The fields of the block
  * are called statements */
@@ -56,42 +56,89 @@ export class Code extends Block<Statement> {
       }
     }
 
-    // set export
-    if (this.result) {
-      let exports = this.statements.filter(
-        statement => statement.dataflow === 'export'
-      );
-      if (exports.length === 0) {
-        // re-export result
-        this.export = this.result.getMaybe('^export');
-      } else if (exports.length === 1 && exports[0].id.name === undefined) {
-        // single anonymous export value
-        this.export = exports[0];
+    // eval exports
+    this.evalExports();
+  }
+
+  evalExports() {
+    if (!this.result) return;
+    let exports = this.statements.filter(
+      statement => statement.dataflow === 'export'
+    );
+    if (exports.length === 0) {
+      // re-export result
+      this.export = this.result.getMaybe('^export');
+    } else if (exports.length === 1 && exports[0].id.name === undefined) {
+      // single anonymous export value
+      this.export = exports[0];
+    } else {
+      // assemble record out of export statements
+      let record = new Record;
+      // Create as ^export on code block
+      // Adds an extra copy, but simplifies the API
+      let meta = this.containingItem.getMaybe('^export');
+      if (meta) {
+        meta.detachValue();
+        meta.setValue(record);
       } else {
-        // assemble record out of export statements
-        let record = new Record;
-        // Create as ^export on code block
-        // Adds an extra copy, but simplifies the API
-        let meta = this.containingItem.getMaybe('^export');
-        if (meta) {
-          meta.detachValue();
-          meta.setValue(record);
-        } else {
-          meta = this.containingItem.setMeta('^export', record);
+        meta = this.containingItem.setMeta('^export', record);
+      }
+      this.export = meta;
+      exports.forEach(ex => {
+        if (ex.id.name === undefined) {
+          throw new StaticError(ex, 'anonymous export statement must be unique')
         }
-        this.export = meta;
-        exports.forEach(ex => {
-          if (ex.id.name === undefined) {
-            throw new StaticError(ex, 'anonymous export statement must be unique')
+        const field = new Field;
+        record.add(field);
+        field.id = ex.id;
+        field.isInput = true;
+        this.fieldImport(field, ex);
+      })
+    }
+  }
+
+
+  /** define a field as a possibly recursive export */
+  // FIXME: recursieve exports have turned out klugey. Redesign
+  fieldImport(field: Field, ex: Item) {
+    // detect recursive exports
+    const exportType = ex.getMaybe('^exportType');
+    let exportOrigin = ex.value!.origin.containingItem;
+    if (
+      exportOrigin instanceof Field
+      && exportOrigin.id.name === '^export'
+    ) {
+      let originBase = exportOrigin.container.containingItem;
+      if (
+        originBase.path.containsOrEquals(this.containingItem.path)
+        !== !!exportType
+      ) {
+        throw new StaticError(ex, 'recursive export must define reference');
+      }
+    }
+
+    if (exportType) {
+      // use supplied reference as type of export, needed for recursion
+      // FIXME: infer from origin of exported value. Currently can only
+      // detect recursion, not abstract it to clean reference
+      field.formulaType = 'reference';
+      field.copyMeta('^reference', exportType);
+      field.copyValue(ex)
+
+      // type check export
+      if (this.workspace.analyzing) {
+        this.workspace.exportAnalysisQueue.push(() => {
+          let ref = cast(exportType.value, Reference);
+          let target = assertDefined(ref.target);
+          if (!target.value!.changeableFrom(ex.value!, ex.path, target.path)
+          ) {
+            throw new StaticError(ref.tokens[0], 'changing type of value')
           }
-          let field = new Field;
-          record.add(field);
-          field.id = ex.id;
-          field.isInput = false;
-          field.formulaType = 'none';
-          field.copyValue(ex)
         })
       }
+    } else {
+      field.formulaType = 'none';
+      field.copyValue(ex)
     }
   }
 
@@ -161,6 +208,7 @@ export class Call extends Code {
         let body = cast(arrayLast(this.fields).value, Code);
         body.eval();
         this.result = body.result;
+        this.export = body.export;
         this.rejected = body.rejected;
         if (body.rejected && this.asserted) {
           throw new Crash(this.token, 'assertion failed')
@@ -190,6 +238,7 @@ export class Call extends Code {
       let body = cast(arrayLast(this.fields).value, Code);
       body.eval();
       this.result = body.result;
+      this.export = body.export;
       this.rejected = body.rejected;
       // detect conditional arguments
       this.fields.slice(2).forEach(arg => {
@@ -217,6 +266,9 @@ export class Call extends Code {
 
     // use result of definition
     this.result = assertDefined(def.result);
+    this.export = def.export;
   }
 
+  // suppress exporting
+  evalExports() { }
 }

@@ -71,7 +71,6 @@ export class MetaID extends FieldID {
 
   /** predefined metadata IDs */
   static ids: Dictionary<MetaID> = {
-    '^export': new MetaID('^export'),       // Exported value
     '^literal': new MetaID('^literal'),     // Literal formula
     '^reference': new MetaID('^reference'), // Reference formula
     '^code': new MetaID('^code'),           // Code block
@@ -81,5 +80,7 @@ export class MetaID extends FieldID {
     '^call': new MetaID('^call'),           // Program call
     '^builtin': new MetaID('^builtin'),     // builtin call
     '^initial': new MetaID('^initial'),     // initial value of item
+    '^export': new MetaID('^export'),       // Exported value
+    '^exportType': new MetaID('^exportType'), // Exported value type
   }
 }

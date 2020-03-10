@@ -974,10 +974,10 @@ match-expr? = try literal? = {
   export ~value 
 } else plus? = {
   match-expr?()
-  export left = ~
+  export(match-expr~) left = ~
   match? '+'
   match-expr?()
-  export right = ~ 
+  export(match-expr~) right = ~ 
 } else reject
 
 eval-expr = program {
@@ -993,7 +993,9 @@ test {
 }
 ```
 
-The export of a `try` block is a choice, and the export of a recursive `try` block is a recursive choice. So the export of `match-expr` is an AST. The clauses of the `try` block are labeled `literal?` and `plus?` like in the `expr` choice. Completing the correspondence, the matched number is returned as the export of the `literal?` clause, and the left and right ASTs are exported with corresponding name from the `plus?` clause. So the export of `match-expr` matches the earlier definition of `expr`.  In `eval-expr`, `ast: match-expr~` says the input of the program must be the export of `match-expr`. The rest of the code is identical to `eval-expr`.
+The export of a `try` block is a choice, and the export of a recursive `try` block is a recursive choice. So the export of `match-expr` is an AST. The clauses of the `try` block are labeled `literal?` and `plus?` like in the `expr` choice. Completing the correspondence, the matched number is returned as the export of the `literal?` clause, and the left and right ASTs are exported with corresponding names from the `plus?` clause. Note that the recursive exports of the left and right ASTs uses `export(match-expr~)` - the parenthesized reference to `match-expr~` tells the export to define a recursive type. _We should be able to infer this._
+
+The export of `match-expr` matches the earlier definition of `expr`.  In `eval-expr`, `ast: match-expr~` says the input of the program must be the export of `match-expr`. The rest of the code is identical to `eval-expr`.
 
 ### Repeats
 
@@ -1103,6 +1105,7 @@ Subtext has no syntax for describing types: programs only talk about values. All
 
 We believe that type systems are an essential formalism for language theoreticians and designers, but that many language users would prefer to obtain their benefits without having to know about them and write about them.
 
+_FIXME: simpler: names are nominal, everything else is structural_
 In PL theory terms, Subtext mixes aspects of structural and nominal type systems. It is structural in that `x = series{0}` and `y = series{1}` have the same type. It is nominal in that `x = record {a: 0}` and `y = record {a: 0}` have different types. Every time a block item is defined a globally unique ID is assigned to it. There is a workspace-wide dictionary that maps these item IDs to their current names. Renaming a block item just changes that dictionary entry. Type equality requires that block item IDs be equal, not that their names are currently spelled the same.
 
 > TODO: To share item IDs across different types of blocks we can use a traits-like mechanism that merges and restricts blocks. Deferred until we have the need.

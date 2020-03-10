@@ -113,7 +113,7 @@ export class Reference extends Base {
     this.target = target;
   }
 
-  /** evaluate item if needed to dereference */
+  /** evaluate item if needed to dereference, to avoid eager deep eval */
   private evalIfNeeded(item: Item) {
     if (!item.value && !item.rejected) {
       item.eval();
@@ -285,11 +285,12 @@ export class Reference extends Base {
       } else {
 
         // dereference by name
-        target = target.getMaybe(name);
-        if (!target) {
+        let down = target.getMaybe(name);
+        if (!down) {
           // undefined name
           throw new StaticError(token, 'Undefined name')
         }
+        target = down;
         this.evalIfNeeded(target);
         if (!target.value) {
           // cyclic dependency

@@ -1,4 +1,5 @@
-import { Workspace } from "../src/exports";
+import { Workspace, trap } from "../src/exports";
+
 /** @module
  *
  * Basic tests
@@ -13,7 +14,6 @@ function expectDump(source: string, at = '') {
 function expectCompiling(source: string) {
   return expect(() => Workspace.compile(source));
 }
-
 
 test('literal outputs', () => {
   expectDump("a = 0, b = '', c = nil, d = record{x = 0, y: 1}")
@@ -230,6 +230,11 @@ test('recursion', () => {
     `)
     .toEqual({ fac: 1, x: 1 });
   expectDump(`
+    fac = do{n: 1; try {check n <=? 0; 1} else {n - 1 fac() * n}},
+    x = 1 fac()
+    `)
+    .toEqual({ fac: 1, x: 1 });
+  expectDump(`
     fac = do{n: 0; try {check n <=? 0; 1} else {n - 1 fac() * n}},
     x = 4 fac()
     `)
@@ -377,11 +382,17 @@ test('recursive choices', () => {
 
 test('exports', () => {
   expectDump("a = do{1; export 2}, b = a~")
-    .toEqual({a: 1, b: 2})
+    .toEqual({ a: 1, b: 2 })
+  // implicit export
   expectDump("a = do{do{1; export 2}}, b = a~")
-    .toEqual({a: 1, b: 2})
+    .toEqual({ a: 1, b: 2 })
+  // named export
   expectDump("a = do{1; export foo = 2}, b = a~")
     .toEqual({ a: 1, b: { foo: 2 } })
+  // call export
+  expectDump("f = do{n: 0; export nil}; b = 1 f(); c = b~")
+    .toEqual({ f: 0, b: 1, c: null })
+  // try exports
   expectDump(`
   a = do {
     try
@@ -417,42 +428,82 @@ test('exports', () => {
 
 })
 
-// test('formula access', () => {
-//   expectDump("a = 0 do{foo = 1}, b = a~foo")
-//     .toEqual({ a: 0, b: 1 });
-//   expectDump("a = 0 do{foo = 2}, b = 1 a(), c = b~foo")
-//     .toEqual({ a: 0, b: 1, c: 2 });
-//   expectDump("a = 0 do{foo = 1}, b = a~, c = b.foo")
-//     .toEqual({ a: 0, b: {foo: 1}, c: 1 });
-//   expectCompiling("a: 0 do{foo = 1}, b = a~foo")
-//     .toThrow('Undefined formula access');
-//   // set command
-//   expectDump("a = 0 do{foo = := ~ + 1}, b = a~foo")
-//     .toEqual({ a: 1, b: 1 });
-//   expectDump("a = 0 do{foo = := ~ + 1}, b = a~, c = b.foo")
-//     .toEqual({ a: 1, b: {foo: 1} , c: 1 });
-//   // conditional
-//   expectDump(
-//     "a = 0 try zero?={check =? 0} non-zero? = else ok, b? = a~zero?")
-//     .toEqual({ a: 0, "b?": { "1": 0 } });
-//   expectDump(
-//     "a = 0 try zero?={check =? 0} non-zero?= else ok, b? = a~non-zero?")
-//     .toEqual({ a: 0, "b?": null });
-//   expectDump(`
-//     a = 0 try zero?={check =? 0} non-zero?= else ok
-//     b = a~
-//     c? = b.non-zero?
-//     `).toEqual({ a: 0, b: { "zero?": { "1": 0 }, "non-zero?": null }, "c?": null });
-//   expectDump("a = 0 do{foo = 1}, b = 0 a()~")
-//     .toEqual({ a: 0, b: {foo: 1} });
+test('recursive export', () => {
 
-// });
+  // recursive try export with anon export
+  expectDump(`
+  a = do{
+    n: 1
+    try
+      base?= {n <? 1; export nil}
+      recurse?= else{
+        n - 1 a()
+        export(a~) ~
+      }
+  }
+  b = a~
+  c = 0 a()~
+  d? = b =? c
+  `).toEqual({
+    a: 1,
+    b: { recurse: { base: null } },
+    c: { base: null },
+    d: false
+  })
 
+  // recursive try export with named export
+  expectDump(`
+  a = do{
+    n: 1
+    try
+      base?= {n <? 1; export nil}
+      recurse?= else{
+        n - 1 a()
+        export(a~) foo = ~
+      }
+  }
+  b = a~
+  c = 0 a()~
+  d? = b =? c
+  `).toEqual({
+      a: 1,
+      b: { recurse: { foo: { base: null } } },
+      c: { base: null },
+    d: false
+  })
 
-// test('modification', () => {
-//   let doc = Root.compile("a: 0, b = 'foo'");
-//   doc.modify('a', 1);
-//   expect(doc.toJS()).toEqual({ a: 1, b: 'foo' });
-//   expect(() => { doc.modify('a', 'foo') }).toThrow('Type mismatch');
-//   expect(() => { doc.modify('b', 'foo') }).toThrow('cannot be modified');
-// });
+  expectCompiling(`
+  a = do{
+    n: 1
+    try
+      base?= {n <? 1; export nil}
+      recurse?= else{
+        n - 1 a()
+      }
+  }
+  `).toThrow('recursive export must define reference')
+
+  expectCompiling(`
+  a = do{
+    n: 1
+    try
+      base?= {n <? 1; export nil}
+      recurse?= else{
+        n - 1 a()
+        export(a) ~
+      }
+  }
+  `).toThrow('export reference must end with ~')
+
+  expectCompiling(`
+  a = do{
+    n: 1
+    try
+      base?= {n <? 1; export nil}
+      recurse?= else{
+        n - 1 a()
+        export(a~) 1
+      }
+  }
+  `).toThrow('changing type of value')
+})

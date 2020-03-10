@@ -1,4 +1,4 @@
-import { Do, StaticError, arrayLast, Crash, Field, Code, assert, cast, Choice, assertDefined, trap } from "./exports";
+import { Do, StaticError, arrayLast, Crash, Field, Code, assert, cast, Choice, assertDefined, trap, Item, Reference } from "./exports";
 
 /** a try block is the basic control structure of Subtext. It contains a sequnce
  * of do-blocks called clauses. The clauses are executed in order until one does
@@ -58,7 +58,7 @@ export class Try extends Code {
         continue;
       }
 
-      // if first clause exports, export a choice of all exports
+      // if first clause exports, export a choice combining all exports
       let exportField = first.getMaybe('^export');
       if (exportField) {
         // export choice from clause exports
@@ -67,6 +67,7 @@ export class Try extends Code {
         this.export.conditional = this.conditional;
         this.fields.forEach(clause => {
           let option = new Field;
+          // option adopts name of clause
           if (clause.id.name === undefined) {
             throw new StaticError(clause, 'exporting clause must be named')
           }
@@ -74,15 +75,16 @@ export class Try extends Code {
           choice.add(option);
           option.isInput = true;
           option.conditional = true;
-          // defer setting option value till needed
+          // defer defining option value till clauses analyzed
           this.export!.workspace.analysisQueue.push(option);
           option.deferral = () => {
             clause.resolve();
-            let clauseExport = clause.getMaybe('^export');
+            let clauseExport = cast(clause.get('^code').value, Code).export;
             if (!clauseExport) {
               throw new StaticError(clause, 'all clauses must export')
             }
-            option.copyValue(clauseExport);
+            // export to option value
+            this.fieldImport(option, clauseExport);
             option.eval();
           }
         })
@@ -98,10 +100,10 @@ export class Try extends Code {
         // stop on success when not analyzing
         this.result = clause;
         // set export choice
-        let exportField = this.containingItem.getMaybe('^export');
-        if (exportField) {
-          let choice = cast(exportField.value, Choice);
-          choice.choiceIndex = this.fields.indexOf(clause);
+        this.export = this.containingItem.getMaybe('^export');
+        if (this.export) {
+          let choice = cast(this.export.value, Choice);
+          choice.setChoice(this.fields.indexOf(clause))
           let option = choice.choice;
           option.detachValue();
           option.copyValue(assertDefined(clause.getMaybe('^export')));

@@ -79,7 +79,7 @@ export class Block<F extends Field = Field> extends Container<F> {
   }
 
   // type compatibility
-  changeableFrom(from: Block, fromPath: Path, thisPath: Path) {
+  changeableFrom(from: Block, fromPath: Path, thisPath: Path): boolean {
     return (
       super.changeableFrom(from, fromPath, thisPath)
       && this.fields.length === from.fields.length

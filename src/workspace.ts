@@ -44,6 +44,8 @@ export class Workspace extends Item<never, History> {
 
   /** queue of items with deferred analysis */
   analysisQueue: Item[] = [];
+  /** queue of functions to analyze exports */
+  exportAnalysisQueue: (()=>void)[] = [];
 
   /** compile a doc
    * @param source
@@ -76,14 +78,10 @@ export class Workspace extends Item<never, History> {
 
     // execute deffered analysis
     while (ws.analysisQueue.length) {
-      let item = ws.analysisQueue.shift()!;
-      // ignore pruned structures
-      for (let up = item; up; up = up.container.containingItem) {
-        if (up instanceof Workspace) {
-          item.resolve();
-          break;
-        }
-      }
+      ws.analysisQueue.shift()!.resolve();
+    }
+    while (ws.exportAnalysisQueue.length) {
+      ws.exportAnalysisQueue.shift()!();
     }
 
     // initialize to force recalc after analysis

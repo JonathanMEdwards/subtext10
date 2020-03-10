@@ -142,6 +142,31 @@ export class Parser {
             'export from Try must be inside clause',
             this.prevToken);
         }
+        if (this.parseToken('(')) {
+          // type reference
+          let ref = this.parseReference();
+          if (!ref) throw this.setError('reference required');
+          this.requireToken(')');
+          if (arrayLast(ref.tokens).text !== '~') {
+            throw this.setError('export reference must end with ~', this.prevToken);
+            // add ~ to reference
+            // Yuck: inject ~ into modified source before )
+            // Maybe create special fake ~ token type?
+            // let tok = this.prevToken;
+            // let fake = new Token(
+            //   'name',
+            //   tok.start,
+            //   tok.start + 1,
+            //   (
+            //     tok.source.slice(0, tok.start)
+            //     + '~'
+            //     + tok.source.slice(tok.start)
+            //   )
+            // );
+            // ref.tokens.push(fake);
+          }
+          field.setMeta('^exportType', ref);
+        }
       }
     }
     // name definition
