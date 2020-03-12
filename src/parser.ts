@@ -535,6 +535,8 @@ export class Parser {
     // assume single-line block
     block.outlined = false;
     while (true) {
+      let endCursor = this.cursor
+
       // consume separators
       while (true) {
         if (this.matchToken('\n')) {
@@ -548,7 +550,6 @@ export class Parser {
       }
 
       // optional clause name
-      let endCursor = this.cursor
       let nameToken = this.parseToken('name');
       if (nameToken && !this.parseToken('=')) {
         // not a named clause
@@ -631,14 +632,18 @@ export class Parser {
           'name',
           importToken.start,
           importToken.start + 1,
-          importToken.source))
+          importToken.source));
         if (importToken.text.length > 1) {
           // add fake token for suffixed name of export
           tokens.push(new Token(
             'name',
             importToken.start + 1,
             importToken.end,
-            importToken.source))
+            importToken.source
+          ));
+          if (importToken.text === '~?' || importToken.text === '~!') {
+            throw this.setError("? or ! goes before ~ not after")
+          }
         }
         continue;
       }

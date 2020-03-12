@@ -428,7 +428,17 @@ test('exports', () => {
   b? = a~clause1?
   `)
     .toEqual({ a: 2, b: false })
+})
 
+test('conditional export', () => {
+  expectDump("a? = do{ 1 >? 0; export 2}; b? = a?~")
+  .toEqual({a: 0, b: 2})
+  expectDump("a? = do{ 1 >? 2; export 2}; b? = a?~")
+  .toEqual({a: false, b: false})
+  expectCompiling("a? = do{ 1 >? 2; export 2}; b? = a~?")
+  .toThrow('? or ! goes before ~ not after')
+  expectCompiling("a? = do{ 1 >? 2; export 2}; b? = a~")
+    .toThrow('conditional reference lacks suffix ? or !')
 })
 
 test('recursive export', () => {

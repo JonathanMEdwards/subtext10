@@ -69,9 +69,13 @@ export class Reference extends Base {
     // dereference
     let target: Item = from.workspace;
     this.path.ids.forEach((id, i) => {
+      // follow paths past rejection during analysis
+      if (this.rejected && !this.workspace.analyzing) return;
+
       target = target.get(id);
 
-      if (this.path.ids[i + 1] instanceof MetaID) {
+      let next = this.path.ids[i + 1];
+      if ( next instanceof MetaID && next !== MetaID.ids['^export']) {
         // metadata is not inside base item, so skip evaluating it
         return;
       }
@@ -96,13 +100,9 @@ export class Reference extends Base {
         ) {
           // reject reference
           this.rejected = true;
-          if (!this.workspace.analyzing) {
-            if (guard === '!') {
-              throw new Crash(this.tokens[i - this.context], 'assertion failed')
-            }
-            return;
+          if (!this.workspace.analyzing && guard === '!') {
+            throw new Crash(this.tokens[i - this.context], 'assertion failed')
           }
-          // during analysis follow path to get type of result
         }
       }
     })
@@ -308,6 +308,11 @@ export class Reference extends Base {
           // FIXME: outside references to outputs are conditionalized on block
           assert(target.container.containingItem.path.contains(from.path));
           conditional = false;
+        }
+        if (conditional && token.text === '~') {
+          // conditional export is guarded by base
+          assert(this.conditional);
+          guard = '!';
         }
         if (!!guard !== conditional) {
           throw new StaticError(
