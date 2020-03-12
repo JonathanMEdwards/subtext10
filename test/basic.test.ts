@@ -392,6 +392,9 @@ test('exports', () => {
   // call export
   expectDump("f = do{n: 0; export nil}; b = 1 f(); c = b~")
     .toEqual({ f: 0, b: 1, c: null })
+  // builtin export
+  expectDump("a = 1.5 truncate(), b = a~fraction")
+    .toEqual({ a: 1, b: .5 })
   // try exports
   expectDump(`
   a = do {

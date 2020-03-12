@@ -62,6 +62,9 @@ export class Character extends Base {
 /** Nil is the unit type with one value */
 export class Nil extends Base {
 
+  // JS value is null
+  get value() { return null };
+
   equals(other: any) {
     return other instanceof Nil;
   }

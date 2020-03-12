@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, Numeric, Nil} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -510,14 +510,22 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
   }
 
-  /** set or copy a Value, depending on whether it is attached */
-  setOrCopyValue(value: Value) {
-    if (value.containingItem) {
+  /** set value, allowing a JS number or string. Copies Value if attached */
+  setFrom(from: number | string | Value) {
+    if (typeof from === 'number') {
+      let value = new Numeric;
+      value.value = from
+      this.setValue(value);
+    } else if (typeof from === 'string') {
+      let value = new Text;
+      value.value = from;
+      this.setValue(value);
+    } else if (from.containingItem) {
       // copy attached value
-      this.setValue(value.copy(value.containingItem.path, this.path));
+      this.setValue(from.copy(from.containingItem.path, this.path));
     } else {
       // set detached Value
-      this.setValue(value);
+      this.setValue(from);
     }
   }
 

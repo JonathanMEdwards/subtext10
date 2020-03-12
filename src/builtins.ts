@@ -1,4 +1,4 @@
-import { Item, cast, Do, assert, Numeric, Character, Text, Dictionary, Value, Statement } from "./exports"
+import { Item, cast, Do, assert, Numeric, Character, Text, Dictionary, Value, Statement, arrayLast, Base, assertDefined, Nil } from "./exports"
 
 /** evaluate a builtin call. Assumes input fields present in containing block.
  * Arguments have already been type-checked and assigned */
@@ -8,29 +8,31 @@ export function evalBuiltin(statement: Statement, name: string) {
   let inputs: builtinValue[] = (
     block.statements
       .filter(statement => statement.isInput)
-      .map(input => {
-        input.used = true;
-        let value = input.value!;
-        // extract JS values
+      .map(statement => {
+        statement.used = true;
+        let input = assertDefined(statement.value);
+        // extract JS base values
         if (
-          value instanceof Numeric
-          || value instanceof Character
-          || value instanceof Text
+          input instanceof Numeric
+          || input instanceof Character
+          || input instanceof Text
         ) {
-          return value.value;
+          return input.value;
         }
-        return value;
+        return input;
       })
   );
   assert(inputs.length > 0);
 
   // evaluate builtin function
   let result: builtinValue | undefined;
+  let exporting: builtinValue | undefined;
   statement.used = true;
   if (name.endsWith('?')) {
 
     // conditional
-    let { accepted, value } = builtinConditionals[name](...inputs);
+    let { accepted, value, export: exportValue } =
+      builtinConditionals[name](...inputs);
     statement.rejected = !accepted;
     if (statement.workspace.analyzing) {
       // analyze item as conditional
@@ -41,39 +43,42 @@ export function evalBuiltin(statement: Statement, name: string) {
       // at runtime only set result if accepted
       result = accepted ? value : undefined;
     }
+    exporting = exportValue;
   } else {
 
     // unconditional
-    result = builtins[name](...inputs);
+    ({ value: result, export: exporting } = builtins[name](...inputs));
   }
 
-  // set result into item if defined
-  if (result === undefined) {
-  } else if (typeof result === 'number') {
-    let value = new Numeric;
-    value.value = result
-    statement.setValue(value);
-  } else if (typeof result === 'string') {
-    let value = new Text;
-    value.value = result
-    statement.setValue(value);
-  } else {
-    // set or copy value
-    statement.setOrCopyValue(result);
+  // set result into item if define
+  if (result !== undefined) {
+    statement.setFrom(result)
+  }
+
+  // set export value
+  if (exporting !== undefined) {
+    let exportStatement = arrayLast(block.statements);
+    assert(exportStatement.dataflow === 'export');
+    exportStatement.detachValue();
+    exportStatement.setFrom(exporting)
   }
 }
 
-// builtins operate with JS strings and numbers, regular Value otherwise
+/** builtins operate with JS string or number, regular Value otherwise */
 type builtinValue = string | number | Value;
 
-// dispatch table for unconditional builtins
+/** dispatch table for unconditional builtins. returns object containing value
+ * and export */
 let builtins: (
-  Dictionary<(...args: any[]) => builtinValue>
+  Dictionary<(...args: any[]) =>
+    { value: builtinValue, export?: builtinValue }>
 ) = {};
 
-// dispatch table for conditional builtins
+/** dispatch table for conditional builtins. returns object containing
+ * acceptance, value, and export */
 let builtinConditionals: (
-  Dictionary<(...args: any[]) => { accepted: boolean, value: builtinValue}>
+  Dictionary<(...args: any[]) =>
+    { accepted: boolean, value: builtinValue, export?: builtinValue  }>
 ) = {};
 
 /** definition of builtins */
@@ -82,7 +87,7 @@ export const builtinDefinitions = `
 - = do{in: 0; subtrahend: 1; builtin -}
 * = do{in: 0; multiplicand: 2; builtin *}
 / = do{in: 0; divisor: 2; builtin /}
-round-down = do{in: 0; builtin round-down}
+truncate = do{in: 0; builtin truncate; export fraction = 0}
 skip-white = do{in: ''; builtin skip-white}
 >? = do{in: 0, than: 0, builtin >?}
 >=? = do{in: 0, than: 0, builtin >=?}
@@ -92,25 +97,25 @@ skip-white = do{in: ''; builtin skip-white}
 not=? = do{in: anything, to: in, builtin not=?}
 `
 
-builtins['+'] = (a: number, b: number) => a + b;
-builtins['-'] = (a: number, b: number) => a - b;
-builtins['*'] = (a: number, b: number) => a * b;
-builtins['/'] = (a: number, b: number) => a / b;
-builtins['round-down'] = (a: number) => Math.floor(a);
-builtins['skip-white'] = (s: string) => s.trimStart();
+builtins['+'] = (a: number, b: number) => ({ value: a + b });
+builtins['-'] = (a: number, b: number) => ({ value: a - b });
+builtins['*'] = (a: number, b: number) => ({ value: a * b });
+builtins['/'] = (a: number, b: number) => ({ value: a / b });
+builtins['truncate'] = (a: number) =>
+  ({ value: Math.trunc(a), export: a - Math.trunc(a) });
+builtins['skip-white'] = (s: string) => ({ value: s.trimStart() });
 
-builtinConditionals['>?'] = (a: number, b: number) => {
-  return { accepted: a > b, value: b };
-}
-builtinConditionals['>=?'] = (a: number, b: number) => {
-  return { accepted: a >= b, value: b };
-}
-builtinConditionals['<?'] = (a: number, b: number) => {
-  return { accepted: a < b, value: b };
-}
-builtinConditionals['<=?'] = (a: number, b: number) => {
-  return { accepted: a <= b, value: b };
-}
+builtinConditionals['>?'] = (a: number, b: number) =>
+  ({ accepted: a > b, value: b });
+
+builtinConditionals['>=?'] = (a: number, b: number) =>
+  ({ accepted: a >= b, value: b });
+
+builtinConditionals['<?'] = (a: number, b: number) =>
+  ({ accepted: a < b, value: b });
+
+builtinConditionals['<=?'] = (a: number, b: number) =>
+  ({ accepted: a <= b, value: b });
 
 builtinConditionals['=?'] = (a: builtinValue, b: builtinValue) => {
   // signature guarantees same types
