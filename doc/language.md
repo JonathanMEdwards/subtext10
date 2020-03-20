@@ -588,7 +588,7 @@ Here the first try clause accesses the `literal?` option. If it was chosen, its 
 
 ## Series and tables
 
-So far we have discussed various kinds of blocks. The other way that a Subtext workspace is built is with _series_. A series is an ordered set of zero or more items containing values of the same fixed type. A _text_ is a series of characters. A _table_ is a series of blocks (typically records), its items are called _rows_, and the items of the block define the _columns_ of the table. Every series defines a value, called it’s _template_, which defines the default value for newly created items. For example:
+So far we have discussed various kinds of blocks. The other way that a Subtext workspace is built is with _series_. A series is an ordered set of zero or more items containing values of the same fixed type. A _text_ is a series of characters. A _table_ is a series of records, where each record is called a _row_, and each of the fields of the record is called a _column_. Every series defines a value, called it’s _template_, which defines the default value for newly created items. For example:
 ```
 numbers: series {0}
 customers: table {
@@ -603,9 +603,9 @@ A series is initially created as empty. Text is a series of characters with the 
 The `&` program (pronounced “and”) is used to add items to a series. For example:
 ```
 n = numbers & 1 & 2 & 3
-c = customers & do{.name := 'Joe', .address := 'Pleasantown, USA'}
+c = customers & with{.name := 'Joe', .address := 'Pleasantown, USA'}
 ```
-The `&` program takes a series as it’s left input and an item value as its right input, resulting in a series equal to the input plus a new item with that value. The default value of the item is the template of the seqence. In a table it is often convenient to use a `do` block as above to change some of the columns and let the others default to their template values.
+The `&` program takes a series as it’s left input and an item value as its right input, resulting in a series equal to the input plus a new item with that value. The default value of the item is the template of the seqence. In a table it is often convenient to use a `with` block as above to change some of the columns and let the others default to their template values.
 
 The `&&` program concatenates two seriess: `series1 && series2` is a copy of `series1` with all the items from `series2` added to its end. The two series must have the same type template.
 
@@ -646,10 +646,10 @@ test {
 }
 
 ```
-or equivalently using a `do` block:
+or equivalently using a `with` block:
 ```
 test {
-  .customers[1] := do{.name := 'Joe Jr.'}
+  .customers[1] := with{.name := 'Joe Jr.'}
 }
 ```
 
@@ -776,18 +776,20 @@ check =? 3
 An aggregate block must define two input items. The block will be executed repeatedly, like a `for-each`, feeding items from the input series into the first input item. In this example we called the first input `item`, and define it from the default template value referenced as `that`. 
 The second input (`sum`) acts as an accumulator. On the first call it defaults to the defined value (0). On the second and subsequent calls, `sum` becomes the result of the previous call. This example is equivalent to the built-in `sum()` program that sums a series of numbers. If the program rejects an item then it will be skipped and the accumulator value will be passed on to the next call. An `aggregate` is  like a conventional _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `s sum(100)`).
 
-## Tracked series
+## Tracked and untracked series
 
-A series can be defined to be _tracked_. A tracked series automatically assigns a unique ID to each item when it is created. The ID is used to precisely track changes to the item. Such IDs are called _surrogate keys_ in databases. The tracking ID is hidden from the user and programmer. Tracking allows two important capabilities:
+A series is defined to be either _tracked_ or _untracked_. Tracking is the default. A tracked series automatically assigns a unique ID to each item when it is created. The ID is used to precisely track changes to the item. Such IDs are called _surrogate keys_ in databases. The tracking ID is hidden from the user and programmer. Tracking allows two important capabilities:
 
-1. Relationships between tracked series can be maintained, similar to relational databases, but without requiring that every item contain a unique and immutable key.
+1. Relationships between tracked series can be maintained, similar to relational databases, but without requiring that every item contain a unique and immutable key (see Links)
 2. Tracked series can be versioned and merged, similar to version control systems like git, except more precisely. 
 
 Two tracked series are equal if their items are not only equal but also were created in the same relative order, including all items that were deleted. Tracked equality means that the series not only have the same current state but also effectively the same history of changes.
 
+Text is an an untracked series of characters. Two texts are equal if they have the same characters in the same order, regardless of their change histories.
+
 > Tracked series could offer sorting by creation time, and creation-time could be used to order duplicates in a series sorted by value.
 
-> The IDs in tracked series are implemented as monotonically increasing serial numbers within the series, as in an “auto-increment” item in a relational database. We are not exposing this because merging can renumber items.
+> The IDs in tracked series are implemented as monotonically increasing serial numbers within the series, as in an “auto-increment” item in a relational database. We are not exposing this because merging may renumber items.
 
 ### Links
 
