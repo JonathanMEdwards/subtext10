@@ -185,9 +185,9 @@ export class With extends Code {
   private _nominal: undefined;
 }
 
-/** A Call is a special Do block used to call a program. It contains a reference
- * to the program body followed by changes on the input arguments. The final
- * value is the program body modified with all supplied arguments. */
+/** A Call is a special Do block used to call a function. It contains a
+ * reference to the function body followed by changes on the input arguments.
+ * The final value is the function body modified with all supplied arguments. */
 export class Call extends Code {
 
   /** whether call is asserting no rejections */
@@ -196,7 +196,7 @@ export class Call extends Code {
   }
 
   /** Non-generic calls are short-circuited during analysis to allow
-   * recursion. Only the inputs of the program are instantiated to analyze
+   * recursion. Only the inputs of the function are instantiated to analyze
    * arguments. The result is taken from the result of the definition.
   */
   eval() {
@@ -218,7 +218,7 @@ export class Call extends Code {
     }
 
     // analyzing
-    // first statement is ref to program definition
+    // first statement is ref to function definition
     let first = this.statements[0];
     let ref = cast(first.get('^reference').value, Reference)
     ref.eval();

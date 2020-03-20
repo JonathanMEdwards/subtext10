@@ -77,7 +77,7 @@ export class MetaID extends FieldID {
     '^lhs': new MetaID('^lhs'),             // Dependent reference on left of :=
     '^rhs': new MetaID('^rhs'),             // Formula on right of :=
     '^option': new MetaID('^option'),       // option name on |=
-    '^call': new MetaID('^call'),           // Program call
+    '^call': new MetaID('^call'),           // function call
     '^builtin': new MetaID('^builtin'),     // builtin call
     '^initial': new MetaID('^initial'),     // initial value of item
     '^export': new MetaID('^export'),       // Exported value

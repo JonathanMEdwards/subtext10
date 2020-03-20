@@ -118,7 +118,7 @@ test('call', () => {
   expectCompiling("f = 0, a = 1, b = f()")
     .toThrow('Can only call a do-block');
   expectCompiling("f = do{x = 0}, a = 1, b = f()")
-    .toThrow('Program input not defined');
+    .toThrow('function input not defined');
   expectCompiling("f = do{x: ''}, a = 1, b = f()")
     .toThrow('changing type');
   expectDump("f = do{x: 0; y: x}, a = 1, b = f(2)")

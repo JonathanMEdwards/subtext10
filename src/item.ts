@@ -175,7 +175,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    * choose: dependent reference in ^lhs, option name in ^option, optional
    * formula in ^rhs
    *
-   * call: Call block in ^call, starting with reference to program followed by
+   * call: Call block in ^call, starting with reference to function followed by
    * changes on the arguments
    *
    * include: currently includes only builtins

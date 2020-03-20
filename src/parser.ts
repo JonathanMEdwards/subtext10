@@ -416,13 +416,13 @@ export class Parser {
       return undefined;
     }
     if (ref.dependent) {
-      // program references must be structureal
-      throw this.setError('Program is dependent', ref.tokens[0]);
+      // function references must be structureal
+      throw this.setError('function is dependent', ref.tokens[0]);
     }
     let call = new Call;
 
     call.token = arrayLast(ref.tokens);
-    // first statement of call is reference to program
+    // first statement of call is reference to function
     ref.tokens.push(Token.fake('call', this.prevToken));
     let prog = new Statement;
     prog.id = this.space.newFieldID(undefined, this.prevToken);

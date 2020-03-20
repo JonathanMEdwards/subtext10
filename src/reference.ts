@@ -280,7 +280,7 @@ export class Reference extends Base {
             : undefined
         )
         if (!target || !target.isInput) {
-          throw new StaticError(token, 'Program input not defined')
+          throw new StaticError(token, 'function input not defined')
         }
       } else {
 
