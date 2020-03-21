@@ -24,11 +24,15 @@ export * from "./history";
 export * from "./code";
 export * from "./try";
 export * from "./choice";
-export * from "./array";
 export * from "./workspace";
 import { Workspace } from "./workspace";
 export * from "./builtins";
 import { builtinDefinitions } from "./builtins";
+import { arrayBuiltinDefinitions } from "./array";
+export * from "./array";
 
 /** builtin workspace to be included into other workspaces */
-export const builtinWorkspace = Workspace.compile(builtinDefinitions, false);
+export const builtinWorkspace = Workspace.compile(
+  builtinDefinitions + arrayBuiltinDefinitions,
+  false
+);

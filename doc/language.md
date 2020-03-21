@@ -627,7 +627,9 @@ The template of an array is accessed with `array[]`. The formula `array[i]` will
 ```
 array at? i 
 ```
-which returns the item if the index is valid (and the index in `~index`), or rejects otherwise. The functions `first?()` and `last?()` will return the first and last item repectively, rejecting if the array is empty. 
+which returns the item if the index is valid (and the index in `~index`), or rejects otherwise. `array[i]` is equivalent to `array at! i`. The functions `first?()` and `last?()` will return the first and last item repectively, rejecting if the array is empty. 
+
+> Maybe allow `array[index]?` to guard the index being valid instead of using `at?`
 
 Items in an array can be updated individually by index by using square brackets to the left of `:=`:
 ```
@@ -652,14 +654,9 @@ test {
 }
 ```
 
-We can delete an item in an array with the `delete` function, which results in an array with that item removed (crashing if there is no such row):
+We can delete an item in an array with the `delete` function, which results in an array with that item removed:
 ```
-array delete i
-```
-
-We can delete all items from an array with the `clear` function.
-```
-array clear() length() =? 0
+array delete? i
 ```
 
 ### Columns
@@ -734,6 +731,8 @@ joe = do {
 }
 ```
 The code is defined to input from the array template, and in each iteration that input item will become a successive item of the array.
+
+> use with block instead?
 
 A `find-last?` does the same thing as `find?` except that it scans the table backwards. A `find-only?` succeeds if there is exactly one match, and rejects if there are none or more than one. A useful special case is `array sole?()`, resulting in the single item of the array, rejecting if the array has 0 or multiple items. Another is `find-unique?{...}` that finds all matches and rejects if there are none or they are not all equal.  
 

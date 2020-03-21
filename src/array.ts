@@ -1,6 +1,6 @@
-import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, Statement } from "./exports";
+import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement } from "./exports";
 
-/** A SArray contains a variable-sized sequence of items of a fixed type. The
+/** A _Array contains a variable-sized sequence of items of a fixed type. The
  * items are called entries and have numeric IDs, which are ordinal numbers in
  * an untracked array and serial numbers in a tracked array */
 export class _Array<V extends Value = Value> extends Container<Entry<V>> {
@@ -41,27 +41,6 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
     return undefined;
   }
 
-  /** adds value to array and sets into item */
-  addInto(item: Item, value: V): Entry {
-    let copy = this.copy(this.containingItem.path, this.containingItem.path);
-    item.setValue(copy);
-    let entry = new Entry<V>();
-    // add to end
-    copy.add(entry);
-    entry.isInput = true;
-    entry.formulaType = 'none';
-    entry.setFrom(value);
-    if (this.tracked) {
-      // assign new serial number
-      entry.id = ++copy.serial;
-    } else {
-      // assign ordinal number
-      entry.id = this.items.length;
-    }
-    return entry;
-  }
-
-
   // evaluate contents
   eval(): void {
     // eval template
@@ -72,6 +51,7 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
 
   initialize() {
     this.template.initialize();
+    this.serial = 0;
     this.items = [];
   }
 
@@ -119,6 +99,68 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
 
 export class Entry<V extends Value = Value> extends Item<number, V> {
   private _nominal: undefined;
+}
+
+export const arrayBuiltinDefinitions = `
+& = do{in: array{anything}; value: in[]; builtin &; export index = 0}
+length = do{in: array{anything}; builtin length}
+delete? = do{in: array{anything}; index: 0; builtin delete?}
+followed-by = do{in: array{anything}; from: in; builtin followed-by}
+`
+/** & array add */
+builtins['&'] = (s: Statement, array: _Array, value: Value) => {
+  let copy = array.copy(array.containingItem.path, s.path);
+  s.setValue(copy);
+  let entry = new Entry;
+  // add to end
+  copy.add(entry);
+  entry.isInput = true;
+  entry.formulaType = 'none';
+  if (array.tracked) {
+    // assign new serial number
+    entry.id = ++copy.serial;
+  } else {
+    // assign ordinal number
+    entry.id = array.items.length;
+  }
+  entry.setFrom(value);
+  // export index
+  s.exportFrom(entry.container.items.indexOf(entry) + 1);
+}
+
+/** concatenate */
+builtins['followed-by'] = (s: Statement, a: _Array, b: _Array) => {
+  let copy = a.copy(a.containingItem.path, s.path);
+  s.setValue(copy);
+  b.items.forEach((item, i) => {
+    // renumner id of copy if untracked
+    let id = a.tracked ? item.id : a.items.length + i + 1;
+    let copiedItem = item.copy(item.path, s.path.down(id));
+    copiedItem.id = id;
+    copy.add(copiedItem);
+  })
+}
+
+/** array length */
+builtins['length'] = (s: Statement, array: _Array) => {
+  s.setFrom(array.items.length);
+}
+
+/** delete at index */
+builtins['delete?'] = (s: Statement, array: _Array, index: number) => {
+  let accepted = 0 < index && index <= array.items.length;
+  s.setAccepted(accepted);
+  let copy = array.copy(array.containingItem.path, s.path);
+  s.setValue(copy);
+  if (accepted) {
+    copy.items.splice(index - 1, 1);
+    if (!array.tracked) {
+      // renumber if untracked
+      copy.items.slice(index - 1).forEach(item => {
+        item.id--;
+      })
+    }
+  }
 }
 
 /** Text is an untracked array of characters, but is stored as a JS string and

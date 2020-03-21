@@ -32,7 +32,8 @@ export function evalBuiltin(statement: Statement, name: string) {
 type builtinValue = string | number | Value;
 
 /** dispatch table for builtins */
-let builtins: Dictionary<(statement: Statement, ...args: any[]) => void> = {};
+export const builtins: Dictionary<(statement: Statement, ...args: any[]) => void>
+  = {};
 
 /** definition of builtins */
 export const builtinDefinitions = `
@@ -40,7 +41,6 @@ export const builtinDefinitions = `
 - = do{in: 0; subtrahend: 1; builtin -}
 * = do{in: 0; multiplicand: 2; builtin *}
 / = do{in: 0; divisor: 2; builtin /}
-& = do{in: array{anything}; value: in[]; builtin &; export index = 0}
 truncate = do{in: 0; builtin truncate; export fraction = 0}
 skip-white = do{in: ''; builtin skip-white}
 >? = do{in: 0, than: 0, builtin >?}
@@ -63,12 +63,6 @@ builtins['*'] = (s: Statement, a: number, b: number) => {
 builtins['/'] = (s: Statement, a: number, b: number) => {
   s.setFrom(a / b);
 }
-builtins['&'] = (s: Statement, array: _Array, value: Value) => {
-  let entry = array.addInto(s, value);
-  // export index
-  s.exportFrom(entry.container.items.indexOf(entry) + 1);
-}
-
 builtins['truncate'] = (s: Statement, a: number) => {
   s.setFrom(Math.trunc(a));
   s.exportFrom(a - Math.trunc(a));
@@ -113,4 +107,3 @@ builtins['not=?'] = (s: Statement, a: builtinValue, b: builtinValue) => {
   }
   s.setFrom(b);
 }
-
