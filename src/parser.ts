@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, Series } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -262,7 +262,7 @@ export class Parser {
       if (!block) {
         // move first term into multi-term code block
         block = new Code;
-        let first = new Field;
+        let first = new Statement;
         first.id = this.space.newFieldID(undefined, startToken);
         if (field.metadata) {
           first.metadata = field.metadata;
@@ -280,7 +280,7 @@ export class Parser {
         field.setMeta('^code', block);
       }
 
-      let term = new Field;
+      let term = new Statement;
       term.id = this.space.newFieldID(undefined, this.cursorToken);
       block.add(term);
       if (!this.parseTerm(term, false)) {
@@ -474,7 +474,7 @@ export class Parser {
 
     // parse arguments into change operations
     while (!this.parseToken(')')) {
-      let arg = new Field;
+      let arg = new Statement;
       let argToken = this.cursorToken;
       this.requireFormula(arg)
       if (arg.formulaType !== 'change') {
@@ -571,12 +571,12 @@ export class Parser {
       }
 
       // parse clause
-      let field = new Field;
-      block.add(field);
-      this.fieldID(field, nameToken);
+      let statement = new Statement;
+      block.add(statement);
+      this.fieldID(statement, nameToken);
       let clause = new Code;
-      field.formulaType = 'code';
-      field.setMeta('^code', clause);
+      statement.formulaType = 'code';
+      statement.setMeta('^code', clause);
       this.requireBlock(clause);
 
       // whole try is outline if any clause is
@@ -589,8 +589,10 @@ export class Parser {
 
   /** Returns a Reference with tokens[] containing name tokens which may include
    * a leading ^/~ and trailing ?/!. Will contain leading 'that' for dependent
-   * path. Also contains number tokens for testing. [] indexing will return a
-   * ReferenceFormula instead. */
+   * path. Also contains number tokens for testing. [] template access is
+   * converted to a name token. [formula] indexing will return a
+   * ReferenceFormula instead.
+   * */
   parseReference(): Reference | undefined {
     let tokens: Token[] = [];
 
@@ -646,6 +648,20 @@ export class Parser {
           }
         }
         continue;
+      } else if (this.matchToken('[')) {
+        // indexing
+        if (this.matchToken(']')) {
+          // template access - convert epty brackets to a name
+          tokens.push(new Token(
+            'name',
+            this.tokens[this.cursor - 2].start,
+            this.prevToken.end,
+            this.prevToken.source
+          ));
+          continue;
+        }
+        // TODO: formula indexing
+        trap();
       }
       break;
     }
@@ -700,30 +716,21 @@ export class Parser {
       return this.requireBlock(new Choice);
     }
 
-    // if (this.matchToken('table')) {
-    //   let table = new Table;
-    //   let template = new Row;
-    //   table.rows.push(template);
-    //   template.table = table;
-    //   template.serial = 0;
-    //   template.mode = 'formula';
-    //   if (this.matchToken('of')) {
-    //     let value = this.requireValue();
-    //     if (isPath(value)) {
-    //       // path is stored as metadata to be evaluated dynamically
-    //       template.setMeta('^value', value);
-    //     } else {
-    //       // literal value is stored literally
-    //       template.set(value);
-    //     }
-    //   } else {
-    //     // Data block template
-    //     let block = new Data;
-    //     template.set(block);
-    //     this.requireBlock(block);
-    //   }
-    //   return table;
-    // }
+    if (this.matchToken('series')) {
+      this.requireToken('{');
+      let templateValue = this.parseLiteral();
+      if (!templateValue) throw this.setError('expecting a template value')
+      this.requireToken('}');
+      let series = new Series;
+      let template = new Entry;
+      series.template = template;
+      template.id = 0;
+      template.container = series;
+      template.setValue(templateValue);
+      template.isInput = false;
+      template.formulaType = 'none';
+      return series;
+    }
 
     this.setError('Expecting a value');
     return undefined;

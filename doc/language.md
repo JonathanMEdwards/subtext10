@@ -587,7 +587,7 @@ Here the first try clause accesses the `literal?` option. If it was chosen, its 
 
 ## Series and tables
 
-So far we have discussed various kinds of blocks. The other way that a Subtext workspace is built is with _series_. A series is an ordered set of zero or more items containing values of the same fixed type. A _text_ is a series of characters. A _table_ is a series of records, where each record is called a _row_, and each of the fields of the record is called a _column_. Every series defines a value, called it’s _template_, which defines the default value for newly created items. For example:
+So far we have discussed various kinds of blocks. The other way data is combined is with _series_. A series is an ordered set of zero or more items containing values of the same fixed type. A _text_ is a series of characters. A _table_ is a series of records, where each record is called a _row_, and each of the fields of the record is called a _column_. Every series defines a value, called it’s _template_, which defines the default value for newly created items. For example:
 ```
 numbers: series {0}
 customers: table {
@@ -606,7 +606,7 @@ c = customers & with{.name := 'Joe', .address := 'Pleasantown, USA'}
 ```
 The `&` function takes a series as it’s left input and an item value as its right input, resulting in a series equal to the input plus a new item with that value. The default value of the item is the template of the seqence. In a table it is often convenient to use a `with` block as above to change some of the columns and let the others default to their template values.
 
-The `&&` function concatenates two seriess: `series1 && series2` is a copy of `series1` with all the items from `series2` added to its end. The two series must have the same type template.
+The `followed-by` function concatenates two series: `series1 followed-by series2` is a copy of `series1` with all the items from `series2` added to its end. The two series must have the same type template.
 
 The items in a series are numbered starting at 1 for the first item. This number is called the item’s _index_. The number of items in a series (not counting the template) is called its _length_, available by calling the `length()` function. 
 

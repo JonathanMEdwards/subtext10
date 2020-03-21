@@ -1,4 +1,4 @@
-import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice } from "./exports";
+import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice, Series } from "./exports";
 
 /** Guard on an ID in a reference */
 export type Guard = '?' | '!' | undefined;
@@ -221,13 +221,13 @@ export class Reference extends Base {
         // skip leading that in dependent path
         assert(i === 0 && this.dependent);
         continue;
-      } else if (name[0] === '^') {
+      } else if (name[0] === '^' || name[0] === '[') {
 
-        // don't evaluate base item on path into metadata
+        // don't evaluate base item on path into metadata or template
         if (tokenGuards[i - 1] !== undefined) {
           throw new StaticError(
             this.tokens[i - 1],
-            'No guard allowed before metadata'
+            'No guard allowed before ^ or []'
           );
         }
       } else if (type === 'call') {
@@ -285,6 +285,13 @@ export class Reference extends Base {
       } else {
 
         // dereference by name
+        if (name.startsWith('[')) {
+          // access template
+          if (!(target.value instanceof Series)) {
+            throw new StaticError(token, 'not a series')
+          }
+          name = '0';
+        }
         let down = target.getMaybe(name);
         if (!down) {
           // undefined name

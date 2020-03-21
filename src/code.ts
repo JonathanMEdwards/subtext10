@@ -165,6 +165,20 @@ export class Statement extends Field {
   /** during analysis, whether field is used */
   used?: boolean;
 
+  /** called on builtin statement to set exported value */
+  exportFrom(value: string | number | Value) {
+    let exportStatement = arrayLast(this.container.items);
+    assert(exportStatement.dataflow === 'export');
+    exportStatement.detachValue();
+    exportStatement.setFrom(value);
+  }
+
+  /** called on conditional builtin statement to set whether accepted */
+  setAccepted(accepted: boolean) {
+    this.rejected = !accepted;
+    this.setConditional(true);
+  }
+
   get name() { return this.id.name }
 
   copy(srcPath: Path, dstPath: Path): this {

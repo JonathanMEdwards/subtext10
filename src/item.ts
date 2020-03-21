@@ -494,7 +494,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return true;
   }
 
-  /** set value */
+  /** set detached value */
   setValue(value: Value) {
     assert(!this.value);
     assert(!value.containingItem);

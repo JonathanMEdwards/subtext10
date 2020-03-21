@@ -1,4 +1,4 @@
-import { Workspace, trap } from "../src/exports";
+import { Workspace} from "../src/exports";
 
 /** @module
  *
@@ -6,12 +6,12 @@ import { Workspace, trap } from "../src/exports";
  */
 
 /** Compile and dump at a location to plain JS object */
-function expectDump(source: string, at = '') {
+export function expectDump(source: string, at = '') {
   return expect(Workspace.compile(source).dumpAt(at));
 }
 
 /** Test compiler exceptions */
-function expectCompiling(source: string) {
+export function expectCompiling(source: string) {
   return expect(() => Workspace.compile(source));
 }
 
