@@ -49,20 +49,20 @@ This section summarizes the notable programming language features of Subtext.
 The artifact that Subtext mediates is called a _workspace_. It is somewhat like a spreadsheet (e.g. Excel) in that it presents both data and formulas in a visual metaphor that is easy to learn. It is somewhat like a notebook (e.g. Jupyter) in that it offers the full power of a programming language. These artifacts are characterized by their geometry: a notebook is a linear sequence of cells; a spreadsheet is a 2-dimensional grid of cells; A Subtext workspace is a tree of nested cells called _items_. There are many types of items, explained in the following:
 
 - Items are a holder for a value of some type
-- An item is either a _base value_, a _block_, or a _series_
+- An item is either a _base value_, a _block_, or an _array_
 - There are several kinds of base values: numbers, characters, times, images, etc. Base values do not contain any other items, and occupy the bottom of the workspace tree
-- Blocks and series are built out of other items, called their contents. They differ on how the contents are organized. 
+- Blocks and arrays are assembled from other items, called their contents. They differ on how the contents are organized. 
 - A block contains a fixed set of items, like conventional records, structs, or objects. Each item has a fixed type of value. Often the items of a block are given unique names, but when used as intermediate computations they may be left anonymous. The top item of a workspace is a _head_ block. The _history_ of a workspace is a block containing heads.
-- A series contains a variable number of items all of the same type in a linear order, like conventional arrays or lists. _Text_ is a series of _characters_. A series of blocks is called a _table_.
+- An array contains a variable number of items all of the same type in a linear order, like conventional lists. _Text_ is an array of _characters_. An array of blocks is called a _table_.
 
 The tree structure of Subtext workspaces strikes a balance: they are more flexible and dynamic than the grid of a spreadsheet, yet simpler and more visualizable than the graph-structured data of imperative programming languages. They are somewhat like the tree-structured values of functional programming languages, except that:
 
 - Items (called _inputs_) can be changed by the user and functions.
 - Items (called _outputs_) can be automatically derived from the state of other portions of the workspace as they change.
 - The same structures are used to represent data and functions (as in LISP), but they also represent the execution of functions for inspection by the developer.
-- There are cross-references within the tree. Cross-references can be dynamic only to the extent of selecting different items within a specific series — other than that, cross-references are static.
+- There are cross-references within the tree. Cross-references can be dynamic only to the extent of selecting different items within a specific array — other than that, cross-references are static.
 
-Subtext is statically typed, which conventionally means that the code and the types of values are fixed at _compile time_ and do not vary at _run time_. But there is no such thing as compile time in Subtext workspacess, which are always running and fully editable with their state stored persistently in a file. Subtext distinguishes between two kinds of changes: modifying data and editing the definitions of prgrams and data. It is possible to lock a workspace so that only data modifications are allowed — this is called _user mode_. In user mode data changes are highly constrained: data types are fixed. For example a number can’t be changed into text, and a newly created item in a series will have the same type as all the others. Only certain kinds of errors can occur in user mode. In _programming mode_ anything can be changed, which can lead to various sorts of inconsistencies called _static errors_, corresponding to the errors a traditional compiler might report. Static errors are reported to the programmer as problems in the workspace to be resolved, but unlike compiled languages, the workspace continues to function outside the implicated parts.
+Subtext is statically typed, which conventionally means that the code and the types of values are fixed at _compile time_ and do not vary at _run time_. But there is no such thing as compile time in Subtext workspacess, which are always running and fully editable with their state stored persistently in a file. Subtext distinguishes between two kinds of changes: modifying data and editing the definitions of prgrams and data. It is possible to lock a workspace so that only data modifications are allowed — this is called _user mode_. In user mode data changes are highly constrained: data types are fixed. For example a number can’t be changed into text, and a newly created item in an array will have the same type as all the others. Only certain kinds of errors can occur in user mode. In _programming mode_ anything can be changed, which can lead to various sorts of inconsistencies called _static errors_, corresponding to the errors a traditional compiler might report. Static errors are reported to the programmer as problems in the workspace to be resolved, but unlike compiled languages, the workspace continues to function outside the implicated parts.
 
 Although Subtext is statically typed in the above sense, there is no mention of types in the language syntax or error messages, because concrete values serve as witnesses of their types (see _Types_).
 
@@ -84,7 +84,7 @@ Subtext provides several kinds of values out of which a workspace is built:
 
 ## Blocks, formulas, and functions
 
-One way a Subtext workspace is constructed is with a _block_ (the other is a _series_) . A block contains a fixed set of items with (optional) names. Blocks are defined in the syntax with curly brackets preceded by a keyword indicating the kind of block. Blocks are used for both data and functions. A common data block is the _record_, which is like a struct or object in other languages, and like a row in a relational databases. For example:
+One way a Subtext workspace is constructed is with a _block_ (the other is an _array_) . A block contains a fixed set of items with (optional) names. Blocks are defined in the syntax with curly brackets preceded by a keyword indicating the kind of block. Blocks are used for both data and functions. A common data block is the _record_, which is like a struct or object in other languages, and like a row in a relational databases. For example:
 ```
 b: record {
   x: 0
@@ -151,11 +151,11 @@ y = do {
   * 2
 }
 ```
-Like all blocks, a `do` block is a series of items, which we call _statements_. In this example there are three statements, one per line, and they are output items whose value is calculated from their formula. Unlike in previous examples, these are anonymous outputs, lacking a name and the following `=`.  
+Like all blocks, a `do` block is an array of items, which we call _statements_. In this example there are three statements, one per line, and they are output items whose value is calculated from their formula. Unlike in previous examples, these are anonymous outputs, lacking a name and the following `=`.  
 
 The first statement is just a reference to `x` but the last two statements are calls without a preceding input value: `+ 1` and `* 2`. In that case the value of the previous statement is used as the left input. We can see this as the value of statements flowing downward from the result of one formula into the start of the next formula. The result is the bottom value, which becomes the value of `y`. Note how this downward dataflow corresponds exactly to the rightward dataflow in the formula `x + 1 + 2`, with the result being the final value on the right. Thus data flows in formulas from left to right, and in outlined blocks from top to bottom. This matchs the reading order of English prose. 
 
-A formula is a single-line representation of a `do` block, but it will only look like a series of infix calls when the `do` block follows the pattern shown above: a series of anonymous outputs with the first being a literal or reference and the following ones single calls without a  preceding value. Anything else will use the general notation for blocks in a line, with brackets and semicolons. For example, if we had named one of the items:
+A formula is a single-line representation of a `do` block, but it will only look like an array of infix calls when the `do` block follows the pattern shown above: an array of anonymous outputs with the first being a literal or reference and the following ones single calls without a  preceding value. Anything else will use the general notation for blocks in a line, with brackets and semicolons. For example, if we had named one of the items:
 ```
 y = do {
   x
@@ -210,7 +210,7 @@ The value of the last item, 3, becomes the result of the call.
 > 0
 > increment = with{+ 1}
 > ```
-> Here the 0 preceding the definition of `increment` serves as the default input value to the function. When `increment` is called, the previous value will be inserted as the first statement. This abbreviation is especially convenient with series functions, like `find`, that automatically supply a default previous value, saving the duplication of specifying it explicitly. 
+> Here the 0 preceding the definition of `increment` serves as the default input value to the function. When `increment` is called, the previous value will be inserted as the first statement. This abbreviation is especially convenient with array functions, like `find`, that automatically supply a default previous value, saving the duplication of specifying it explicitly. 
 
 > There is another abbreviation for defining functions. For example,
 > ```
@@ -256,7 +256,7 @@ The essential operations on a block are to read and change individual items. We 
 ```
 x with{.name := 'Joe'}
 ```
-This is pronounced “x with name becoming Joe”. The result of this operation is a record equal to the value of `x` except with the item `name` changed to `'Joe'`, while keeping the prior value of `number`. We used a `with` block to contain the change operation, which is like a `do` block except that it feeds the previous value into a series of operations, rather than starting with a value. The equivalent `do` block would be:
+This is pronounced “x with name becoming Joe”. The result of this operation is a record equal to the value of `x` except with the item `name` changed to `'Joe'`, while keeping the prior value of `number`. We used a `with` block to contain the change operation, which is like a `do` block except that it feeds the previous value into an array of operations, rather than starting with a value. The equivalent `do` block would be:
 ```
 do{x; .name := 'Joe'}
 ```
@@ -585,32 +585,32 @@ eval-expr = do {
 
 Here the first try clause accesses the `literal?` option. If it was chosen, its numeric value becomes the result. But if `plus?` was chosen, then the first clause will reject and the second will execute instead, recursively evaluating the `left` and `right` items of the `plus?` option and then adding them together. We get pattern matching “for free” because accessing an option makes the entire containing try clause conditional on that option having been choosen.
 
-## Series and tables
+## Arrays and tables
 
-So far we have discussed various kinds of blocks. The other way data is combined is with _series_. A series is an ordered set of zero or more items containing values of the same fixed type. A _text_ is a series of characters. A _table_ is a series of records, where each record is called a _row_, and each of the fields of the record is called a _column_. Every series defines a value, called it’s _template_, which defines the default value for newly created items. For example:
+So far we have discussed various kinds of blocks. The other way data is combined is with an  _array_. An array is an ordered set of zero or more items containing values of the same fixed type. A _text_ is an array of characters. A _table_ is an array of records, where each record is called a _row_, and each of the fields of the record is called a _column_. Every array defines a value, called it’s _template_, which defines the default value for newly created items. For example:
 ```
-numbers: series {0}
+numbers: array {0}
 customers: table {
   name: ''
   address: ''
 }
 ```
-The series `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: series {record {...}}`. The table contains columns `name` and `address` defaulting to the empty text. 
+The array `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: array {record {...}}`. The table contains columns `name` and `address` defaulting to the empty text. 
 
-A series is initially created as empty. Text is a series of characters with the space character as the template, so `'' =? series{\ }`
+An array is initially created empty. Text is an array of characters with the space character as the template, so `'' =? array{\ }`
 
-The `&` function (pronounced “and”) is used to add items to a series. For example:
+The `&` function (pronounced “and”) is used to add items to an array. For example:
 ```
 n = numbers & 1 & 2 & 3
 c = customers & with{.name := 'Joe', .address := 'Pleasantown, USA'}
 ```
-The `&` function takes a series as it’s left input and an item value as its right input, resulting in a series equal to the input plus a new item with that value. The default value of the item is the template of the seqence. In a table it is often convenient to use a `with` block as above to change some of the columns and let the others default to their template values.
+The `&` function takes an array as it’s left input and an item value as its right input, resulting in an array equal to the input plus a new item with that value. The default value of the item is the template of the seqence. In a table it is often convenient to use a `with` block as above to change some of the columns and let the others default to their template values.
 
-The `followed-by` function concatenates two series: `series1 followed-by series2` is a copy of `series1` with all the items from `series2` added to its end. The two series must have the same type template.
+The `followed-by` function concatenates two arrays: `array1 followed-by array2` is a copy of `array1` with all the items from `array2` added to its end. The two array must have the same type template.
 
-The items in a series are numbered starting at 1 for the first item. This number is called the item’s _index_. The number of items in a series (not counting the template) is called its _length_, available by calling the `length()` function. 
+The items in an array are numbered starting at 1 for the first item. This number is called the item’s _index_. The number of items in an array (not counting the template) is called its _length_, available by calling the `length()` function. 
 
-An item in a series can be accessed via its index using square brackets, as in:
+An item in an array can be accessed via its index using square brackets, as in:
 ```
 n = numbers & 1 & 2
 check n[1] =? 1
@@ -623,13 +623,13 @@ x = n[i]
 check x~index =? i
 ```
 
-The template of a series is accessed with `series[]`. The formula `series[i]` will crash if `i` is fractional or non-positive or larger than the length of the series. You can test if an index is valid with:
+The template of an array is accessed with `array[]`. The formula `array[i]` will crash if `i` is fractional or non-positive or larger than the length of the array. You can test if an index is valid with:
 ```
-series at? i 
+array at? i 
 ```
-which returns the item if the index is valid (and the index in `~index`), or rejects otherwise. The functions `first?()` and `last?()` will return the first and last item repectively, rejecting if the series is empty. 
+which returns the item if the index is valid (and the index in `~index`), or rejects otherwise. The functions `first?()` and `last?()` will return the first and last item repectively, rejecting if the array is empty. 
 
-Items in a series can be updated individually by index by using square brackets to the left of `:=`:
+Items in an array can be updated individually by index by using square brackets to the left of `:=`:
 ```
 n = numbers & 1 & 2
 test {
@@ -652,18 +652,18 @@ test {
 }
 ```
 
-We can delete an item in a series with the `delete` function, which results in a series with that item removed (crashing if there is no such row):
+We can delete an item in an array with the `delete` function, which results in an array with that item removed (crashing if there is no such row):
 ```
-series delete i
+array delete i
 ```
 
-We can delete all items from a series with the `clear` function.
+We can delete all items from an array with the `clear` function.
 ```
-series clear() length() =? 0
+array clear() length() =? 0
 ```
 
 ### Columns
-A column of a table is a series containing the contents of one of the block items from each row. The columns of a table are accessed using `.` as if the table was a block containing the columns. For example:
+A column of a table is an array containing the contents of one of the block items from each row. The columns of a table are accessed using `.` as if the table was a block containing the columns. For example:
 
 ```
 t = do {
@@ -686,42 +686,42 @@ test {
   .t.amount := (clear() & 150 & 200)
 }
 ```
-A column  can only be replaced with a series of the same length as the table, otherwise it will crash. In a tracked tabled (see below) no insertions, deletion, or moves can have happened in the column.
+A column  can only be replaced with an array of the same length as the table, otherwise it will crash. In a tracked tabled (see below) no insertions, deletion, or moves can have happened in the column.
 
 When a table column is conditional, meaning the corresponding block item is a conditional output, then the column will skip all items where the item rejected. 
 
-### Sorted series
+### Sorted arrays
 
-Normally, items are added to the end of a series. But a series can be defined as _sorted_, which means the items will be automatically kept in order of increasing value, or _reverse sorted_, which keeps then in order of decreasing value. Tables, whose items are blocks, use lexicographical ordering, where the first column is the most significant. Thus
+Normally, items are added to the end of an array. But an array can be defined as _sorted_, which means the items will be automatically kept in order of increasing value, or _reverse sorted_, which keeps then in order of decreasing value. Tables, whose items are blocks, use lexicographical ordering, where the first column is the most significant. Thus
 ```
 customers: sorted table {
   name: ''
   address: ''
 }
 ```
-will order the rows alphabetically by name, and duplicate names by address. A series can be converted into one with the same items but sorted differently with the functions `sorted()` `reverse-sorted()` `unsorted()`. 
+will order the rows alphabetically by name, and duplicate names by address. An array can be converted into one with the same items but sorted differently with the functions `sorted()` `reverse-sorted()` `unsorted()`. 
 
-When a series is not sorted, new items can be inserted at any position using:
+When an array is not sorted, new items can be inserted at any position using:
 ```
-series insert(item, at: i)
+array insert(item, at: i)
 ```
-where 1 ≤ `i`  ≤ length + 1. The new item will then have the index `i`. An item already in the series can be moved using:
+where 1 ≤ `i`  ≤ length + 1. The new item will then have the index `i`. An item already in the array can be moved using:
 ```
-series move(i, at: j)
+array move(i, at: j)
 ```
 where 1 ≤ `j` ≤ length + 1.
 
-Two series are considered equal by the `=?` function when they have the same number of items with equal values in the same order, and their templates are equal, and they are sorted and tracked the same. These constraints are necessary to preserve the property that calling a function with equal inputs produces equal results, specifically the `&` function creating new items.
+Two arrays are considered equal by the `=?` function when they have the same number of items with equal values in the same order, and their templates are equal, and they are sorted and tracked the same. These constraints are necessary to preserve the property that calling a function with equal inputs produces equal results, specifically the `&` function creating new items.
 
 > Maybe we need `currently=?` to compare ignoring the values of the templates and sorting/tracking, which only affect new insertions.
 
 ## Searching
 
-A `find` block searches in a series:
+A `find` block searches in an array:
 ```
 joe = customers find? {check .name =? 'Joe'}
 ```
-The `find?` block is executed like a `do` repeatedly with items from the series as its input value, starting with the first item and continuing until it does not reject. The result is the first non-rejected item, with `~index` equal to the index. If all the items are rejected, the entire `find?` rejects (hence the suffix `?`).
+The `find?` block is executed like a `do` repeatedly with items from the array as its input value, starting with the first item and continuing until it does not reject. The result is the first non-rejected item, with `~index` equal to the index. If all the items are rejected, the entire `find?` rejects (hence the suffix `?`).
 
 Note that in this example the function block contains no input item — the input is referenced implicitly with `.name ...`. If we outline it in the UI we will see that one is created automatically to display the input value:
 ```
@@ -733,17 +733,17 @@ joe = do {
   }
 }
 ```
-The code is defined to input from the series template, and in each iteration that input item will become a successive item of the series.
+The code is defined to input from the array template, and in each iteration that input item will become a successive item of the array.
 
-A `find-last?` does the same thing as `find?` except that it scans the table backwards. A `find-only?` succeeds if there is exactly one match, and rejects if there are none or more than one. A useful special case is `series sole?()`, resulting in the single item of the series, rejecting if the series has 0 or multiple items. Another is `find-unique?{...}` that finds all matches and rejects if there are none or they are not all equal.  
+A `find-last?` does the same thing as `find?` except that it scans the table backwards. A `find-only?` succeeds if there is exactly one match, and rejects if there are none or more than one. A useful special case is `array sole?()`, resulting in the single item of the array, rejecting if the array has 0 or multiple items. Another is `find-unique?{...}` that finds all matches and rejects if there are none or they are not all equal.  
 
 ### Replacing and aggregating
 
-A `for-each` block will evaluate a `do` block on each item of a series in order, resulting in an unsorted series with items containing the results in the same order. If an item is rejected, it is left out of the result. The `for-all?` block is like `for-each` except it rejects if the code block rejects on any item, otherwise resulting in the replaced table. The `for-none?` block does the opposite, rejecting if the code block accepts any item, otherwise resulting in the input series. For example:
+A `for-each` block will evaluate a `do` block on each item of an array in order, resulting in an unsorted array with items containing the results in the same order. If an item is rejected, it is left out of the result. The `for-all?` block is like `for-each` except it rejects if the code block rejects on any item, otherwise resulting in the replaced table. The `for-none?` block does the opposite, rejecting if the code block accepts any item, otherwise resulting in the input array. For example:
 
 ```
 test {
-  l = series{0} & 1 & 2 & 3
+  l = array{0} & 1 & 2 & 3
   
   // replace each item with result of block on it (like functional map)
   check l for-each {+ 1} =? (clear() & 2 & 3 & 4)
@@ -762,9 +762,9 @@ test {
 }
 ```
 
-An `aggregate` block is used to accumulate a result by scanning a series.
+An `aggregate` block is used to accumulate a result by scanning an array.
 ```
-series{0} & 1 & 2
+array{0} & 1 & 2
 aggregate {
   item: that
   sum: 0
@@ -772,27 +772,27 @@ aggregate {
 }
 check =? 3
 ```
-An aggregate block must define two input items. The block will be executed repeatedly, like a `for-each`, feeding items from the input series into the first input item. In this example we called the first input `item`, and define it from the default template value referenced as `that`. 
-The second input (`sum`) acts as an accumulator. On the first call it defaults to the defined value (0). On the second and subsequent calls, `sum` becomes the result of the previous call. This example is equivalent to the built-in `sum()` function that sums a series of numbers. If the function rejects an item then it will be skipped and the accumulator value will be passed on to the next call. An `aggregate` is  like a conventional _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `s sum(100)`).
+An aggregate block must define two input items. The block will be executed repeatedly, like a `for-each`, feeding items from the input array into the first input item. In this example we called the first input `item`, and define it from the default template value referenced as `that`. 
+The second input (`sum`) acts as an accumulator. On the first call it defaults to the defined value (0). On the second and subsequent calls, `sum` becomes the result of the previous call. This example is equivalent to the built-in `sum()` function that sums an array of numbers. If the function rejects an item then it will be skipped and the accumulator value will be passed on to the next call. An `aggregate` is  like a conventional _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `s sum(100)`).
 
-## Tracked and untracked series
+## Tracked and untracked arrays
 
-A series is defined to be either _tracked_ or _untracked_. Tracking is the default. A tracked series automatically assigns a unique ID to each item when it is created. The ID is used to precisely track changes to the item. Such IDs are called _surrogate keys_ in databases. The tracking ID is hidden from the user and programmer. Tracking allows two important capabilities:
+An array is defined to be either _tracked_ or _untracked_. Tracking is the default. A tracked array automatically assigns a unique ID to each item when it is created. The ID is used to precisely track changes to the item. Such IDs are called _surrogate keys_ in databases. The tracking ID is hidden from the user and programmer. Tracking allows two important capabilities:
 
-1. Relationships between tracked series can be maintained, similar to relational databases, but without requiring that every item contain a unique and immutable key (see Links)
-2. Tracked series can be versioned and merged, similar to version control systems like git, except more precisely. 
+1. Relationships between tracked arrays can be maintained, similar to relational databases, but without requiring that every item contain a unique and immutable key (see Links)
+2. Tracked arrays can be versioned and merged, similar to version control systems like git, except more precisely. 
 
-Two tracked series are equal if their items are not only equal but also were created in the same relative order, including all items that were deleted. Tracked equality means that the series not only have the same current state but also effectively the same history of changes.
+Two tracked arrays are equal if their items are not only equal but also were created in the same relative order, including all items that were deleted. Tracked equality means that the array not only have the same current state but also effectively the same history of changes.
 
-Text is an an untracked series of characters. Two texts are equal if they have the same characters in the same order, regardless of their change histories.
+Text is an an untracked array of characters. Two texts are equal if they have the same characters in the same order, regardless of their change histories.
 
-> Tracked series could offer sorting by creation time, and creation-time could be used to order duplicates in a series sorted by value.
+> Tracked arrays could offer sorting by creation time, and creation-time could be used to order duplicates in an array sorted by value.
 
-> The IDs in tracked series are implemented as monotonically increasing serial numbers within the series, as in an “auto-increment” item in a relational database. We are not exposing this because merging may renumber items.
+> The IDs in a tracked array are implemented as monotonically increasing serial numbers within the array, as in an “auto-increment” item in a relational database. We are not exposing this because merging may renumber items.
 
 ### Links
 
-Links are used to store user-modifiable references to items from outside the series. A common scenario is what relational databases call _foreign keys_, where rows in one table reference rows in another:
+Links are used to store user-modifiable references to items from outside the array. A common scenario is what relational databases call _foreign keys_, where rows in one table reference rows in another:
 
 ```
 customers: tracked table {
@@ -805,7 +805,7 @@ orders: tracked table {
 }
 ```
 
-The `customer` item of `orders` rows is a _link_. Links designate a series they reference into (called the _target_), and a constraint on the number of linked items they permit. In this example, exactly one customer must be linked. The number of linked items can be constrained in several ways:
+The `customer` item of `orders` rows is a _link_. Links designate an array they reference into (called the _target_), and a constraint on the number of linked items they permit. In this example, exactly one customer must be linked. The number of linked items can be constrained in several ways:
 ```
 one in customers         // exactly 1 item
 maybe one in customers   // 0 or 1 items
@@ -813,21 +813,21 @@ some in customers        // 1 or more items
 maybe some in customers  // 0 or more items
 ```
 
-A link records a subset of the IDs in its target series. Links are equal when their target series are equal and they link the same items. A link is edited in the UI with something like a pick-list of the items in the target series (and radio buttons for a singular link). Links can be modified with several functions that produce modified links:
+A link records a subset of the IDs in its target array. Links are equal when their target array are equal and they link the same items. A link is edited in the UI with something like a pick-list of the items in the target array (and radio buttons for a singular link). Links can be modified with several functions that produce modified links:
 ```
 l link i                  // add link to item with index i in target
 l unlink i                // unlink item with index i in target
 l links? i                // rejects if target index i is not linked
 l clear()                 // unlink everything
-l link-all series         // link all IDs from another series or link
-l unlink-all series       // unlink all IDs from another series or link
-l copy series             // clear and link-all
+l link-all array          // link all IDs from another array or link
+l unlink-all array        // unlink all IDs from another array or link
+l copy array              // clear and link-all
 ```
 
-Links act in some ways as if they were a sub-series containing the linked items in their order in the target series, for example they can be indexed with `[...]` and searched with `find?{...}`. But note the indexes used in those examples are the index within the links, not the index in the target series. We can access the underlying target series with:
+Links act in some ways as if they were a sub-array containing the linked items in their order in the target array, for example they can be indexed with `[...]` and searched with `find?{...}`. But note the indexes used in those examples are the index within the links, not the index in the target array. We can access the underlying target array with:
 
 ```
-l target()        // copy of the target series
+l target()        // copy of the target array
 l target-index i  // converts index within links to index in target
 ```
 
@@ -861,7 +861,7 @@ customers: table {
 
 
 ### TODO: Nested links
-Links can target nested series, linking to a path of IDs. Reflecting links can cross multiple layers of containing series. Cardinality constraints are specified seperately for each level of nesting. 
+Links can target nested arrays, linking to a path of IDs. Reflecting links can cross multiple layers of containing arrays. Cardinality constraints are specified seperately for each level of nesting. 
 
 ### TODO: link updates and referential integrity
 
@@ -869,11 +869,11 @@ Links can target nested series, linking to a path of IDs. Reflecting links can c
 
 Copies happen. Workspaces get shared as email attachments. Workspaces get incorporated into other workspaces. Inevitably both the copy and the original change. Tracking allows such changes to be later sent to the other version without wiping out all the changes that have happened to it in the meantime. This is called _merging_. 
 
-Two copies of a tracked series can be compared to see exactly how they have diverged. The IDs in a tracked series allow changes made to an item to be tracked despite any changes made to its value or location. Deletions and creations are also known exactly. Tracking provides more precise information than text-based version control systems like git. 
+Two copies of a tracked array can be compared to see exactly how they have diverged. The IDs in a tracked array allow changes made to an item to be tracked despite any changes made to its value or location. Deletions and creations are also known exactly. Tracking provides more precise information than text-based version control systems like git. 
 
 Changes made to one copy can be merged into the other. If changes are merged in both directions the two copies become equal again. Sometimes changes made to both copies are such that merging must lose some information, for example if the same item in the same item is changed to be two different numbers. Merging can be done using an automatic policy to resolve such conflicts, or human intervention can be requested, either immediately in the UI when performing the merge, or later by reifying such conflicts into the workspace itself (but without breaking the workspace as textual version-control does).
 
-Merging can be done across copies of entire workspaces. Merging can also apply to workspaces included inside another workspace (see _include_ and _variant_). Merging applies to all tracked series and links within a workspace. Non-tracked series (like text) are treated like base values that change as a whole.
+Merging can be done across copies of entire workspaces. Merging can also apply to workspaces included inside another workspace (see _include_ and _variant_). Merging applies to all tracked arrays and links within a workspace. Non-tracked arrays (like text) are treated like base values that change as a whole.
 
 TODO: details.
 
@@ -881,15 +881,15 @@ TODO: details.
 
 It is common to need to find and operate on patterns in text. The traditional solutions involve specialized languages with radically different syntax and semantics, such as _regular expressions_ or _parser generators_. Subtext provides these capabilities without the need to learn a specialized sub-language.
 
-A _selection_ is a series that has been divided into three parts, called _before_, _selected_, and _after_. Any of these parts can be empty. We can think of a selection as a series plus two indices `begin` and `end` where `1 ≤ begin ≤ end ≤ length + 1`. A selection is created from a series with
+A _selection_ is an array that has been divided into three parts, called _before_, _selected_, and _after_. Any of these parts can be empty. We can think of a selection as an array plus two indices `begin` and `end` where `1 ≤ begin ≤ end ≤ length + 1`. A selection is created from an array with
 ```
-series selection(.begin := i, .end := j)
+array selection(.begin := i, .end := j)
 ```
 where the begin and end indexes default to 1.
 
-Two selections are equal if they are equal as series and have equal begin and end indexes. A selection is equal to a series if its begin and end indexes are both 1 and the after part is equal to the series. The UI displays a text selection with the selected part highlighted as in a text region selection. If the selection is empty, the UI displays it as a text cursor between two characters, or at the beginning or end. When a text selection is edited, changes to the cursor/selection state in the UI are saved.
+Two selections are equal if they are equal as arrays and have equal begin and end indexes. A selection is equal to an array if its begin and end indexes are both 1 and the after part is equal to the array. The UI displays a text selection with the selected part highlighted as in a text region selection. If the selection is empty, the UI displays it as a text cursor between two characters, or at the beginning or end. When a text selection is edited, changes to the cursor/selection state in the UI are saved.
 
-Selections are useful when attempting to recognize various patterns in text (or any kind of series, but we focus on text in the following discussion). This process is called _matching_. The most basic matching function is `match?`, which will check that the front of the input text equals the second input text, rejecting otherwise. So:
+Selections are useful when attempting to recognize various patterns in text (or any kind of array, but we focus on text in the following discussion). This process is called _matching_. The most basic matching function is `match?`, which will check that the front of the input text equals the second input text, rejecting otherwise. So:
 ```
 'foobar' match? 'foo'
 not{'foobar' match? 'bar'}
@@ -1016,7 +1016,7 @@ check =? 'foo'
 
 This example uses a `repeat` block, which is Subtext’s form of looping. Unlike traditional loop mechanisms, `repeat` blocks are expressed as a _tail recursive_ function: The special call `continue?()` recursively calls the containing repeat block. Like any other call it takes an input value on the left, and optionally other inputs on the right. But it may only be used where its result will immediately become the result of the whole function (_tail position_).
 
-A tail recursive function is equivalent to a loop, and a repeat block is actually implemented that way, as a series of calls. In the UI they will be displayed as a series rather than the nested inlining used for normal function calls. Unlike a traditional loop, a repeat block does not involve mutable variables — that is replaced by passing new input values to the next iteration. We hypothesize that this is the best of both worlds: the simple iterative semantics of loops, with the clean value semantics of recursion.
+A tail recursive function is equivalent to a loop, and a repeat block is actually implemented that way, as an array of calls. In the UI they will be displayed as an array rather than the nested inlining used for normal function calls. Unlike a traditional loop, a repeat block does not involve mutable variables — that is replaced by passing new input values to the next iteration. We hypothesize that this is the best of both worlds: the simple iterative semantics of loops, with the clean value semantics of recursion.
 
 The recursive call `continue?()` has a question mark because the repeat block can reject. An unconditional `continue()` would be used in an unconditional repeat.
 
@@ -1031,7 +1031,7 @@ The recursive call `continue?()` has a question mark because the repeat block ca
  
 ## Repeated exports
 
-When we parse a CSV we typically want to produce a series of the numeric values. We can do that by adding an export:
+When we parse a CSV we typically want to produce an array of the numeric values. We can do that by adding an export:
 
 ```
 '1,2,3'
@@ -1044,10 +1044,10 @@ csv = repeat {
   }
 }
 
-check csv~ =? (series{0} & 1 & 2 & 3)
+check csv~ =? (array{0} & 1 & 2 & 3)
 ```
 
-Recall that the export of a `do` block is a record, and the export of a `try` block is a choice. The export of a `repeat` block is a series, with each item containing the export of an iteration of the block. The statement `export ~value` exports the numeric value from the prior call to `match-number?()`. So the export of the entire `repeat` is a series of matched numbers. 
+Recall that the export of a `do` block is a record, and the export of a `try` block is a choice. The export of a `repeat` block is an array, with each item containing the export of an iteration of the block. The statement `export ~value` exports the numeric value from the prior call to `match-number?()`. So the export of the entire `repeat` is an array of matched numbers. 
 
 ### Scanning
 
@@ -1083,8 +1083,8 @@ We propose a simple solution for missing values that visualizes naturally in the
 1. There is a special number called `_number_` that corresponds to an empty numeric item in the UI. Numeric functions treat `_number_` as a special case, as Excel does with empty cells. Unlike IEEE NaN, `_number_` is equal to itself.
 2. The empty text represents a missing text.
 3. There are predefined missing values for each media type that serve as placeholders.
-4. The missing value for a block is when all its input items are missing.
-5. The missing value for a series is when it is empty.
+4. The missing value for a block has all its input items missing.
+5. The missing value for an array is empty.
 6. There is no predefined missing value for choices. However as their first option is the default, it can be defined to be something like `NA?: nil` to serve as a missing value if desired. Also see `maybe` blocks below.
 
 The `required` constraint (see _Constraints_) checks that an input item does not contain one of the above missing values.
@@ -1107,22 +1107,22 @@ Subtext has no syntax for describing types: functions only talk about values. Al
 We believe that type systems are an essential formalism for language theoreticians and designers, but that many language users would prefer to obtain their benefits without having to know about them and write about them.
 
 _FIXME: simpler: names are nominal, everything else is structural_
-In PL theory terms, Subtext mixes aspects of structural and nominal type systems. It is structural in that `x = series{0}` and `y = series{1}` have the same type. It is nominal in that `x = record {a: 0}` and `y = record {a: 0}` have different types. Every time a block item is defined a globally unique ID is assigned to it. There is a workspace-wide dictionary that maps these item IDs to their current names. Renaming a block item just changes that dictionary entry. Type equality requires that block item IDs be equal, not that their names are currently spelled the same.
+In PL theory terms, Subtext mixes aspects of structural and nominal type systems. It is structural in that `x = array{0}` and `y = array{1}` have the same type. It is nominal in that `x = record {a: 0}` and `y = record {a: 0}` have different types. Every time a block item is defined a globally unique ID is assigned to it. There is a workspace-wide dictionary that maps these item IDs to their current names. Renaming a block item just changes that dictionary entry. Type equality requires that block item IDs be equal, not that their names are currently spelled the same.
 
 > TODO: To share item IDs across different types of blocks we can use a traits-like mechanism that merges and restricts blocks. Deferred until we have the need.
 
 Subtext doesn’t have function types or higher-order values. Two values have the same type if they have the same data type and all embedded code is equal (modulo internal paths). Value equality requires type equality, so equal values are behaviorally equivalent, i.e. referentially transparent.
 
-Generic (parametrically typed) functions are defined with inputs using the special top value `anything`. For example the `&` function to add items to a series has the signature:
+Generic (parametrically typed) functions are defined with inputs using the special top value `anything`. For example the `&` function to add items to an array has the signature:
 
 ```
 & = do {
-  input: series {anything}   // input must be a series
-  item: input[]              //  item must match series template
+  input: array {anything}    // input must be an array
+  item: input[]              // item must match array template
 }
-series{0} & 1      // this will insert 1
-series{0} & ''	   // this will report a type mismatch static error
-series{0} &()      // this will insert 0
+array{0} & 1      // this will insert 1
+array{0} & ''	   // this will report a type mismatch static error
+array{0} &()      // this will insert 0
 ```
 
 A generic function is one with an input containing `anything`. The function can be called with any input value where the `anything` occurs. Every call of a generic function will recompute the input default values based on the actual input values before becoming the value from the call. Inputs to the call are type-checked against those new defaults. Note that type checking is still static: every call to a generic function gets statically checked — types can not vary dynamically, only across different call-sites. It is notable that we acheive parametric types without introducing an explicitly parametric type system with type variables like `<T>`, which are notoriously baffling to beginners. Yet unlike template meta-programming, we retain static type checking at call sites for comprehensible errors.
@@ -1158,7 +1158,7 @@ Value :=
 	| 'record' Block
 	| 'choice' Block
 	| 'maybe' Block
-	| 'series' Block
+	| 'array' Block
 	| 'table' Block
 
 BaseValue :=

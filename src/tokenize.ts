@@ -8,7 +8,7 @@ export type TokenType = (
   | '[' | ']' | 'string' | 'number' | '_number_' | 'name' | 'end' | '\n'
   | 'call' | 'arg1' | 'arg2' | 'input'
   // keywords - add to matchToken switch statement
-  | 'record' | 'choice' | 'table' | 'series' | 'do' | 'builtin' | 'anything'
+  | 'record' | 'choice' | 'table' | 'array' | 'do' | 'builtin' | 'anything'
   | 'nil' | 'try' | 'check' | 'not' | 'else' | 'reject' | 'let' | 'export'
   | 'that' | 'include' | 'with'
 )
@@ -212,7 +212,7 @@ export function tokenize(source: string): Token[] {
         case 'else':
         case 'reject':
         case 'table':
-        case 'series':
+        case 'array':
         case 'anything':
         case 'nil':
         case 'builtin':

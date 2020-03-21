@@ -1,16 +1,16 @@
 import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, Statement } from "./exports";
 
-/** A Series contains a variable-sized sequence of items of a fixed type. The
+/** A SArray contains a variable-sized sequence of items of a fixed type. The
  * items are called entries and have numeric IDs, which are ordinal numbers in
- * an untracked series and serial numbers in a tracked series */
-export class Series<V extends Value = Value> extends Container<Entry<V>> {
+ * an untracked array and serial numbers in a tracked array */
+export class _Array<V extends Value = Value> extends Container<Entry<V>> {
 
-  /** whether series is tracked using serial numbers */
+  /** whether array is tracked using serial numbers */
   tracked = true;
   /** last used serial number */
   serial = 0;
 
-  /** whether series is sorted by the value of the items */
+  /** whether array is sorted by the value of the items */
   sorted = false;
   ascending = true;
 
@@ -41,7 +41,7 @@ export class Series<V extends Value = Value> extends Container<Entry<V>> {
     return undefined;
   }
 
-  /** adds value to series and sets into item */
+  /** adds value to array and sets into item */
   addInto(item: Item, value: V): Entry {
     let copy = this.copy(this.containingItem.path, this.containingItem.path);
     item.setValue(copy);
@@ -89,7 +89,7 @@ export class Series<V extends Value = Value> extends Container<Entry<V>> {
 
   changeableFrom(from: Value, fromPath: Path, thisPath: Path): boolean {
     return (
-      from instanceof Series
+      from instanceof _Array
       && this.template.changeableFrom(from.template, fromPath, thisPath)
     )
   }
@@ -99,7 +99,7 @@ export class Series<V extends Value = Value> extends Container<Entry<V>> {
   }
 
   /** value equality */
-  equals(other: Series) {
+  equals(other: _Array) {
     assert(!(other instanceof Text))
     return (
       this.tracked === other.tracked
@@ -121,9 +121,9 @@ export class Entry<V extends Value = Value> extends Item<number, V> {
   private _nominal: undefined;
 }
 
-/** Text is an untracked series of characters, but is stored as a JS string and
- * expanded into a series on demand */
-export class Text extends Series<Character> {
+/** Text is an untracked array of characters, but is stored as a JS string and
+ * expanded into a array on demand */
+export class Text extends _Array<Character> {
   tracked = false;
   sorted = false;
 
@@ -145,17 +145,17 @@ export class Text extends Series<Character> {
   get isGeneric() { return false; }
 
   changeableFrom(from: Value, fromPath: Path, thisPath: Path): boolean {
-    // FIXME: compatible Series
+    // FIXME: compatible array
     return from instanceof Text
   }
 
 
   /** value equality */
-  equals(other: Series): boolean {
+  equals(other: _Array): boolean {
     if (other instanceof Text) {
       return this.value === other.value;
     }
-    // FIXME: Text-Series equality
+    // FIXME: Text-array equality
     trap();
   }
 

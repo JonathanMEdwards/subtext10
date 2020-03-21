@@ -1,6 +1,6 @@
 import { assert, Item, Value, another, Path } from "./exports";
 
-/** superclass of Block and Series, the two kinds of containers. */
+/** superclass of Block and _Array, the two kinds of containers. */
 export abstract class Container<I extends Item> extends Value {
 
   /** array of items in proper order */

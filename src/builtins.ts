@@ -1,4 +1,4 @@
-import { Item, cast, Do, assert, Numeric, Character, Text, Dictionary, Value, Statement, arrayLast, Base, assertDefined, Nil, Series } from "./exports"
+import { Item, cast, Do, assert, Numeric, Character, Text, Dictionary, Value, Statement, arrayLast, Base, assertDefined, Nil, _Array } from "./exports"
 
 /** evaluate a builtin call. Assumes input fields present in containing block.
  * Arguments have already been type-checked and assigned */
@@ -40,7 +40,7 @@ export const builtinDefinitions = `
 - = do{in: 0; subtrahend: 1; builtin -}
 * = do{in: 0; multiplicand: 2; builtin *}
 / = do{in: 0; divisor: 2; builtin /}
-& = do{in: series{anything}; value: in[]; builtin &; export index = 0}
+& = do{in: array{anything}; value: in[]; builtin &; export index = 0}
 truncate = do{in: 0; builtin truncate; export fraction = 0}
 skip-white = do{in: ''; builtin skip-white}
 >? = do{in: 0, than: 0, builtin >?}
@@ -63,8 +63,8 @@ builtins['*'] = (s: Statement, a: number, b: number) => {
 builtins['/'] = (s: Statement, a: number, b: number) => {
   s.setFrom(a / b);
 }
-builtins['&'] = (s: Statement, series: Series, value: Value) => {
-  let entry = series.addInto(s, value);
+builtins['&'] = (s: Statement, array: _Array, value: Value) => {
+  let entry = array.addInto(s, value);
   // export index
   s.exportFrom(entry.container.items.indexOf(entry) + 1);
 }

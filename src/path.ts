@@ -2,7 +2,7 @@ import { MetaID, VersionID, assert, FieldID, Base, another, Token, Item, trap, S
 
 /**
  * ID of an item. Immutable and interned, so can use ===
- * Series use plain JS numbers, either ordinals or serial numbers.
+ * Arrays use plain JS numbers, either ordinals or serial numbers.
  * Strings are used as a convenience in APIs but not used as Item id
  */
 export type RealID = FieldID | number;

@@ -1,4 +1,4 @@
-import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice, Series } from "./exports";
+import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice, _Array } from "./exports";
 
 /** Guard on an ID in a reference */
 export type Guard = '?' | '!' | undefined;
@@ -287,8 +287,8 @@ export class Reference extends Base {
         // dereference by name
         if (name.startsWith('[')) {
           // access template
-          if (!(target.value instanceof Series)) {
-            throw new StaticError(token, 'not a series')
+          if (!(target.value instanceof _Array)) {
+            throw new StaticError(token, 'input not an array')
           }
           name = '0';
         }

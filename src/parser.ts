@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, Series } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -716,20 +716,20 @@ export class Parser {
       return this.requireBlock(new Choice);
     }
 
-    if (this.matchToken('series')) {
+    if (this.matchToken('array')) {
       this.requireToken('{');
       let templateValue = this.parseLiteral();
       if (!templateValue) throw this.setError('expecting a template value')
       this.requireToken('}');
-      let series = new Series;
+      let array = new _Array;
       let template = new Entry;
-      series.template = template;
+      array.template = template;
       template.id = 0;
-      template.container = series;
+      template.container = array;
       template.setValue(templateValue);
       template.isInput = false;
       template.formulaType = 'none';
-      return series;
+      return array;
     }
 
     this.setError('Expecting a value');
