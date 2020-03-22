@@ -221,13 +221,13 @@ export class Reference extends Base {
         // skip leading that in dependent path
         assert(i === 0 && this.dependent);
         continue;
-      } else if (name[0] === '^' || name[0] === '[') {
+      } else if (name[0] === '^') {
 
-        // don't evaluate base item on path into metadata or template
+        // don't evaluate base item on path into metadata
         if (tokenGuards[i - 1] !== undefined) {
           throw new StaticError(
             this.tokens[i - 1],
-            'No guard allowed before ^ or []'
+            'No guard allowed before ^'
           );
         }
       } else if (type === 'call') {
@@ -285,13 +285,6 @@ export class Reference extends Base {
       } else {
 
         // dereference by name
-        if (name.startsWith('[')) {
-          // access template
-          if (!(target.value instanceof _Array)) {
-            throw new StaticError(token, 'input not an array')
-          }
-          name = '0';
-        }
         let down = target.getMaybe(name);
         if (!down) {
           // undefined name

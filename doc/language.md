@@ -395,7 +395,7 @@ x do {
 
 Only output items can be conditional, not input items, which would introduce problematic _null_ values. See _Missing values_ for further discussion of alternative techniques.
 
-When a function rejects, what happens depends on the kind of block it is inside. Inside a `do` block (and other function blocks to be introduced later), rejection halts further execution, and causes the whole function block to reject. What happens next depends on the kind of block containing that block — if it is also a `do` block then the rejection continues to propagates into the containing block. This proceeds until the rejection reaches one of several kinds of block that handle rejections, for example the `try` block.  Rejection is like _exception catching_ in conventional languages, except that it is the single kind of exception supported, and it carries no extra information visible to the function.
+When a function rejects, what happens depends on the kind of block it is inside. Inside a `do` block (and other function blocks to be introduced later), rejection halts further execution, and causes the whole function block to reject. What happens next depends on the kind of block containing that block — if it is also a `do` block then the rejection continues to propagates into the containing block. This proceeds until the rejection reaches one of several kinds of block that handle rejections, for example the `try` block.  Rejection is like \_exception catching\_ in conventional languages, except that it is the single kind of exception supported, and it carries no extra information visible to the function.
 
 A `try` block is a function that can respond to a rejection by doing something else — it fills the role of the ubiquitous _IF_ statement in conventional languages. Here is an example:
 ```Txt
@@ -595,72 +595,56 @@ customers: table {
   address: ''
 }
 ```
-The array `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: array {record {...}}`. The table contains columns `name` and `address` defaulting to the empty text. 
-
-An array is initially created empty. Text is an array of characters with the space character as the template, so `'' =? array{\ }`
+The array `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: array {record {...}}`. The table contains columns `name` and `address` defaulting to the empty text. The template of an array is provided by `template()`. Text is an array of characters with the space character as the template, so `''` is equivalent to `array{' '}`.
 
 The `&` function (pronounced “and”) is used to add items to an array. For example:
 ```
 n = numbers & 1 & 2 & 3
-c = customers & with{.name := 'Joe', .address := 'Pleasantown, USA'}
+c = customers &(with{.name := 'Joe', .address := 'Pleasantown, USA'})
 ```
 The `&` function takes an array as it’s left input and an item value as its right input, resulting in an array equal to the input plus a new item with that value. The default value of the item is the template of the seqence. In a table it is often convenient to use a `with` block as above to change some of the columns and let the others default to their template values.
 
 The `followed-by` function concatenates two arrays: `array1 followed-by array2` is a copy of `array1` with all the items from `array2` added to its end. The two array must have the same type template.
 
-The items in an array are numbered starting at 1 for the first item. This number is called the item’s _index_. The number of items in an array (not counting the template) is called its _length_, available by calling the `length()` function. 
+The items in an array are numbered starting at 1 for the first item. This number is called the item’s _index_. The number of items in an array (not counting the template) is provided by the `length()` function. An array is initially created empty.
 
-An item in an array can be accessed via its index using square brackets, as in:
+An item in an array can be accessed by its index using the `at?` function:
 ```
 n = numbers & 1 & 2
-check n[1] =? 1
-check n[2] =? 2
+check n at? 1 =? 1
+check n at? 2 =? 2
 ```
+The `at?` function will reject if the index is less than 1 or greater than the length of the array. To assert that the index is valid, use `at!` (which will crash if it is invalid).
 
-When an item is accessed, the index value is exported as `~index`:
-```
-x = n[i]
-check x~index =? i
-```
-
-The template of an array is accessed with `array[]`. The formula `array[i]` will crash if `i` is fractional or non-positive or larger than the length of the array. You can test if an index is valid with:
-```
-array at? i 
-```
-which returns the item if the index is valid (and the index in `~index`), or rejects otherwise. `array[i]` is equivalent to `array at! i`. The functions `first?()` and `last?()` will return the first and last item repectively, rejecting if the array is empty. 
-
-> Maybe allow `array[index]?` to guard the index being valid instead of using `at?`
-
-Items in an array can be updated individually by index by using square brackets to the left of `:=`:
+Items in an array can be updated with the `update?` function, which inputs from a sequence and takes 2 arguments containing an index number and an item value. It produces an updated sequence like the input except that the specified array item is replaced with the new value. `update?` rejects if the index is invalid. Here is an example:
 ```
 n = numbers & 1 & 2
 test {
-  .n[1] := 3
-  check .n[1] =? 3
-  check .n[2] =? 2
+  .n := update!(1, .value := 3)
+  check .n at! 1 =? 3
+  check .n at! 2 =? 2
 }
 ```
-Individual items in a row can be updated similarly:
+Individual fields in a row can be updated using a `with` block, which accesses the current value of the row:
 ```
 test {
-  .customers[1].name := 'Joe Jr'
-}
-
-```
-or equivalently using a `with` block:
-```
-test {
-  .customers[1] := with{.name := 'Joe Jr.'}
+  .customers := update!(1, .value := with{.name := 'Joe Jr.'})
 }
 ```
 
-We can delete an item in an array with the `delete` function, which results in an array with that item removed:
+> TODO: conventional syntax of square brackets in a reference to replace `at` and `update`. Square brackets would contain a formula producing a number. They would be allowed in any reference, including on the left of a `:=`, so the previous example would become:
+> ```
+> .customers[1] := with{.name := 'Joe Jr.'}
+> ```
+> Brackets will assert the index is vaid. They can be suffixed with `?` to check the index is valid. Indexing complicates references, especially their visualization, and isn’t strictly necessary, though desireable.
+
+We can delete an item in an array with the `delete?` function, which results in an array with that item removed, rejecting if the index is invalid:
 ```
 array delete? i
 ```
 
 ### Columns
-A column of a table is an array containing the contents of one of the block items from each row. The columns of a table are accessed using `.` as if the table was a block containing the columns. For example:
+A column of a table is an array containing the contents of one of the record fields from each row. The columns of a table are accessed using `.` as if the table was a record containing the columns. For example:
 
 ```
 t = do {
@@ -1080,11 +1064,10 @@ _Nulls_ are a perennial controversy in PL and DB design. The idea is to add a sp
 We propose a simple solution for missing values that visualizes naturally in the UI:
 
 1. There is a special number called `_number_` that corresponds to an empty numeric item in the UI. Numeric functions treat `_number_` as a special case, as Excel does with empty cells. Unlike IEEE NaN, `_number_` is equal to itself.
-2. The empty text represents a missing text.
-3. There are predefined missing values for each media type that serve as placeholders.
-4. The missing value for a block has all its input items missing.
-5. The missing value for an array is empty.
-6. There is no predefined missing value for choices. However as their first option is the default, it can be defined to be something like `NA?: nil` to serve as a missing value if desired. Also see `maybe` blocks below.
+2. There are predefined missing values for each media type that serve as placeholders.
+3. The missing value of a block has all its input items missing.
+4. The missing value of a text or array or table is empty.
+5. There is no predefined missing value for choices. However as their first option is the default, it can be defined to be something like `NA?: nil` to serve as a missing value if desired. Also see `maybe` blocks below.
 
 The `required` constraint (see _Constraints_) checks that an input item does not contain one of the above missing values.
 
@@ -1214,5 +1197,5 @@ Step :=
 	| '.' GuardedName			// data
 	| '~' GuardedName?			// import
 	| '^' GuardedName?			// metadata - internal use only
-	| '[' Formula? ']'			// Index
+	| '[' Formula? ']' '?'?		// Index
 ```

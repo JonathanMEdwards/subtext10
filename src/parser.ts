@@ -362,6 +362,9 @@ export class Parser {
         field.formulaType = 'call';
         field.setMeta('^call', call);
         return true;
+      } else if (!first && !ref.dependent) {
+        // absolute refs can only start a formula
+        throw this.setError('expecting call argument')
       }
 
       // plain reference
@@ -589,9 +592,9 @@ export class Parser {
 
   /** Returns a Reference with tokens[] containing name tokens which may include
    * a leading ^/~ and trailing ?/!. Will contain leading 'that' for dependent
-   * path. Also contains number tokens for testing. [] template access is
-   * converted to a name token. [formula] indexing will return a
-   * ReferenceFormula instead.
+   * path. Also contains number tokens for testing. TODO: [formula] indexing
+   * will return a ReferenceFormula instead, containing references and 'at'
+   * calls.
    * */
   parseReference(): Reference | undefined {
     let tokens: Token[] = [];
@@ -648,20 +651,6 @@ export class Parser {
           }
         }
         continue;
-      } else if (this.matchToken('[')) {
-        // indexing
-        if (this.matchToken(']')) {
-          // template access - convert epty brackets to a name
-          tokens.push(new Token(
-            'name',
-            this.tokens[this.cursor - 2].start,
-            this.prevToken.end,
-            this.prevToken.source
-          ));
-          continue;
-        }
-        // TODO: formula indexing
-        trap();
       }
       break;
     }

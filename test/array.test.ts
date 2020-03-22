@@ -6,7 +6,7 @@ import { expectCompiling, expectDump } from './basic.test';
  */
 
 test('array definition', () => {
-  expectDump("a = array {0}, b? = a[] =? 0")
+  expectDump("a = array {0}, b? = a template() =? 0")
     .toEqual({ a: [], b: 0 });
   expectDump("a = array {0}, b = array {0}, c? = a =? b")
     .toEqual({ a: [], b: [], c: [] });
@@ -31,3 +31,15 @@ test('array add/delete', () => {
     .toEqual({ a: [1, 2, 3, 4]});
 })
 
+test('array at/update', () => {
+  expectDump("a = array {0} & 1 & 2; b = a at! 1; c? = a at? 0")
+    .toEqual({ a: [1, 2], b: 1, c: false });
+  expectDump("a = array {0} & 1 & 2; b = a update!(1, .value := -1)")
+    .toEqual({ a: [1, 2], b: [-1, 2] });
+  expectDump(`a = array{0} &(with{+ 1})`)
+    .toEqual({ a: [1] });
+  expectCompiling(`a = array{0} & with{+ 1}`)
+    .toThrow('expecting call argument');
+  expectDump(`a = array{0} & 1; b = a update!(1, .value := with{+1})`)
+    .toEqual({ a: [1], b: [2] });
+})

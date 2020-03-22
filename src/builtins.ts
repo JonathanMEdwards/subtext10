@@ -29,7 +29,7 @@ export function evalBuiltin(statement: Statement, name: string) {
 }
 
 /** builtins operate with JS string or number, regular Value otherwise */
-type builtinValue = string | number | Value;
+export type builtinValue = string | number | Value;
 
 /** dispatch table for builtins */
 export const builtins: Dictionary<(statement: Statement, ...args: any[]) => void>

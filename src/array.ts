@@ -1,4 +1,4 @@
-import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement } from "./exports";
+import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement, builtinValue } from "./exports";
 
 /** A _Array contains a variable-sized sequence of items of a fixed type. The
  * items are called entries and have numeric IDs, which are ordinal numbers in
@@ -19,10 +19,6 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
 
   /** the item with an ID else undefined */
   getMaybe(id: ID): Entry<V> | undefined {
-    if (id === 0 || id === '0') {
-      // template access
-      return this.template;
-    }
     if (isNumber(id)) {
       if (this.tracked) {
         // find serial number if tracked
@@ -102,13 +98,23 @@ export class Entry<V extends Value = Value> extends Item<number, V> {
 }
 
 export const arrayBuiltinDefinitions = `
-& = do{in: array{anything}; value: in[]; builtin &; export index = 0}
+template = do{in: array{anything}, builtin template}
+& = do{in: array{anything}; value: in template(); builtin &; export index = 0}
 length = do{in: array{anything}; builtin length}
 delete? = do{in: array{anything}; index: 0; builtin delete?}
 followed-by = do{in: array{anything}; from: in; builtin followed-by}
+at? = do{in: array{anything}; index: 0; builtin at?}
+at-or-template = do{in: array{anything}; index: 0; builtin at-or-template}
+update? = do{in: array{anything}; index: 0; value: in at-or-template index; builtin update?}
 `
+
+/** template */
+builtins['template'] = (s: Statement, array: _Array) => {
+  s.setFrom(array.template.value!)
+}
+
 /** & array add */
-builtins['&'] = (s: Statement, array: _Array, value: Value) => {
+builtins['&'] = (s: Statement, array: _Array, value: builtinValue) => {
   let copy = array.copy(array.containingItem.path, s.path);
   s.setValue(copy);
   let entry = new Entry;
@@ -160,6 +166,33 @@ builtins['delete?'] = (s: Statement, array: _Array, index: number) => {
         item.id--;
       })
     }
+  }
+}
+
+/** array indexing */
+builtins['at?'] = (s: Statement, array: _Array, index: number) => {
+  let accepted = 0 < index && index <= array.items.length;
+  s.setAccepted(accepted);
+  s.setFrom((accepted ? array.items[index - 1] : array.template).value!);
+}
+
+/** array indexing with failure to template */
+builtins['at-or-template'] = (s: Statement, array: _Array, index: number) => {
+  s.setFrom((array.items[index - 1] ?? array.template).value!);
+}
+
+/** array update */
+builtins['update?'] = (
+  s: Statement, array: _Array, index: number, value: builtinValue
+) => {
+  let accepted = 0 < index && index <= array.items.length;
+  s.setAccepted(accepted);
+  let copy = array.copy(array.containingItem.path, s.path);
+  s.setValue(copy);
+  if (accepted) {
+    let item = copy.items[index - 1];
+    item.detachValue();
+    item.setFrom(value);
   }
 }
 
