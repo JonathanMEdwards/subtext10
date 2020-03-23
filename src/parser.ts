@@ -705,11 +705,17 @@ export class Parser {
       return this.requireBlock(new Choice);
     }
 
-    if (this.matchToken('array')) {
-      this.requireToken('{');
-      let templateValue = this.parseLiteral();
-      if (!templateValue) throw this.setError('expecting a template value')
-      this.requireToken('}');
+    let isArray = this.matchToken('array');
+    if (isArray || this.matchToken('table')) {
+      let templateValue: Value | undefined;
+      if (isArray) {
+        this.requireToken('{');
+        templateValue = this.parseLiteral();
+        if (!templateValue) throw this.setError('expecting a template value')
+        this.requireToken('}');
+      } else {
+        templateValue = this.requireBlock(new Record);
+      }
       let array = new _Array;
       let template = new Entry;
       array.template = template;

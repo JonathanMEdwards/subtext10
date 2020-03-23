@@ -1,4 +1,4 @@
-import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement, builtinValue } from "./exports";
+import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement, builtinValue, FieldID, Record, Field } from "./exports";
 
 /** A _Array contains a variable-sized sequence of items of a fixed type. The
  * items are called entries and have numeric IDs, which are ordinal numbers in
@@ -17,9 +17,17 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
   /** Template is item with id 0 */
   template!: Entry<V>;
 
+  /** Columns, synthesized on demand, not copied. Note override type by forcing
+   * container of column to be an Array not a Record */
+  columns: Field[] = [];
+
   /** the item with an ID else undefined */
-  getMaybe(id: ID): Entry<V> | undefined {
+  getMaybe(id: ID): Item | undefined {
     if (isNumber(id)) {
+      if (id === 0) {
+        // template has id 0
+        return this.template;
+      }
       if (this.tracked) {
         // find serial number if tracked
         return this.items.find(item => item.id === id);
@@ -27,14 +35,51 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
       // use ordinal number if untracked
       return this.items[id - 1];
     }
+
     // use string as ordinal, even if tracked
-    assert(isString(id));
-    let ordinal = Number(id)
-    if (Number.isFinite(ordinal)) {
-      // convert string to ordinal
-      return this.items[ordinal - 1];
+    if (isString(id)) {
+      let ordinal = Number(id)
+      if (Number.isFinite(ordinal)) {
+        // convert string to ordinal
+        return this.items[ordinal - 1];
+      }
     }
-    return undefined;
+
+    // synthesize column on demand
+    if (!(this.template.value instanceof Record)) return undefined;
+    const field = this.template.value.getMaybe(id);
+    if (!field) return undefined;
+    assert(field instanceof Field);
+    let column = this.columns.find(column => column.id === field.id);
+    if (!column) {
+      // synthesize column
+      column = new Field();
+      column.id = field.id;
+      this.columns.push(column);
+      // override column container to be Array not Record
+      column.container = this as unknown as Container<Field>;
+      let columnArray = new _Array;
+      column.setValue(columnArray);
+      // define column template from record field
+      let template = new Entry;
+      template.isInput = false;
+      template.formulaType = 'none';
+      columnArray.template = template;
+      template.container = columnArray;
+      template.id = 0;
+      template.setFrom(field.value);
+      // copy field instances into column
+      this.items.forEach(entry => {
+        let item = entry.get(field.id);
+        let copy = new Entry;
+        copy.isInput = false;
+        copy.formulaType = 'none';
+        copy.id = entry.id;
+        columnArray.add(copy);
+        copy.setFrom(item.value!)
+      })
+    }
+    return column;
   }
 
   // evaluate contents
