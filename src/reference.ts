@@ -285,12 +285,21 @@ export class Reference extends Base {
       } else {
 
         // dereference by name
-        let down = target.getMaybe(name);
-        if (!down) {
+        let prevTarget = target; // for debugging
+        if (name === '[]') {
+          // template access
+          if (!(target.value instanceof _Array)) {
+            throw new StaticError(token, 'template only defined on arrays')
+          }
+          target = target.value.template;
+        } else {
+          // regular name
+          target = target.getMaybe(name);
+        }
+        if (!target) {
           // undefined name
           throw new StaticError(token, 'Undefined name')
         }
-        target = down;
         this.evalIfNeeded(target);
         if (!target.value) {
           // cyclic dependency

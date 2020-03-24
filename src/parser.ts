@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -316,6 +316,14 @@ export class Parser {
       return true;
     }
 
+    // loop
+    let loop = this.parseLoop();
+    if (loop) {
+      field.formulaType = 'loop';
+      field.setMeta('^loop', loop);
+      return true;
+    }
+
     // reference
     let ref = this.parseReference();
     if (!ref && this.peekToken('|=')) {
@@ -532,6 +540,34 @@ export class Parser {
     }
   }
 
+  /** parse a loop block */
+  parseLoop(): Loop | undefined {
+    let token = this.parseToken('find?', 'find!');
+    if (!token) return undefined;
+    let loop = new Loop;
+    loop.token = token;
+    switch (token.text) {
+      case 'find?':
+      case 'find!':
+        loop.loopType = token.text;
+        break;
+      default: trap();
+    }
+
+    let block = this.requireBlock(new Do);
+    loop.setTemplate(block);
+
+    // inject input field into block
+    let inputParser = new Parser('item: []');
+    inputParser.space = this.space;
+    let inputField = inputParser.requireField(block) as Statement;
+    // move to beginning
+    arrayRemove(block.items, inputField);
+    block.items.splice(0, 0, inputField);
+
+    return loop;
+  }
+
   /** Require try block */
   requireTry(): Try {
     let block = new Try;
@@ -605,12 +641,12 @@ export class Parser {
         throw this.setError("Reference can't start with ^", this.cursorToken);
       }
       if (this.prevToken.type === 'name' && this.prevToken.text[0] === '~') {
-        // leading ~-name simulates leading 'that'
+        // leading ~ simulates leading 'that'
         tokens.push(Token.fake('that', this.prevToken));
       }
       tokens.push(this.prevToken);
-    } else if (this.peekToken('.')) {
-      // leading . simulates leading 'that'
+    } else if (this.peekToken('.', '[]')) {
+      // leading . or [] simulates leading 'that'
       tokens.push(Token.fake('that', this.cursorToken));
     }
 
@@ -623,6 +659,8 @@ export class Parser {
         }
         tokens.push(this.prevToken);
         continue;
+      } else if (this.matchToken('[]')) {
+        tokens.push(this.prevToken);
       } else if (this.peekToken('name') && this.cursorToken.text[0] === '^') {
         // metadata
         tokens.push(this.cursorToken);
@@ -707,23 +745,17 @@ export class Parser {
 
     let isArray = this.matchToken('array');
     if (isArray || this.matchToken('table')) {
-      let templateValue: Value | undefined;
+      let template: Value | undefined;
       if (isArray) {
         this.requireToken('{');
-        templateValue = this.parseLiteral();
-        if (!templateValue) throw this.setError('expecting a template value')
+        template = this.parseLiteral();
+        if (!template) throw this.setError('expecting a template value')
         this.requireToken('}');
       } else {
-        templateValue = this.requireBlock(new Record);
+        template = this.requireBlock(new Record);
       }
       let array = new _Array;
-      let template = new Entry;
-      array.template = template;
-      template.id = 0;
-      template.container = array;
-      template.setValue(templateValue);
-      template.isInput = false;
-      template.formulaType = 'none';
+      array.setTemplate(template);
       return array;
     }
 

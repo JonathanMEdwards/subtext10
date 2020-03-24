@@ -122,7 +122,7 @@ export class Code extends Block<Statement> {
       // FIXME: infer from origin of exported value. Currently can only
       // detect recursion, not abstract it to clean reference
       field.formulaType = 'reference';
-      field.copyMeta('^reference', exportType);
+      field.replaceMeta('^reference', exportType);
       field.copyValue(ex)
 
       // type check export

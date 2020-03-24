@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, Numeric, Nil} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, Numeric, Nil, Loop} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -144,15 +144,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return this.metadata.set(name, value);
   }
 
-  /** create or replace metadata with copy of value of item */
-  copyMeta(name: string, item: Item): Metafield {
+  /** create or replace metadata with copy of value of item. Can also supply a
+   * value or string or number */
+  replaceMeta(name: string, value: Item | Value | string | number): Metafield {
     let meta = this.getMaybe(name) as Metafield;
     if (meta) {
       meta.detachValue();
     } else {
       meta = this.setMeta(name);
     }
-    meta.copyValue(item);
+    meta.setFrom(value instanceof Item ? value.value! : value);
     return meta;
   }
 
@@ -167,6 +168,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    * reference: value is target of a Reference in ^reference
    *
    * code: value is result of a Code block in ^code
+   *
+   * loop: value is result of a Loop block in ^loop
    *
    * change: dependent reference in ^lhs, formula in ^rhs
    *
@@ -185,7 +188,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *  */
   formulaType: (
     'none' | 'literal' | 'reference' | 'code' | 'change' | 'changeInput'
-    | 'choose' | 'call' | 'include' | 'builtin'
+    | 'choose' | 'call' | 'include' | 'builtin' | 'loop'
   ) = 'none';
 
   /** whether input or output item */
@@ -291,6 +294,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           this.result(cast(this.get('^code').value, Code));
           break;
 
+        case 'loop':
+          let loop = cast(this.get('^loop').value, Loop);
+          loop.execute(cast(this, Statement));
+          break;
+
         case 'call':
           this.result(cast(this.get('^call').value, Call));
           break;
@@ -335,7 +343,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     this.copyValue(code.result);
 
     if (code.export) {
-      let exportField = this.copyMeta('^export', code.export);
+      let exportField = this.replaceMeta('^export', code.export);
       exportField.setConditional(code.conditional);
       exportField.rejected = code.rejected;
     } else {

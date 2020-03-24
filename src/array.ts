@@ -1,4 +1,4 @@
-import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement, builtinValue, FieldID, Record, Field } from "./exports";
+import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement, builtinValue, FieldID, Record, Field, Do, cast, Reference, Crash, Numeric, StaticError } from "./exports";
 
 /** A _Array contains a variable-sized sequence of items of a fixed type. The
  * items are called entries and have numeric IDs, which are ordinal numbers in
@@ -16,6 +16,18 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
 
   /** Template is item with id 0 */
   template!: Entry<V>;
+
+  /** set template */
+  setTemplate(value: V) {
+    assert(!this.template);
+    let template = new Entry<V>();
+    this.template = template;
+    template.container = this;
+    template.isInput = false;
+    template.formulaType = 'none';
+    template.id = 0;
+    template.setFrom(value);
+  }
 
   /** Columns, synthesized on demand, not copied. Note override type by forcing
    * container of column to be an Array not a Record */
@@ -61,13 +73,7 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
       let columnArray = new _Array;
       column.setValue(columnArray);
       // define column template from record field
-      let template = new Entry;
-      template.isInput = false;
-      template.formulaType = 'none';
-      columnArray.template = template;
-      template.container = columnArray;
-      template.id = 0;
-      template.setFrom(field.value);
+      columnArray.setTemplate(field.value);
       // copy field instances into column
       this.items.forEach(entry => {
         let item = entry.get(field.id);
@@ -80,6 +86,14 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
       })
     }
     return column;
+  }
+
+  // visit template of array
+  *visit(): IterableIterator<Item> {
+    yield* super.visit();
+    if (this.template) {
+      yield* this.template.visit();
+    }
   }
 
   // evaluate contents
@@ -139,12 +153,15 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
 }
 
 export class Entry<V extends Value = Value> extends Item<number, V> {
-  private _nominal: undefined;
+  // return previous item of entire array
+  previous(): Item | undefined {
+    return this.container.containingItem.previous();
+  }
+
 }
 
 export const arrayBuiltinDefinitions = `
-template = do{in: array{anything}, builtin template}
-& = do{in: array{anything}; value: in template(); builtin &; export index = 0}
+& = do{in: array{anything}; value: in[]; builtin &; export index = 0}
 length = do{in: array{anything}; builtin length}
 delete? = do{in: array{anything}; index: 0; builtin delete?}
 followed-by = do{in: array{anything}; from: in; builtin followed-by}
@@ -152,11 +169,6 @@ at? = do{in: array{anything}; index: 0; builtin at?}
 at-or-template = do{in: array{anything}; index: 0; builtin at-or-template}
 update? = do{in: array{anything}; index: 0; value: in at-or-template index; builtin update?}
 `
-
-/** template */
-builtins['template'] = (s: Statement, array: _Array) => {
-  s.setFrom(array.template.value!)
-}
 
 /** & array add */
 builtins['&'] = (s: Statement, array: _Array, value: builtinValue) => {
@@ -281,4 +293,101 @@ export class Text extends _Array<Character> {
 
   // dump as string
   dump() { return this.value };
+}
+
+/** A Loop iterates a do-block over the input array */
+export class Loop extends _Array<Do> {
+
+  /** type of loop */
+  loopType!: 'find?' | 'find!';
+
+  // evaluate contents
+  eval(): void {
+    // use template evaluation bit to signify eval of whole loop
+    if (this.template.evaluated) return;
+    // eval template
+    this.template.eval();
+    let block = this.template.value!;
+    // get input array
+    let inputTemplate =
+      cast(block.items[0].get('^reference').value, Reference).target!;
+    assert(inputTemplate.id === 0);
+    let array = inputTemplate.container;
+    assert(array instanceof _Array);
+    // iterate over input array
+    array.items.forEach(item => {
+      let iteration = new Entry<Do>();
+      this.add(iteration);
+      iteration.id = item.id;
+      iteration.isInput = false;
+      iteration.formulaType = 'none';
+      // copy code block into iteration
+      iteration.setFrom(block);
+      // set input item of code block
+      let input = iteration.value!.items[0];
+      assert(input.isInput);
+      input.detachValue();
+      input.setFrom(item.value);
+      iteration.eval();
+    })
+
+  }
+
+  /** extract results of a loop into a statement */
+  execute(statement: Statement) {
+    let guarded = this.loopType.endsWith('?');
+    statement.setConditional(guarded);
+    let block = this.template.value!;
+
+    switch (this.loopType) {
+      case 'find?':
+      case 'find!':
+        // find first non-rejecting block
+        if (!block.conditional) {
+          throw new StaticError(block.token, 'block must be conditional');
+        }
+        let index = 0;
+        if (!this.workspace.analyzing) {
+          index =
+            this.items.findIndex(iteration => !iteration.value!.rejected) + 1;
+          if (!index) {
+            if (!guarded) {
+              throw new Crash(this.token, 'assertion failed')
+            }
+            statement.rejected = true;
+          }
+        }
+        let item = index ? this.items[index - 1] : this.template;
+        // use input item from block
+        statement.setFrom(item.value!.items[0].value!)
+        // export index
+        let indexField = new Field;
+        // copy fieldID of index export from at function
+        // TODO: define this statically
+        indexField.id = cast(
+          this.workspace.currentVersion.down('builtins.at.^code.index').id,
+          FieldID);
+        indexField.isInput = false;
+        indexField.formulaType = 'none';
+        indexField.setFrom(index);
+        let indexRecord = new Record;
+        indexRecord.add(indexField);
+        let exportField = statement.replaceMeta('^export', indexRecord);
+        exportField.setConditional(guarded);
+        return;
+
+
+      default: trap();
+    }
+  }
+
+  copy(srcPath: Path, dstPath: Path): this {
+    // suppress copying iterations - they will be recomputed
+    let items = this.items;
+    this.items = [];
+    let to = super.copy(srcPath, dstPath);
+    this.items = items;
+    to.loopType = this.loopType;
+    return to;
+  }
 }

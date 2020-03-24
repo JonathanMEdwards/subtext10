@@ -1,4 +1,4 @@
-import { assert, Item, Value, another, Path } from "./exports";
+import { assert, Item, Value, another, Path, MetaID } from "./exports";
 
 /** superclass of Block and _Array, the two kinds of containers. */
 export abstract class Container<I extends Item> extends Value {

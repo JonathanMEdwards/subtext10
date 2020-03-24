@@ -74,6 +74,7 @@ export class MetaID extends FieldID {
     '^literal': new MetaID('^literal'),       // Literal formula
     '^reference': new MetaID('^reference'),   // Reference formula
     '^code': new MetaID('^code'),             // Code block
+    '^loop': new MetaID('^loop'),             // Loop block
     '^lhs': new MetaID('^lhs'),               // Dependent reference before :=
     '^rhs': new MetaID('^rhs'),               // Formula on right of :=
     '^option': new MetaID('^option'),         // option name on |=

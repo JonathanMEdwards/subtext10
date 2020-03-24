@@ -6,7 +6,7 @@ import { expectCompiling, expectDump } from './basic.test';
  */
 
 test('array definition', () => {
-  expectDump("a = array {0}, b? = a template() =? 0")
+  expectDump("a = array {0}, b? = a[] =? 0")
     .toEqual({ a: [], b: 0 });
   expectDump("a = array {0}, b = array {0}, c? = a =? b")
     .toEqual({ a: [], b: [], c: [] });
@@ -54,4 +54,19 @@ test('tables', () => {
       b: [0, 1],
       c: ['', 'foo']
     });
+})
+
+test('find', () => {
+  expectDump(`a = array{0} & 1 & 2; b = a find!{=? 1}; c = b~index`)
+  .toEqual({a: [1, 2], b: 1, c: 1})
+  expectDump(`a = array{0} & 1 & 2; b = a find!{=? 2}; c = b~index`)
+  .toEqual({a: [1, 2], b: 2, c: 2})
+  expectDump(`a = array{0} & 1; b? = a find?{=? 0}; c? = b?~index`)
+  .toEqual({a: [1], b: false, c: false})
+  expectCompiling(`a = array{0} & 1; b = a find!{=? 0}`)
+  .toThrow('assertion failed')
+  expectCompiling(`a = array{0} & 1; b = a find!{=? 0; 2}`)
+  .toThrow('unused value')
+  expectCompiling(`a = array{0} & 1; b = a find!{2}`)
+    .toThrow('block must be conditional')
 })

@@ -595,7 +595,7 @@ customers: table {
   address: ''
 }
 ```
-The array `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: array {record {...}}`. The table contains columns `name` and `address` defaulting to the empty text. The template of an array is provided by `template()`. Text is an array of characters with the space character as the template, so `''` is equivalent to `array{' '}`.
+The array `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: array {record {...}}`. The table contains columns `name` and `address` defaulting to the empty text. The template of an array is access by using empty square brackets, as in `numbers[]`. Text is an array of characters with the space character as the template, so `''` is equivalent to `array{' '}`.
 
 The `&` function (pronounced “and”) is used to add items to an array. For example:
 ```
@@ -615,6 +615,8 @@ check n at? 1 =? 1
 check n at? 2 =? 2
 ```
 The `at?` function will reject if the index is less than 1 or greater than the length of the array. To assert that the index is valid, use `at!` (which will crash if it is invalid).
+
+The first and last items can be accesed with `first?()` and `last?()`, which will reject if the array is empty. The function `sole?()` will return the only item in the array or reject.
 
 Items in an array can be updated with the `update?` function, which inputs from a sequence and takes 2 arguments containing an index number and an item value. It produces an updated sequence like the input except that the specified array item is replaced with the new value. `update?` rejects if the index is invalid. Here is an example:
 ```
@@ -698,50 +700,48 @@ Two arrays are considered equal by the `=?` function when they have the same num
 
 ## Searching
 
-A `find` block searches in an array:
+A `find?` block searches in an array:
 ```
-joe = customers find? {check .name =? 'Joe'}
+joe = customers find? {.name =? 'Joe'}
 ```
-The `find?` block is executed like a `do` repeatedly with items from the array as its input value, starting with the first item and continuing until it does not reject. The result is the first non-rejected item, with `~index` equal to the index. If all the items are rejected, the entire `find?` rejects (hence the suffix `?`).
+The `find?` block is executed like a `do` repeatedly with items from the array as its input value, starting with the first item and continuing until it does not reject. The result is the first non-rejected item, with `~index` equal to the index. If all the items are rejected, the entire `find?` rejects (hence the suffix `?`). A `find!` block does the same thing, except it crashes if the find fails.
 
-Note that in this example the function block contains no input item — the input is referenced implicitly with `.name ...`. If we outline it in the UI we will see that one is created automatically to display the input value:
+Note that in this example the block contains no input item — the input is referenced implicitly with `.name ...`. If we outline it in the UI we will see that one is created automatically to display the input value:
 ```
 joe = do {
   customers 
   find? {
-    input: customers[] // inserted automatically
-    check .name =? 'Joe'
+    item: [] // inserted automatically
+    .name =? 'Joe'
   }
 }
 ```
 The code is defined to input from the array template, and in each iteration that input item will become a successive item of the array.
 
-> use with block instead?
-
-A `find-last?` does the same thing as `find?` except that it scans the table backwards. A `find-only?` succeeds if there is exactly one match, and rejects if there are none or more than one. A useful special case is `array sole?()`, resulting in the single item of the array, rejecting if the array has 0 or multiple items. Another is `find-unique?{...}` that finds all matches and rejects if there are none or they are not all equal.  
+A `find-last?` does the same thing as `find?` except that it scans the table backwards. A `find-sole?` succeeds if there is exactly one match, and rejects if there are none or more than one.  
 
 ### Replacing and aggregating
 
-A `for-each` block will evaluate a `do` block on each item of an array in order, resulting in an unsorted array with items containing the results in the same order. If an item is rejected, it is left out of the result. The `for-all?` block is like `for-each` except it rejects if the code block rejects on any item, otherwise resulting in the replaced table. The `for-none?` block does the opposite, rejecting if the code block accepts any item, otherwise resulting in the input array. For example:
+A `replace` block will evaluate a `do` block on each item of an array in order, resulting in an unsorted array with items containing the results in the same order. The block cannot be conditional. This is like the traditional 'map’ combinator. A `replace-skip` will replace only the items accepted by a conditional block. This like a combination of the traditional 'map' and 'filter’ combinators. A `replace-all?` is like `replace` except it rejects if any item is rejected. The `for-none?` block does the opposite, rejecting if the code block accepts any item, otherwise resulting in the input array. For example:
 
 ```
 test {
   l = array{0} & 1 & 2 & 3
   
-  // replace each item with result of block on it (like functional map)
-  check l for-each {+ 1} =? (clear() & 2 & 3 & 4)
+  // replace each item with result of block on it
+  check l replace {+ 1} =? (clear() & 2 & 3 & 4)
   
-  // delete items on rejects (like functional filter)
-  check l for-each {check not=? 2} =? (clear() & & 3)
+  // filter out rejected items
+  check l replace-skip {not=? 2} =? (clear() & & 3)
   
-  // replace and delete together
-  check l for-each {check not=? 2, + 1} =? (clear() & 1 & 3)
+  // filter and replace together
+  check l replace-skip {check not=? 2, + 1} =? (clear() & 1 & 3)
 
   // check every item satisfies a condition
-  check l for-all? {check >? 0}
+  check l replace-all? {>? 0}
   
   // check no item satisfies a condition
-  check l for-none? {check <? 0}
+  check l for-none? {<? 0}
 }
 ```
 

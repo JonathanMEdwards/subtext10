@@ -5,12 +5,12 @@ import { arrayLast } from "./exports";
 
 export type TokenType = (
   ':' | '=' | ':=' | '|=' | '.' | ',' | ';' | '{' | '}' | '(' | ')'
-  | '[' | ']' | 'string' | 'number' | '_number_' | 'name' | 'end' | '\n'
+  | '[' | ']' | '[]' | 'string' | 'number' | '_number_' | 'name' | 'end' | '\n'
   | 'call' | 'arg1' | 'arg2' | 'input'
   // keywords - add to matchToken switch statement
   | 'record' | 'choice' | 'table' | 'array' | 'do' | 'builtin' | 'anything'
   | 'nil' | 'try' | 'check' | 'not' | 'else' | 'reject' | 'let' | 'export'
-  | 'that' | 'include' | 'with'
+  | 'that' | 'include' | 'with' | 'find?' | 'find!'
 )
 
 export class Token {
@@ -167,6 +167,7 @@ export function tokenize(source: string): Token[] {
     if (match('}')) return '}';
     if (match('(')) return '(';
     if (match(')')) return ')';
+    if (match('[]')) return '[]';
     if (match('[')) return '[';
     if (match(']')) return ']';
 
@@ -218,6 +219,8 @@ export function tokenize(source: string): Token[] {
         case 'builtin':
         case 'that':
         case 'include':
+        case 'find?':
+        case 'find!':
 
           return name;
       }
