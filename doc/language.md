@@ -33,9 +33,9 @@ This section summarizes the notable programming language features of Subtext.
 * Functions are not abstract entities, defined in one place then used in others. Instead functions, sometimes represented as formulas, compute a result from concrete inputs. Any such computation can be reused, with a conventional-looking call syntax, optionally replacing its input values. All functionms are continuously executing on concrete input values. Functions can be edited live, immediately seeing the execution results, as in a spreadsheet.
 * Calling a function is materialized as inlining a copy of it. Lexical closures fall out of the way that relative paths within a subtree are mapped through copies.
 * Functions can _export_ extra results, which do not need to be deconstructed at the call site as in conventional approaches. The exports of a function typically form a record. Exports of conditional clauses are combined into a discriminated union. Exports of a loop are collected into a list.
-* Subtext is statically (parametrically) typed, but types are not mentioned in the language nor error messages. Concrete values serve as witnesses of types. 
+* Subtext is statically (parametrically) typed, but types are not mentioned in the language nor error messages. Concrete values serve as witnesses of types.
 * Lists are homogeneuoulyt typed. Lists of records serve as a table.
-* Lists can be tracked by automatically assigning hidden unique IDs to their items. Tracking supports stable links into lists that act like database foreign keys with referential ingegrit maintenance. Tracking also supports precise workspace versioning and mergeing. 
+* Lists can be tracked by automatically assigning hidden unique IDs to their items. Tracking supports stable links into lists that act like database foreign keys with referential ingegrit maintenance. Tracking also supports precise workspace versioning and mergeing.
 
 ### Intentionally excluded features
 
@@ -51,7 +51,7 @@ The artifact that Subtext mediates is called a _workspace_. It is somewhat like 
 - Items are a holder for a value of some type
 - An item is either a _base value_, a _block_, or an _array_
 - There are several kinds of base values: numbers, characters, times, images, etc. Base values do not contain any other items, and occupy the bottom of the workspace tree
-- Blocks and arrays are assembled from other items, called their contents. They differ on how the contents are organized. 
+- Blocks and arrays are assembled from other items, called their contents. They differ on how the contents are organized.
 - A block contains a fixed set of items, like conventional records, structs, or objects. Each item has a fixed type of value. Often the items of a block are given unique names, but when used as intermediate computations they may be left anonymous. The top item of a workspace is a _head_ block. The _history_ of a workspace is a block containing heads.
 - An array contains a variable number of items all of the same type in a linear order, like conventional lists. _Text_ is an array of _characters_. An array of blocks is called a _table_.
 
@@ -124,7 +124,7 @@ Subtext specifies how to pronounce its syntax. The above example syntax is prono
 ### Formulas
 In the item definition `y = x + 1` the part to the right of the `=` is called a _formula_. A formula contains literal values like `1` and _references_ to items elsewhere in the workspace like `x` and `+`. They can _call_ functions, like `+`, which is the built-in function that adds numbers. Functions have one or more inputs and produce a result value. The function `+` is _called_ by first, making a copy of it, then changing its inputs to the values of `x` and `1`, and then taking its result as the value of `y`. The two references here are just names, but in general they can be paths (see Reference binding).
 
-> In PL terminology, Subtext functions are pure, strict, and referentially transparent. 
+> In PL terminology, Subtext functions are pure, strict, and referentially transparent.
 
 The formula `x + 1` uses so-called _infix notation_, where the function reference `+` is placed between the input values `x` and `1`. Many programming languages allow infix notation only as a special case for arithmetic operations like `+`, but in general use notation borrowed from mathematics: `function(formula1, formula2)` where the inputs to the program, possibly complex formulas, come afterwards in parentheses, in the proper order, separated by commas. Subtext always uses infix notation, but adds parentheses to allow complex formulas and more than two inputs, as follows:
 ```
@@ -134,7 +134,7 @@ formula1 function reference
 formula1 function(formula2)
 formula1 function(formula2, .input3 := formula3)
 ```
-Every function has at least one input. In a call the first input is the value of the formula to the left of the reference to the function. A function may have more than one input, but only the first input must be supplied in a call — the extra input items have an initial value that serves as a default. A call supplying only the first input puts empty parentheses `()` after the function reference. Conventional infix notation can be used when only the first and second inputs are used, and the second input is a literal or reference, as in `x + 1`. If the second input is instead a more complex formula then it is put in parentheses, for example in `x +(y * 2)`. 
+Every function has at least one input. In a call the first input is the value of the formula to the left of the reference to the function. A function may have more than one input, but only the first input must be supplied in a call — the extra input items have an initial value that serves as a default. A call supplying only the first input puts empty parentheses `()` after the function reference. Conventional infix notation can be used when only the first and second inputs are used, and the second input is a literal or reference, as in `x + 1`. If the second input is instead a more complex formula then it is put in parentheses, for example in `x +(y * 2)`.
 
 When a call supplies the third or later input of a function, shown in the last case above, the name of the input item is specified with the syntax `.input3 := formula3`, like the _keyword arguments_ in some languages. The design philosophy behind these conventions is that many programs have one or two inputs, and it is natural to read infix notation like an Object-Verb-Subject construct in English, not to mention the familiarity of infix notation in math. But when there are  more than two inputs, it is better to name their roles explicitly.
 
@@ -151,9 +151,9 @@ y = do {
   * 2
 }
 ```
-Like all blocks, a `do` block is an array of items, which we call _statements_. In this example there are three statements, one per line, and they are output items whose value is calculated from their formula. Unlike in previous examples, these are anonymous outputs, lacking a name and the following `=`.  
+Like all blocks, a `do` block is an array of items, which we call _statements_. In this example there are three statements, one per line, and they are output items whose value is calculated from their formula. Unlike in previous examples, these are anonymous outputs, lacking a name and the following `=`.
 
-The first statement is just a reference to `x` but the last two statements are calls without a preceding input value: `+ 1` and `* 2`. In that case the value of the previous statement is used as the left input. We can see this as the value of statements flowing downward from the result of one formula into the start of the next formula. The result is the bottom value, which becomes the value of `y`. Note how this downward dataflow corresponds exactly to the rightward dataflow in the formula `x + 1 + 2`, with the result being the final value on the right. Thus data flows in formulas from left to right, and in outlined blocks from top to bottom. This matchs the reading order of English prose. 
+The first statement is just a reference to `x` but the last two statements are calls without a preceding input value: `+ 1` and `* 2`. In that case the value of the previous statement is used as the left input. We can see this as the value of statements flowing downward from the result of one formula into the start of the next formula. The result is the bottom value, which becomes the value of `y`. Note how this downward dataflow corresponds exactly to the rightward dataflow in the formula `x + 1 + 2`, with the result being the final value on the right. Thus data flows in formulas from left to right, and in outlined blocks from top to bottom. This matchs the reading order of English prose.
 
 A formula is a single-line representation of a `do` block, but it will only look like an array of infix calls when the `do` block follows the pattern shown above: an array of anonymous outputs with the first being a literal or reference and the following ones single calls without a  preceding value. Anything else will use the general notation for blocks in a line, with brackets and semicolons. For example, if we had named one of the items:
 ```
@@ -210,7 +210,7 @@ The value of the last item, 3, becomes the result of the call.
 > 0
 > increment = with{+ 1}
 > ```
-> Here the 0 preceding the definition of `increment` serves as the default input value to the function. When `increment` is called, the previous value will be inserted as the first statement. This abbreviation is especially convenient with array functions, like `find`, that automatically supply a default previous value, saving the duplication of specifying it explicitly. 
+> Here the 0 preceding the definition of `increment` serves as the default input value to the function. When `increment` is called, the previous value will be inserted as the first statement. This abbreviation is especially convenient with array functions, like `find`, that automatically supply a default previous value, saving the duplication of specifying it explicitly.
 
 > There is another abbreviation for defining functions. For example,
 > ```
@@ -228,9 +228,9 @@ The value of the last item, 3, becomes the result of the call.
 
 > Possibly this is too subtle, and it might be better to first refactor a formula to have an explicit input item that allows it to be called. For example `0 + 1` could be refactored into `do{in:0; + 1}` to make it callable.
 
-> As a result of these abbreviations, every item is a function that can be called elsewhere. This design avoids premature abstraction. In most languages before code can be reused it must first be abstracted out into a separate definition, and replaced with a call to that definition. In Subtext every item’s definition can be reused elsewhere. 
+> As a result of these abbreviations, every item is a function that can be called elsewhere. This design avoids premature abstraction. In most languages before code can be reused it must first be abstracted out into a separate definition, and replaced with a call to that definition. In Subtext every item’s definition can be reused elsewhere.
 
-Note that, unlike other languages, a function is not a separate entity or value — it is always the formula defininig an item, not the actual value of the item. In the prior example, 
+Note that, unlike other languages, a function is not a separate entity or value — it is always the formula defininig an item, not the actual value of the item. In the prior example,
 ```
 plus = do {
   x: 0
@@ -238,7 +238,7 @@ plus = do {
   x + y
 }
 ```
-the value of `plus` is just 1, the result of executing the function, not a special kind of value representing a function. When we call the program, as in `1 plus 1` what we are really doing is reusing the function that defines the value of `plus` with different inputs. 
+the value of `plus` is just 1, the result of executing the function, not a special kind of value representing a function. When we call the program, as in `1 plus 1` what we are really doing is reusing the function that defines the value of `plus` with different inputs.
 
 > In fact programs really are “first-class” values, but they are only used in the UI and planned metaprogramming capabilities.
 
@@ -310,13 +310,13 @@ Inside a block an ouput item can be used to name an intermediate computation and
 ```
 ...
 let foo = ... // compute something from previous value for later
-// input from value preceding the let statement 
+// input from value preceding the let statement
 ```
 This avoids having to invent a name:
 ```
 temp = ...
 let foo = temp ...
-temp ... 
+temp ...
 ```
 A `let` item is also hidden from references outside the block.
 
@@ -340,7 +340,7 @@ Skipping to the definition of `x`, we see that it calls the function `integral-d
 3. Its input item `divisor` becomes `3`
 4. The output item `ratio` is calculated to be 1 using the `floor` function to round-down the division
 5. The remainder is exported with the name`remainder`
-6. The `export` statement acts like a `let`, passing on the previous value, so `ratio` becomes the final result of the function. 
+6. The `export` statement acts like a `let`, passing on the previous value, so `ratio` becomes the final result of the function.
 7. After the call, the item `y` references `x~remainder`, which imports the export `remainder` produced in the computation of `x`. We pronounce `x~remainder` as “x import remainder”.
 
 What is going on here is that `x~` imports the exported value of the function that computed the value of `x`. A `do` block exports a record containing the values of all the `export` statements. The export `remainder` can be accessed as `x~.remainder`, or `x~remainder` for short. We also could have equivalently said `y = ~remainder` to import the export of the previous item without naming it.
@@ -671,7 +671,7 @@ test {
 ```
 A column  can only be replaced with an array of the same length as the table, otherwise it will crash. In a tracked tabled (see below) no insertions, deletion, or moves can have happened in the column.
 
-When a table column is conditional, meaning the corresponding block item is a conditional output, then the column will skip all items where the item rejected. 
+When a table column is conditional, meaning the corresponding block item is a conditional output, then the column will skip all items where the item rejected.
 
 ### Sorted arrays
 
@@ -682,7 +682,7 @@ customers: sorted table {
   address: ''
 }
 ```
-will order the rows alphabetically by name, and duplicate names by address. An array can be converted into one with the same items but sorted differently with the functions `sorted()` `reverse-sorted()` `unsorted()`. 
+will order the rows alphabetically by name, and duplicate names by address. An array can be converted into one with the same items but sorted differently with the functions `sorted()` `reverse-sorted()` `unsorted()`.
 
 When an array is not sorted, new items can be inserted at any position using:
 ```
@@ -709,7 +709,7 @@ The `find?` block is executed like a `do` repeatedly with items from the array a
 Note that in this example the block contains no input item — the input is referenced implicitly with `.name ...`. If we outline it in the UI we will see that one is created automatically to display the input value:
 ```
 joe = do {
-  customers 
+  customers
   find? {
     item: [] // inserted automatically
     .name =? 'Joe'
@@ -718,52 +718,52 @@ joe = do {
 ```
 The code is defined to input from the array template, and in each iteration that input item will become a successive item of the array.
 
-A `find-last?` does the same thing as `find?` except that it scans the table backwards. A `find-sole?` succeeds if there is exactly one match, and rejects if there are none or more than one.  
+A `find-last?` does the same thing as `find?` except that it scans the table backwards. A `find-sole?` succeeds if there is exactly one match, and rejects if there are none or more than one.
 
-### Replacing and aggregating
+### Transforming and accumulating
 
-A `replace` block will evaluate a `do` block on each item of an array in order, resulting in an unsorted array with items containing the results in the same order. The block cannot be conditional. This is like the traditional 'map’ combinator. A `replace-skip` will replace only the items accepted by a conditional block. This like a combination of the traditional 'map' and 'filter’ combinators. A `replace-all?` is like `replace` except it rejects if any item is rejected. The `for-none?` block does the opposite, rejecting if the code block accepts any item, otherwise resulting in the input array. For example:
+A `transform` block will evaluate a `do` block on each item of an array in order, resulting in an unsorted array with items containing the results in the same order. The block cannot be conditional. This is like the traditional 'map’ combinator. A `transform?` or `transform!` takes a conditional block and either checks or asserts that every item is accepted, A `select&transform` will transform only the items accepted by a conditional block. This is like a combination of the traditional 'map' and 'filter’ combinators. A `check-none?` block rejects if the code block accepts any item, otherwise resulting in the input array. For example:
 
 ```
 test {
   l = array{0} & 1 & 2 & 3
-  
-  // replace each item with result of block on it
-  check l replace {+ 1} =? (clear() & 2 & 3 & 4)
-  
+
+  // transform each item with result of block on it
+  check l transform {+ 1} =? (clear() & 2 & 3 & 4)
+
   // filter out rejected items
-  check l replace-skip {not=? 2} =? (clear() & & 3)
-  
-  // filter and replace together
-  check l replace-skip {check not=? 2, + 1} =? (clear() & 1 & 3)
+  check l select&transform {check not=? 2} =? (clear() & & 3)
+
+  // filter and transform together
+  check l select&transform {check not=? 2, + 1} =? (clear() & 1 & 3)
 
   // check every item satisfies a condition
-  check l replace-all? {>? 0}
-  
+  check l transform? {>? 0}
+
   // check no item satisfies a condition
-  check l for-none? {<? 0}
+  check l check-none? {<? 0}
 }
 ```
 
-An `aggregate` block is used to accumulate a result by scanning an array.
+An `accumulate` block is used to accumulate a result by scanning an array.
 ```
 array{0} & 1 & 2
-aggregate {
-  item: that
+accumulate {
+  item: []
   sum: 0
   item + sum
 }
 check =? 3
 ```
-An aggregate block must define two input items. The block will be executed repeatedly, like a `for-each`, feeding items from the input array into the first input item. In this example we called the first input `item`, and define it from the default template value referenced as `that`. 
-The second input (`sum`) acts as an accumulator. On the first call it defaults to the defined value (0). On the second and subsequent calls, `sum` becomes the result of the previous call. This example is equivalent to the built-in `sum()` function that sums an array of numbers. If the function rejects an item then it will be skipped and the accumulator value will be passed on to the next call. An `aggregate` is  like a conventional _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `s sum(100)`).
+An `accumulate` block must define two input items. The block will be executed repeatedly, like a `transform`, feeding items from the input array into the first input item. In this example we called the first input `item`, and define it from the default template value referenced as `that`.
+The second input (`sum`) acts as an accumulator. On the first call it defaults to the defined value (0). On the second and subsequent calls, `sum` becomes the result of the previous call. This example is equivalent to the built-in `sum()` function that sums an array of numbers. If the function rejects an item then it will be skipped and the accumulator value will be passed on to the next call. An `accumulate` is  like a conventional _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `s sum(100)`).
 
 ## Tracked and untracked arrays
 
 An array is defined to be either _tracked_ or _untracked_. Tracking is the default. A tracked array automatically assigns a unique ID to each item when it is created. The ID is used to precisely track changes to the item. Such IDs are called _surrogate keys_ in databases. The tracking ID is hidden from the user and programmer. Tracking allows two important capabilities:
 
 1. Relationships between tracked arrays can be maintained, similar to relational databases, but without requiring that every item contain a unique and immutable key (see Links)
-2. Tracked arrays can be versioned and merged, similar to version control systems like git, except more precisely. 
+2. Tracked arrays can be versioned and merged, similar to version control systems like git, except more precisely.
 
 Two tracked arrays are equal if their items are not only equal but also were created in the same relative order, including all items that were deleted. Tracked equality means that the array not only have the same current state but also effectively the same history of changes.
 
@@ -844,15 +844,15 @@ customers: table {
 
 
 ### TODO: Nested links
-Links can target nested arrays, linking to a path of IDs. Reflecting links can cross multiple layers of containing arrays. Cardinality constraints are specified seperately for each level of nesting. 
+Links can target nested arrays, linking to a path of IDs. Reflecting links can cross multiple layers of containing arrays. Cardinality constraints are specified seperately for each level of nesting.
 
 ### TODO: link updates and referential integrity
 
 ### Merging
 
-Copies happen. Workspaces get shared as email attachments. Workspaces get incorporated into other workspaces. Inevitably both the copy and the original change. Tracking allows such changes to be later sent to the other version without wiping out all the changes that have happened to it in the meantime. This is called _merging_. 
+Copies happen. Workspaces get shared as email attachments. Workspaces get incorporated into other workspaces. Inevitably both the copy and the original change. Tracking allows such changes to be later sent to the other version without wiping out all the changes that have happened to it in the meantime. This is called _merging_.
 
-Two copies of a tracked array can be compared to see exactly how they have diverged. The IDs in a tracked array allow changes made to an item to be tracked despite any changes made to its value or location. Deletions and creations are also known exactly. Tracking provides more precise information than text-based version control systems like git. 
+Two copies of a tracked array can be compared to see exactly how they have diverged. The IDs in a tracked array allow changes made to an item to be tracked despite any changes made to its value or location. Deletions and creations are also known exactly. Tracking provides more precise information than text-based version control systems like git.
 
 Changes made to one copy can be merged into the other. If changes are merged in both directions the two copies become equal again. Sometimes changes made to both copies are such that merging must lose some information, for example if the same item in the same item is changed to be two different numbers. Merging can be done using an automatic policy to resolve such conflicts, or human intervention can be requested, either immediately in the UI when performing the merge, or later by reifying such conflicts into the workspace itself (but without breaking the workspace as textual version-control does).
 
@@ -903,7 +903,7 @@ check selected() =? 'foobar'
 
 Another useful matching function is `match-number?` which matches a numeric text and exports its numeric value as `~value`. For example:
 ```
-'123foo' 
+'123foo'
 match-number?()
 check after() =? 'foo'
 check ~value =? 123
@@ -952,16 +952,16 @@ eval-expr = do {
 When we produce a recursive choice like `expr` while parsing text it is sometimes called an AST (Abstract Syntax Tree). Often that requires a lot of repetitive code in the parser to assemble the AST as it is being parsed. We can produce an AST just by exporting from the parsing code, as follows:
 
 ```Txt
-'1+1' 
+'1+1'
 match-expr? = try literal? = {
   match-number?()
-  export ~value 
+  export ~value
 } else plus? = {
   match-expr?()
   export(match-expr~) left = ~
   match? '+'
   match-expr?()
-  export(match-expr~) right = ~ 
+  export(match-expr~) right = ~
 } else reject
 
 eval-expr = do {
@@ -987,7 +987,7 @@ Often we want to match a repeating pattern. Here is an example that matches a CS
 
 ```
 '1,2,3foo'
-repeat { 
+repeat {
   match-number?()
   optionally {
     match? ','
@@ -1004,21 +1004,21 @@ A tail recursive function is equivalent to a loop, and a repeat block is actuall
 The recursive call `continue?()` has a question mark because the repeat block can reject. An unconditional `continue()` would be used in an unconditional repeat.
 
 > Maybe the `continue` call should default secondary inputs to their value in the current iteration, not the original definition. That would more closely emulate mutable loop variables, and allow uses like `continue(count := + 1)`.
- 
-> Maybe `continue` should do an early exit to guarantee tail position and simplify conditional logic. 
+
+> Maybe `continue` should do an early exit to guarantee tail position and simplify conditional logic.
 > 
-> When repeats are nested it may be useful to have continue specify a name of the block as in `continue foo-loop()`. 
+> When repeats are nested it may be useful to have continue specify a name of the block as in `continue foo-loop()`.
 
 > Perhaps a `visit` block that can be multiply-recursive, and collects the exports in order of execution, concatenating them as in a “flat map”. Combined with skipping of conditional exports, this allows arbitrary search algorithms to be easily written.
 
- 
+
 ## Repeated exports
 
 When we parse a CSV we typically want to produce an array of the numeric values. We can do that by adding an export:
 
 ```
 '1,2,3'
-csv = repeat { 
+csv = repeat {
   match-number?()
   export ~value
   optionally {
@@ -1030,7 +1030,7 @@ csv = repeat {
 check csv~ =? (array{0} & 1 & 2 & 3)
 ```
 
-Recall that the export of a `do` block is a record, and the export of a `try` block is a choice. The export of a `repeat` block is an array, with each item containing the export of an iteration of the block. The statement `export ~value` exports the numeric value from the prior call to `match-number?()`. So the export of the entire `repeat` is an array of matched numbers. 
+Recall that the export of a `do` block is a record, and the export of a `try` block is a choice. The export of a `repeat` block is an array, with each item containing the export of an iteration of the block. The statement `export ~value` exports the numeric value from the prior call to `match-number?()`. So the export of the entire `repeat` is an array of matched numbers.
 
 ### Scanning
 
@@ -1046,7 +1046,7 @@ A `scan?` block repeatedly executes. At first the input text or selection is pas
 
 Scanning can be combined with replacing text:
 ```
-'Some Millenials attacking other Millenials' 
+'Some Millenials attacking other Millenials'
 repeat {
   optionally {
     scan? {match? 'Millenial'}
@@ -1080,7 +1080,7 @@ choice {
 ```
 where the the `no?` option is chosen if `x?` rejects, and the `yes?` option is chosen and changed to the value of `x?` if it succeeds.
 
-A `maybe` block is often useful in cases where we would like to change an input item with a conditional formula (which is illegal). For example we might want to use a conditional formula as a function input so that, instead of rejecting the call, the function itself gets to decide what to do. Wrapping the conditional formula in a `maybe` block permits that. 
+A `maybe` block is often useful in cases where we would like to change an input item with a conditional formula (which is illegal). For example we might want to use a conditional formula as a function input so that, instead of rejecting the call, the function itself gets to decide what to do. Wrapping the conditional formula in a `maybe` block permits that.
 
 ## Types
 
@@ -1117,7 +1117,7 @@ A generic function is one with an input containing `anything`. The function can 
 Workspace = Body
 
 Body :=
-	| Item 
+	| Item
 	| Item? (';' | '\n') Body?
 
 Item :=
@@ -1126,7 +1126,7 @@ Item :=
 
 GuardedName := Name ('?' | '!')?
 Name := Word | Operator
-Word := [a-z A-Z] ([a-z A-Z 0-9 _ \-]* [[a-z A-Z 0-9])? // can't be keyword
+Word := [a-z A-Z] ([a-z A-Z 0-9 & _ \-]* [[a-z A-Z 0-9])? // can't be keyword
 Operator := '+'|'-'|'*'|'/'|'='|'not='|'>'|'>='|'<'|'<='|'&'|'&&'
 
 Dataflow := 'check' | 'let' | 'export'
@@ -1155,7 +1155,7 @@ Block := '{' Body '}'
 Op :=
 	| Path Arguments				// function call
 	| 'continue' Arguments			// tail call
-	| RelPath ':=' Formula			// change 
+	| RelPath ':=' Formula			// change
 	| RelPath '|=' Name Formula?	// choose
 	| RelPath						// follow
 	| Conditional
@@ -1164,7 +1164,7 @@ Op :=
 	| 'builtin' Name
 
 Arguments :=
-	| Value 
+	| Value
 	| '(' Formula ')'
 	| '(' (Formula ArgSep)? KeywordArg (ArgSep KeywordArg)* ')'
 ArgSep := ',' | '\n'

@@ -22,7 +22,7 @@ export class Code extends Block<Statement> {
   conditional = false;
 
   eval() {
-    if (this.result || this.rejected) {
+    if (this.result) {
       return;
     }
 
@@ -49,8 +49,11 @@ export class Code extends Block<Statement> {
       }
       if (statement.rejected) {
         this.rejected = true
-        // keep going during analysis
-        if (this.workspace.analyzing) continue;
+        // execute to completion during analysis and inside loop templates
+        // can't complete in all cases because of recursion
+        if (this.workspace.analyzing || this.containingItem.inTemplate) {
+          continue;
+        }
         this.result = undefined
         break;
       }

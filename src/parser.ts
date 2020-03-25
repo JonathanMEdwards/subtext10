@@ -542,20 +542,28 @@ export class Parser {
 
   /** parse a loop block */
   parseLoop(): Loop | undefined {
-    let token = this.parseToken('find?', 'find!');
+    let token = this.parseToken(
+      'find?', 'find!', 'transform', 'transform?', 'transform!',
+      'select&transform', 'check-none?'
+    );
     if (!token) return undefined;
     let loop = new Loop;
     loop.token = token;
     switch (token.text) {
       case 'find?':
       case 'find!':
+      case 'transform':
+      case 'transform?':
+      case 'transform!':
+      case 'select&transform':
+      case 'check-none?':
         loop.loopType = token.text;
         break;
       default: trap();
     }
 
     let block = this.requireBlock(new Do);
-    loop.setTemplate(block);
+    loop.createTemplate().setFrom(block);
 
     // inject input field into block
     let inputParser = new Parser('item: []');
@@ -755,7 +763,7 @@ export class Parser {
         template = this.requireBlock(new Record);
       }
       let array = new _Array;
-      array.setTemplate(template);
+      array.createTemplate().setFrom(template);
       return array;
     }
 

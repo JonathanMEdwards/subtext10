@@ -70,3 +70,18 @@ test('find', () => {
   expectCompiling(`a = array{0} & 1; b = a find!{2}`)
     .toThrow('block must be conditional')
 })
+
+test('transform', () => {
+  expectDump(`a = array{0} & 1 & 2; b = a transform{+ 1}`)
+    .toEqual({ a: [1, 2], b: [2, 3]});
+  expectDump(`a = array{0} & 1 & 2 & 3; b = a select&transform{check not=? 2}`)
+    .toEqual({ a: [1, 2, 3], b: [1, 3]});
+  expectDump(`a = array{0} & 1 & 2 & 3; b? = a transform?{check not=? 0}`)
+    .toEqual({ a: [1, 2, 3], b: [1, 2, 3]});
+  expectDump(`a = array{0} & 1 & 2 & 3; b? = a transform?{check not=? 2}`)
+    .toEqual({ a: [1, 2, 3], b: false });
+  expectDump(`a = array{0} & 1 & 2 & 3; b? = a check-none?{=? 0}`)
+    .toEqual({ a: [1, 2, 3], b: [1, 2, 3] });
+  expectDump(`a = array{0} & 1 & 2 & 3; b? = a check-none?{=? 1}`)
+    .toEqual({ a: [1, 2, 3], b: false });
+})

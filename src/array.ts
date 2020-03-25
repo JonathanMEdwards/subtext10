@@ -1,4 +1,4 @@
-import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement, builtinValue, FieldID, Record, Field, Do, cast, Reference, Crash, Numeric, StaticError } from "./exports";
+import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement, builtinValue, FieldID, Record, Field, Do, cast, Reference, Crash, Numeric, StaticError, assertDefined } from "./exports";
 
 /** A _Array contains a variable-sized sequence of items of a fixed type. The
  * items are called entries and have numeric IDs, which are ordinal numbers in
@@ -17,8 +17,8 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
   /** Template is item with id 0 */
   template!: Entry<V>;
 
-  /** set template */
-  setTemplate(value: V) {
+  /** create template */
+  createTemplate(): Entry<V> {
     assert(!this.template);
     let template = new Entry<V>();
     this.template = template;
@@ -26,7 +26,7 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
     template.isInput = false;
     template.formulaType = 'none';
     template.id = 0;
-    template.setFrom(value);
+    return template;
   }
 
   /** Columns, synthesized on demand, not copied. Note override type by forcing
@@ -73,7 +73,7 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
       let columnArray = new _Array;
       column.setValue(columnArray);
       // define column template from record field
-      columnArray.setTemplate(field.value);
+      columnArray.createTemplate().setFrom(field.value);
       // copy field instances into column
       this.items.forEach(entry => {
         let item = entry.get(field.id);
@@ -299,7 +299,11 @@ export class Text extends _Array<Character> {
 export class Loop extends _Array<Do> {
 
   /** type of loop */
-  loopType!: 'find?' | 'find!';
+  loopType!: 'find?' | 'find!' | 'transform' | 'transform?' | 'transform!'
+    | 'select&transform'| 'check-none?';
+
+  /** input array, set on eval */
+  input!: _Array;
 
   // evaluate contents
   eval(): void {
@@ -312,10 +316,11 @@ export class Loop extends _Array<Do> {
     let inputTemplate =
       cast(block.items[0].get('^reference').value, Reference).target!;
     assert(inputTemplate.id === 0);
-    let array = inputTemplate.container;
-    assert(array instanceof _Array);
+    assert(inputTemplate.container instanceof _Array);
+    this.input = inputTemplate.container;
+
     // iterate over input array
-    array.items.forEach(item => {
+    this.input.items.forEach(item => {
       let iteration = new Entry<Do>();
       this.add(iteration);
       iteration.id = item.id;
@@ -324,13 +329,13 @@ export class Loop extends _Array<Do> {
       // copy code block into iteration
       iteration.setFrom(block);
       // set input item of code block
-      let input = iteration.value!.items[0];
-      assert(input.isInput);
-      input.detachValue();
-      input.setFrom(item.value);
+      let iterInput = iteration.value!.items[0];
+      assert(iterInput.isInput);
+      iterInput.detachValue();
+      iterInput.setFrom(item.value!);
+      // evaluate iteration
       iteration.eval();
     })
-
   }
 
   /** extract results of a loop into a statement */
@@ -376,6 +381,75 @@ export class Loop extends _Array<Do> {
         exportField.setConditional(guarded);
         return;
 
+      case 'transform':
+      case 'transform?':
+      case 'transform!':
+      case 'select&transform':
+
+        if (this.loopType === 'transform') {
+          if (block.conditional) {
+            throw new StaticError(block.token, 'block cannot be conditional');
+          }
+        } else if (!block.conditional) {
+          throw new StaticError(block.token, 'block must be conditional');
+        }
+
+        // create result array
+        let resultArray = new _Array;
+        statement.setFrom(resultArray);
+        resultArray.tracked = this.input.tracked;
+        resultArray.sorted = false;
+        // define template from result of template block
+        // note template blocks execute to completion even if rejecting
+        resultArray.createTemplate()
+          .setFrom(assertDefined(block.result?.value));
+
+          // copy results of loop into result array
+        this.items.forEach(iteration => {
+          let iterationBlock = assertDefined(iteration.value);
+          if (iterationBlock.rejected) {
+            if (this.loopType === 'transform?') {
+              // reject whole function
+              statement.rejected = true;
+            } else if (
+              this.loopType === 'transform!'
+              && !this.workspace.analyzing
+            ) {
+              // failed assertion
+              throw new Crash(this.token, 'assertion failed')
+            }
+            // skip rejections
+            return;
+          }
+          let resultItem = new Entry;
+          resultArray.add(resultItem);
+          if (resultArray.tracked) {
+            // copy ID from tracked array
+            resultItem.id = iteration.id;
+          } else {
+            // set ordinals if untracked
+            resultItem.id = resultArray.items.length;
+          }
+          resultItem.isInput = false;
+          resultItem.formulaType = 'none';
+          resultItem.setFrom(assertDefined(iterationBlock.result?.value));
+        })
+        return;
+
+      case 'check-none?':
+
+        if (!block.conditional) {
+          throw new StaticError(block.token, 'block must be conditional');
+        }
+
+        // reject if any iteration succeeded
+        if (this.items.find(iteration => !iteration.value!.rejected)) {
+          statement.rejected = true;
+        }
+
+        // copy input array to result
+        statement.setFrom(this.input);
+        return;
 
       default: trap();
     }

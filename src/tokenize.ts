@@ -11,6 +11,7 @@ export type TokenType = (
   | 'record' | 'choice' | 'table' | 'array' | 'do' | 'builtin' | 'anything'
   | 'nil' | 'try' | 'check' | 'not' | 'else' | 'reject' | 'let' | 'export'
   | 'that' | 'include' | 'with' | 'find?' | 'find!'
+  | 'transform' | 'transform?' | 'transform!' | 'select&transform' | 'check-none?'
 )
 
 export class Token {
@@ -174,9 +175,9 @@ export function tokenize(source: string): Token[] {
     // match name, optionally prefixed by metadata or importcharacter
     if (matchAlpha() || match('^') || match('~')) {
       while (true) {
-        // allow internal hyphen and underscore
-        if (match('-') || match('_')) {
-          while (match('-') || match('_'));
+        // allow internal hyphen, underscore, and ampersand
+        if (match('-') || match('_') || match('&')) {
+          while (match('-') || match('_') || match('&'));
           if (matchAlpha() || matchDigit()) continue;
           throw syntaxError('expecting alphanumeric character');
         }
@@ -221,6 +222,11 @@ export function tokenize(source: string): Token[] {
         case 'include':
         case 'find?':
         case 'find!':
+        case 'transform?':
+        case 'transform!':
+        case 'transform':
+        case 'select&transform':
+        case 'check-none?':
 
           return name;
       }

@@ -35,6 +35,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   // FIXME: report ordinals on anon fields, not serials
   get pathString() { return this.path.toString(); }
 
+  /** whether this item is in an array template */
+  get inTemplate() { return this.path.ids.includes(0) }
+
   /** Logical container: metadata is physically contained in base item, but
    * logically is a peer */
   get up(): Item | undefined {
