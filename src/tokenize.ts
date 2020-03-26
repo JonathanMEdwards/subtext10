@@ -5,7 +5,8 @@ import { arrayLast } from "./exports";
 
 export type TokenType = (
   ':' | '=' | ':=' | '|=' | '.' | ',' | ';' | '{' | '}' | '(' | ')'
-  | '[' | ']' | '[]' | 'string' | 'number' | '_number_' | 'name' | 'end' | '\n'
+  | '[' | ']' | '[]' | 'string' | 'number' | '_number_'
+  | 'name' | 'end' | '\n'
   | 'call' | 'arg1' | 'arg2' | 'input'
   // keywords - add to matchToken switch statement
   | 'record' | 'choice' | 'table' | 'array' | 'do' | 'builtin' | 'anything'
@@ -27,6 +28,10 @@ export class Token {
   static fake(type: TokenType, token: Token): Token {
     return new Token(type, token.start, token.end, token.source);
   }
+
+  /** start of a character literal, including the single quote */
+  static readonly characterLiteralStart = "character'";
+
 
   get text() { return this.toString() };
 
@@ -102,8 +107,8 @@ export function tokenize(source: string): Token[] {
     // convert lone minus into name of subtraction operation
     if (minus) return 'name';
 
-    // match single-quoted string literal
-    if (match("'")) {
+    // match single-quoted string and character literal
+    if (match("'") || match(Token.characterLiteralStart)) {
       while (true) {
         // string must be terminated on same line
         if (atNewline()) {

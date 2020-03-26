@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -743,6 +743,15 @@ export class Parser {
     }
 
     if (this.matchToken('string')) {
+      if (this.prevToken.text.startsWith(Token.characterLiteralStart)) {
+        // character literal
+        let char = new Character;
+        char.token = this.prevToken;
+        char.value = stringUnescape(
+          this.prevToken.text.slice(Token.characterLiteralStart.length, -1)
+        );
+        return char;
+      }
       let text = new Text;
       text.token = this.prevToken;
       text.value = stringUnescape(this.prevToken.text.slice(1, -1));

@@ -14,6 +14,15 @@ test('array definition', () => {
     .toThrow('changing type of value');
 });
 
+test('text', () => {
+  expectDump("a = ''; b = array {character' '}; c? = a =? b")
+    .toEqual({ a: '', b: '', c: '' });
+  expectDump("a = 'a'; b = array {character' '} & character'a'; c? = a =? b")
+    .toEqual({ a: 'a', b: 'a', c: 'a' });
+  expectDump("a = ' \\nfoo' skip-white() =! 'foo'")
+  .toEqual({a: 'foo'})
+})
+
 test('array add/delete', () => {
   expectDump("a = array {0}, b = a & 1 & 2, c = b~index, d = b length()")
     .toEqual({ a: [], b: [1, 2], c: 2, d: 2 });

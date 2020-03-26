@@ -73,7 +73,7 @@ Subtext provides several kinds of values out of which a workspace is built:
 - _number_: double float using JavaScript syntax, and the special value `_number_` not equal to any other number (except itself)
 - TODO: infinite precision rationals
 - _text_: JavaScript string literal using single quotes: `'hello'`
-- _character_: a unicode character
+- _character_: a unicode character, using a literal of the form `char'a'`
 - `nil`, the unit value, useful in enumerations (see _Choices_)
 - `anything`, the top value used to define generic functions (see _Types_)
 - TODO: fancy text with fonts and formating
@@ -595,7 +595,7 @@ customers: table {
   address: ''
 }
 ```
-The array `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: array {record {...}}`. The table contains columns `name` and `address` defaulting to the empty text. The template of an array is access by using empty square brackets, as in `numbers[]`. Text is an array of characters with the space character as the template, so `''` is equivalent to `array{' '}`.
+The array `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: array {record {...}}`. The table contains columns `name` and `address` defaulting to the empty text. The template of an array is access by using empty square brackets, as in `numbers[]`. 
 
 The `&` function (pronounced “and”) is used to add items to an array. For example:
 ```
@@ -644,6 +644,8 @@ We can delete an item in an array with the `delete?` function, which results in 
 ```
 array delete? i
 ```
+
+Text is an array of characters with the space character as the template, so `''` is equivalent to `array{character' '}`.
 
 ### Columns
 A column of a table is an array containing the contents of one of the record fields from each row. The columns of a table are accessed using `.` as if the table was a record containing the columns. For example:
@@ -759,7 +761,8 @@ An `accumulate` block must define two input items. The block will be executed re
 
 ## Tracked and untracked arrays
 
-An array is defined to be either _tracked_ or _untracked_. Tracking is the default. A tracked array automatically assigns a unique ID to each item when it is created. The ID is used to precisely track changes to the item. Such IDs are called _surrogate keys_ in databases. The tracking ID is hidden from the user and programmer. Tracking allows two important capabilities:
+An array is defined to be either _tracked_ or _untracked_. Untracked is the default. _Is this rught?_
+A tracked array automatically assigns a unique ID to each item when it is created. The ID is used to precisely track changes to the item. Such IDs are called _surrogate keys_ in databases. The tracking ID is hidden from the user and programmer. Tracking allows two important capabilities:
 
 1. Relationships between tracked arrays can be maintained, similar to relational databases, but without requiring that every item contain a unique and immutable key (see Links)
 2. Tracked arrays can be versioned and merged, similar to version control systems like git, except more precisely.
@@ -1066,7 +1069,8 @@ We propose a simple solution for missing values that visualizes naturally in the
 2. There are predefined missing values for each media type that serve as placeholders.
 3. The missing value of a block has all its input items missing.
 4. The missing value of a text or array or table is empty.
-5. There is no predefined missing value for choices. However as their first option is the default, it can be defined to be something like `NA?: nil` to serve as a missing value if desired. Also see `maybe` blocks below.
+5. The missing value of a character is the space character.
+6. There is no predefined missing value for choices. However as their first option is the default, it can be defined to be something like `NA?: nil` to serve as a missing value if desired. Also see `maybe` blocks below.
 
 The `required` constraint (see _Constraints_) checks that an input item does not contain one of the above missing values.
 
@@ -1102,7 +1106,7 @@ Generic (parametrically typed) functions are defined with inputs using the speci
   item: input[]              // item must match array template
 }
 array{0} & 1      // this will insert 1
-array{0} & ''	   // this will report a type mismatch static error
+array{0} & ''	  // this will report a type mismatch static error
 array{0} &()      // this will insert 0
 ```
 
@@ -1143,11 +1147,12 @@ Value :=
 	| 'table' Block
 
 BaseValue :=
-	| string			// single-quoted JS string literal
-	| number			// JS number literal
-	| '_number_'		// Special missing number
-	| 'nil'				// unit value
-	| 'anything'		// generic value
+	| string				// single-quoted JS string literal
+	| 'character' string	// character literal
+	| number				// JS number literal
+	| '_number_'			// Special missing number
+	| 'nil'					// unit value
+	| 'anything'			// generic value
 
 Block := '{' Body '}'
 
@@ -1176,19 +1181,8 @@ LastClause := 'else' 'reject'
 
 Control :=
 	| 'do'
-	| 'not?'
-	| 'test'
-	| 'assert`
-	| 'find?'
-	| 'find-last?'
-	| 'find-only?'
-	| 'find-unique?'
-	| 'for-each'
-	| 'for-all?'
-	| 'for-none?'
-	| 'repeat'
-	| 'scan'
-	| 'aggregate'
+	| 'with'
+	...fill in from Parse.matchCode()
 
 Path := GuardedName? RelPath
 RelPath := step*

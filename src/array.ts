@@ -6,7 +6,7 @@ import { Container, ID, assert, Item, Character, isNumber, isString, Path, anoth
 export class _Array<V extends Value = Value> extends Container<Entry<V>> {
 
   /** whether array is tracked using serial numbers */
-  tracked = true;
+  tracked = false;
   /** last used serial number */
   serial = 0;
 
@@ -19,7 +19,6 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
 
   /** create template */
   createTemplate(): Entry<V> {
-    assert(!this.template);
     let template = new Entry<V>();
     this.template = template;
     template.container = this;
@@ -91,9 +90,7 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
   // visit template of array
   *visit(): IterableIterator<Item> {
     yield* super.visit();
-    if (this.template) {
-      yield* this.template.visit();
-    }
+    yield* this.template.visit();
   }
 
   // evaluate contents
@@ -122,6 +119,7 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
     return to;
   }
 
+  // type compatibility requires same type templates
   changeableFrom(from: Value, fromPath: Path, thisPath: Path): boolean {
     return (
       from instanceof _Array
@@ -135,7 +133,6 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
 
   /** value equality */
   equals(other: _Array) {
-    assert(!(other instanceof Text))
     return (
       this.tracked === other.tracked
       && this.sorted === other.sorted
@@ -146,8 +143,27 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
     )
   }
 
+  /** whether this is a text-like array */
+  get isText() {
+    return (
+      this.template.value instanceof Character
+      && !this.tracked
+      && !this.sorted
+    )
+  };
+
+  /** returns string value. Traps if not Text */
+  asString(): string {
+    assert(this.isText);
+    return this.items.map(item => item.dump()).join('')
+  }
+
   // dump as an array
   dump(): any {
+    if (this.isText) {
+      // dump as a string
+      return this.asString();
+    }
     return this.items.map(item => item.dump())
   }
 }
@@ -160,6 +176,81 @@ export class Entry<V extends Value = Value> extends Item<number, V> {
 
 }
 
+/** Text is an untracked array of characters, but is stored as a JS string and
+ * expanded into an array on demand */
+export class Text extends _Array<Character> {
+  tracked = false;
+  sorted = false;
+
+  /** JS string value */
+  value: string = '';
+
+  get isText() { return true; }
+  asText() { return this.value; }
+
+  // synthesize template on demand
+  private _template?: Entry<Character>;
+  set template(entry: Entry<Character>) {
+    this._template = entry;
+  }
+  get template() {
+    if (!this._template) {
+      // template is a space character, the default Character
+      this.createTemplate().setValue(new Character);
+    }
+    return this._template!;
+  }
+
+  // synthesize items on demand
+  private _items?: Entry<Character>[];
+  set items(value: Entry<Character>[]) {
+    // ignore superclass initialization
+    assert(value.length === 0);
+  }
+  get items() {
+    if (!this._items) {
+      this._items = Array.from(this.value).map((char, i) => {
+        let entry = new Entry<Character>();
+        entry.container = this;
+        entry.id = i + 1;
+        entry.isInput = false;
+        entry.formulaType = 'none';
+        let value = new Character;
+        value.value = char;
+        entry.setFrom(value);
+        return entry;
+      })
+    }
+    return this._items;
+  }
+
+  get isGeneric() { return false; }
+
+  eval() { }
+
+  initialize() { }
+
+  // Require a text-like array to simplify type checking for text builtins
+  changeableFrom(from: Value, fromPath: Path, thisPath: Path): boolean {
+    return (
+      from instanceof _Array && from.isText
+      && super.changeableFrom(from, fromPath, thisPath)
+    )
+  }
+
+  copy(srcPath: Path, dstPath: Path): this {
+    // just copy string value
+    let to = another(this);
+    to.source = this;
+    to.value = this.value;
+    return to;
+  }
+
+  // dump as string
+  dump() { return this.value };
+}
+
+
 export const arrayBuiltinDefinitions = `
 & = do{in: array{anything}; value: in[]; builtin &; export index = 0}
 length = do{in: array{anything}; builtin length}
@@ -168,6 +259,7 @@ followed-by = do{in: array{anything}; from: in; builtin followed-by}
 at? = do{in: array{anything}; index: 0; builtin at?}
 at-or-template = do{in: array{anything}; index: 0; builtin at-or-template}
 update? = do{in: array{anything}; index: 0; value: in at-or-template index; builtin update?}
+skip-white = do{in: ''; builtin skip-white}
 `
 
 /** & array add */
@@ -184,7 +276,7 @@ builtins['&'] = (s: Statement, array: _Array, value: builtinValue) => {
     entry.id = ++copy.serial;
   } else {
     // assign ordinal number
-    entry.id = array.items.length;
+    entry.id = copy.items.length;
   }
   entry.setFrom(value);
   // export index
@@ -253,47 +345,10 @@ builtins['update?'] = (
   }
 }
 
-/** Text is an untracked array of characters, but is stored as a JS string and
- * expanded into a array on demand */
-export class Text extends _Array<Character> {
-  tracked = false;
-  sorted = false;
-
-  /** JS string value */
-  value: string = '';
-
-  eval() { }
-
-  initialize() { }
-
-  copy(srcPath: Path, dstPath: Path): this {
-    // just copy string value
-    let to = another(this);
-    to.source = this;
-    to.value = this.value;
-    return to;
-  }
-
-  get isGeneric() { return false; }
-
-  changeableFrom(from: Value, fromPath: Path, thisPath: Path): boolean {
-    // FIXME: compatible array
-    return from instanceof Text
-  }
-
-
-  /** value equality */
-  equals(other: _Array): boolean {
-    if (other instanceof Text) {
-      return this.value === other.value;
-    }
-    // FIXME: Text-array equality
-    trap();
-  }
-
-  // dump as string
-  dump() { return this.value };
+builtins['skip-white'] = (s: Statement, a: _Array) => {
+  s.setFrom(a.asString().trimStart());
 }
+
 
 /** A Loop iterates a do-block over the input array */
 export class Loop extends _Array<Do> {
