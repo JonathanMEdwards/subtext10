@@ -1,4 +1,4 @@
-import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement, builtinValue, FieldID, Record, Field, Do, cast, Reference, Crash, Numeric, StaticError, assertDefined } from "./exports";
+import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement, builtinValue, FieldID, Record, Field, Do, cast, Reference, Crash, Numeric, StaticError, assertDefined, arrayLast } from "./exports";
 
 /** A _Array contains a variable-sized sequence of items of a fixed type. The
  * items are called entries and have numeric IDs, which are ordinal numbers in
@@ -73,7 +73,7 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
       let columnArray = new _Array;
       column.setValue(columnArray);
       // define column template from record field
-      columnArray.createTemplate().setFrom(field.value);
+      columnArray.createTemplate().setFrom(field);
       // copy field instances into column
       this.items.forEach(entry => {
         let item = entry.get(field.id);
@@ -82,7 +82,7 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
         copy.formulaType = 'none';
         copy.id = entry.id;
         columnArray.add(copy);
-        copy.setFrom(item.value!)
+        copy.setFrom(item)
       })
     }
     return column;
@@ -230,12 +230,12 @@ builtins['delete?'] = (s: Statement, array: _Array, index: number) => {
 builtins['at?'] = (s: Statement, array: _Array, index: number) => {
   let accepted = 0 < index && index <= array.items.length;
   s.setAccepted(accepted);
-  s.setFrom((accepted ? array.items[index - 1] : array.template).value!);
+  s.setFrom(accepted ? array.items[index - 1] : array.template);
 }
 
 /** array indexing with failure to template */
 builtins['at-or-template'] = (s: Statement, array: _Array, index: number) => {
-  s.setFrom((array.items[index - 1] ?? array.template).value!);
+  s.setFrom(array.items[index - 1] ?? array.template);
 }
 
 /** array update */
@@ -300,7 +300,7 @@ export class Loop extends _Array<Do> {
 
   /** type of loop */
   loopType!: 'find?' | 'find!' | 'transform' | 'transform?' | 'transform!'
-    | 'select&transform'| 'check-none?';
+    | 'select&transform'| 'check-none?' | 'accumulate';
 
   /** input array, set on eval */
   input!: _Array;
@@ -311,13 +311,22 @@ export class Loop extends _Array<Do> {
     if (this.template.evaluated) return;
     // eval template
     this.template.eval();
-    let block = this.template.value!;
+    let templateBlock = this.template.value!;
     // get input array
     let inputTemplate =
-      cast(block.items[0].get('^reference').value, Reference).target!;
+      cast(templateBlock.items[0].get('^reference').value, Reference).target!;
     assert(inputTemplate.id === 0);
     assert(inputTemplate.container instanceof _Array);
     this.input = inputTemplate.container;
+
+    if (this.loopType === 'accumulate' && this.workspace.analyzing) {
+      // TODO: type check accumulator and result
+      let accum = templateBlock.items[1];
+      let result = templateBlock.result!;
+      if (!accum.value!.changeableFrom(result.value!, result.path, accum.path)) {
+        throw new StaticError(accum.value!.token, 'result must be same type as accumulator')
+      }
+    }
 
     // iterate over input array
     this.input.items.forEach(item => {
@@ -327,12 +336,22 @@ export class Loop extends _Array<Do> {
       iteration.isInput = false;
       iteration.formulaType = 'none';
       // copy code block into iteration
-      iteration.setFrom(block);
+      iteration.setFrom(templateBlock);
       // set input item of code block
       let iterInput = iteration.value!.items[0];
       assert(iterInput.isInput);
       iterInput.detachValue();
-      iterInput.setFrom(item.value!);
+      iterInput.setFrom(item);
+
+      if (this.loopType === 'accumulate' && item !== this.input.items[0]) {
+        // set previous result into accumulater
+        let prev = cast(this.items[this.items.length - 2].value, Do);
+        let accum = iteration.value!.items[1];
+        assert(accum.isInput);
+        accum.detachValue();
+        accum.setFrom(prev.result)
+      }
+
       // evaluate iteration
       iteration.eval();
     })
@@ -342,14 +361,14 @@ export class Loop extends _Array<Do> {
   execute(statement: Statement) {
     let guarded = this.loopType.endsWith('?');
     statement.setConditional(guarded);
-    let block = this.template.value!;
+    let templateBlock = this.template.value!;
 
     switch (this.loopType) {
       case 'find?':
       case 'find!':
         // find first non-rejecting block
-        if (!block.conditional) {
-          throw new StaticError(block.token, 'block must be conditional');
+        if (!templateBlock.conditional) {
+          throw new StaticError(templateBlock.token, 'block must be conditional');
         }
         let index = 0;
         if (!this.workspace.analyzing) {
@@ -364,7 +383,7 @@ export class Loop extends _Array<Do> {
         }
         let item = index ? this.items[index - 1] : this.template;
         // use input item from block
-        statement.setFrom(item.value!.items[0].value!)
+        statement.setFrom(item.value!.items[0])
         // export index
         let indexField = new Field;
         // copy fieldID of index export from at function
@@ -385,13 +404,12 @@ export class Loop extends _Array<Do> {
       case 'transform?':
       case 'transform!':
       case 'select&transform':
-
         if (this.loopType === 'transform') {
-          if (block.conditional) {
-            throw new StaticError(block.token, 'block cannot be conditional');
+          if (templateBlock.conditional) {
+            throw new StaticError(templateBlock.token, 'block cannot be conditional');
           }
-        } else if (!block.conditional) {
-          throw new StaticError(block.token, 'block must be conditional');
+        } else if (!templateBlock.conditional) {
+          throw new StaticError(templateBlock.token, 'block must be conditional');
         }
 
         // create result array
@@ -401,10 +419,9 @@ export class Loop extends _Array<Do> {
         resultArray.sorted = false;
         // define template from result of template block
         // note template blocks execute to completion even if rejecting
-        resultArray.createTemplate()
-          .setFrom(assertDefined(block.result?.value));
+        resultArray.createTemplate().setFrom(templateBlock.result);
 
-          // copy results of loop into result array
+        // copy results of loop into result array
         this.items.forEach(iteration => {
           let iterationBlock = assertDefined(iteration.value);
           if (iterationBlock.rejected) {
@@ -432,14 +449,13 @@ export class Loop extends _Array<Do> {
           }
           resultItem.isInput = false;
           resultItem.formulaType = 'none';
-          resultItem.setFrom(assertDefined(iterationBlock.result?.value));
+          resultItem.setFrom(iterationBlock.result);
         })
         return;
 
       case 'check-none?':
-
-        if (!block.conditional) {
-          throw new StaticError(block.token, 'block must be conditional');
+        if (!templateBlock.conditional) {
+          throw new StaticError(templateBlock.token, 'block must be conditional');
         }
 
         // reject if any iteration succeeded
@@ -449,6 +465,19 @@ export class Loop extends _Array<Do> {
 
         // copy input array to result
         statement.setFrom(this.input);
+        return;
+
+      case 'accumulate':
+        if (templateBlock.conditional) {
+          throw new StaticError(templateBlock.token, 'block cannot be conditional');
+        }
+        if (this.items.length) {
+          // return last result
+          statement.setFrom(arrayLast(this.items).value!.result)
+        } else {
+          // return initial accumulator value
+          statement.setFrom(templateBlock.items[1]);
+        }
         return;
 
       default: trap();

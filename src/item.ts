@@ -156,7 +156,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     } else {
       meta = this.setMeta(name);
     }
-    meta.setFrom(value instanceof Item ? value.value! : value);
+    meta.setFrom(value);
     return meta;
   }
 
@@ -521,8 +521,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
   }
 
-  /** set value, allowing a JS number or string. Copies Value if attached */
-  setFrom(from: number | string | Value) {
+  /** set value, allowing a JS number or string. Copies Value if attached.
+   * Asserts argument defined */
+  setFrom(from?: number | string | Value | Item) {
+    assert(from !== undefined);
     if (typeof from === 'number') {
       let value = new Numeric;
       value.value = from
@@ -531,12 +533,15 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       let value = new Text;
       value.value = from;
       this.setValue(value);
-    } else if (from.containingItem) {
-      // copy attached value
-      this.setValue(from.copy(from.containingItem.path, this.path));
     } else {
-      // set detached Value
-      this.setValue(from);
+      let value = from instanceof Item ? assertDefined(from.value) : from;
+      if (value.containingItem) {
+        // copy attached value
+        this.setValue(value.copy(value.containingItem.path, this.path));
+      } else {
+        // set detached Value
+        this.setValue(value);
+      }
     }
   }
 

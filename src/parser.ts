@@ -544,7 +544,7 @@ export class Parser {
   parseLoop(): Loop | undefined {
     let token = this.parseToken(
       'find?', 'find!', 'transform', 'transform?', 'transform!',
-      'select&transform', 'check-none?'
+      'select&transform', 'check-none?', 'accumulate'
     );
     if (!token) return undefined;
     let loop = new Loop;
@@ -557,6 +557,7 @@ export class Parser {
       case 'transform!':
       case 'select&transform':
       case 'check-none?':
+      case 'accumulate':
         loop.loopType = token.text;
         break;
       default: trap();
@@ -565,14 +566,31 @@ export class Parser {
     let block = this.requireBlock(new Do);
     loop.createTemplate().setFrom(block);
 
-    // inject input field into block
-    let inputParser = new Parser('item: []');
-    inputParser.space = this.space;
-    let inputField = inputParser.requireField(block) as Statement;
-    // move to beginning
-    arrayRemove(block.items, inputField);
-    block.items.splice(0, 0, inputField);
-
+    // inject input field into block if needed
+    let inputField = block.items[0];
+    if (inputField.isInput) {
+      let ref = inputField.getMaybe('^reference')?.value;
+      if (
+        ref instanceof Reference
+        && ref.tokens.length === 2
+        && ref.tokens[0].type === 'that'
+        && ref.tokens[1].type === '[]'
+      ) {
+      } else {
+        throw this.setError('input must be []', block.token);
+      }
+    } else {
+      // generate input field
+      let inputParser = new Parser('item: []');
+      inputParser.space = this.space;
+      inputField = inputParser.requireField(block) as Statement;
+      // move to beginning
+      arrayRemove(block.items, inputField);
+      block.items.splice(0, 0, inputField);
+    }
+    if (loop.loopType === 'accumulate' && !block.items[1]?.isInput) {
+      throw this.setError('accumulate requires two inputs', block.token);
+    }
     return loop;
   }
 

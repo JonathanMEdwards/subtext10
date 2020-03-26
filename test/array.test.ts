@@ -85,3 +85,26 @@ test('transform', () => {
   expectDump(`a = array{0} & 1 & 2 & 3; b? = a check-none?{=? 1}`)
     .toEqual({ a: [1, 2, 3], b: false });
 })
+
+test('accumulate', () => {
+  expectDump(`
+  a = array{0};
+  b = a accumulate{item: []; sum: 0; sum + item}
+  `)
+    .toEqual({ a: [], b: 0 });
+  expectDump(`
+  a = array{0} & 1 & 2;
+  b = a accumulate{item: []; sum: 0; sum + item}
+  `)
+    .toEqual({ a: [1, 2], b: 3 });
+  expectCompiling(`
+  a = array{0} & 1 & 2;
+  b = a accumulate{item: 0; sum: 0; 'foo'}
+  `)
+    .toThrow('input must be []');
+  expectCompiling(`
+  a = array{0} & 1 & 2;
+  b = a accumulate{item: []; sum: 0; 'foo'}
+  `)
+    .toThrow('result must be same type as accumulator');
+})

@@ -716,7 +716,7 @@ joe = do {
   }
 }
 ```
-The code is defined to input from the array template, and in each iteration that input item will become a successive item of the array.
+The code is defined to input from the array template, and in each iteration that input item will become a successive item of the array. You can define the input item explicitly, so long as it refers to the template value as `[]`. _The UI will auto-insert these input items into search and loop blocks._
 
 A `find-last?` does the same thing as `find?` except that it scans the table backwards. A `find-sole?` succeeds if there is exactly one match, and rejects if there are none or more than one.
 
@@ -755,8 +755,7 @@ accumulate {
 }
 check =? 3
 ```
-An `accumulate` block must define two input items. The block will be executed repeatedly, like a `transform`, feeding items from the input array into the first input item. In this example we called the first input `item`, and define it from the default template value referenced as `that`.
-The second input (`sum`) acts as an accumulator. On the first call it defaults to the defined value (0). On the second and subsequent calls, `sum` becomes the result of the previous call. This example is equivalent to the built-in `sum()` function that sums an array of numbers. If the function rejects an item then it will be skipped and the accumulator value will be passed on to the next call. An `accumulate` is  like a conventional _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `s sum(100)`).
+An `accumulate` block must define two input items. The block will be executed repeatedly, like a `transform`, feeding items from the input array into the first input item. The first item (named `item` in this example) must be an input referencing the template value with `[]`. The second input (`sum`) acts as an accumulator. On the first call it defaults to the defined value (0). On the second and subsequent calls, `sum` becomes the result of the previous call. This example is equivalent to the built-in `sum()` function that sums an array of numbers. If the function rejects an item then it will be skipped and the accumulator value will be passed on to the next call. An `accumulate` is  like a conventional _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `s sum(100)`).
 
 ## Tracked and untracked arrays
 
