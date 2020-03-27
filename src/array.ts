@@ -1,4 +1,4 @@
-import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement, builtinValue, FieldID, Record, Field, Do, cast, Reference, Crash, Numeric, StaticError, assertDefined, arrayLast } from "./exports";
+import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement, builtinValue, FieldID, Record, Field, Do, cast, Reference, Crash, _Number, StaticError, assertDefined, arrayLast } from "./exports";
 
 /** A _Array contains a variable-sized sequence of items of a fixed type. The
  * items are called entries and have numeric IDs, which are ordinal numbers in
@@ -145,17 +145,13 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
 
   /** whether this is a text-like array */
   get isText() {
-    return (
-      this.template.value instanceof Character
-      && !this.tracked
-      && !this.sorted
-    )
-  };
+    return this.template.value instanceof Character;
+  }
 
-  /** returns string value. Traps if not Text */
+  /** returns string value. Traps if not text-like */
   asString(): string {
     assert(this.isText);
-    return this.items.map(item => item.dump()).join('')
+    return this.items.map(item => cast(item.value, Character).value).join('');
   }
 
   // dump as an array
@@ -229,14 +225,6 @@ export class Text extends _Array<Character> {
   eval() { }
 
   initialize() { }
-
-  // Require a text-like array to simplify type checking for text builtins
-  changeableFrom(from: Value, fromPath: Path, thisPath: Path): boolean {
-    return (
-      from instanceof _Array && from.isText
-      && super.changeableFrom(from, fromPath, thisPath)
-    )
-  }
 
   copy(srcPath: Path, dstPath: Path): this {
     // just copy string value

@@ -1,18 +1,18 @@
-import { Item, cast, Do, assert, Numeric, Character, Text, Dictionary, Value, Statement, arrayLast, Base, assertDefined, Nil, _Array } from "./exports"
+import { Item, cast, Do, assert, _Number, Character, Text, Dictionary, Value, Statement, arrayLast, Base, assertDefined, Nil, _Array } from "./exports"
 
 /** evaluate a builtin call. Assumes input fields present in containing block.
  * Arguments have already been type-checked and assigned */
 export function evalBuiltin(statement: Statement, name: string) {
   let block = cast(statement.container, Do);
-  // extract input values. Converts a Numeric to number
+  // extract input values. Converts a _Number to number
   let inputs: builtinValue[] = (
     block.statements
       .filter(statement => statement.isInput)
       .map(statement => {
         statement.used = true;
         let input = assertDefined(statement.value);
-        // convert Numeric to number
-        if (input instanceof Numeric) {
+        // convert _Number to number
+        if (input instanceof _Number) {
           return input.value;
         }
         return input;

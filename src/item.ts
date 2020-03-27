@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, Numeric, Nil, Loop} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -526,7 +526,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   setFrom(from?: number | string | Value | Item) {
     assert(from !== undefined);
     if (typeof from === 'number') {
-      let value = new Numeric;
+      let value = new _Number;
       value.value = from
       this.setValue(value);
     } else if (typeof from === 'string') {

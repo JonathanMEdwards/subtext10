@@ -17,7 +17,7 @@ export class Base extends Value {
  * A JS number.
  * NaN is the missing number _number_ which is equal to itself.
  */
-export class Numeric extends Base {
+export class _Number extends Base {
   value: number = NaN;
 
   copy(srcPath: Path, dstPath: Path): this {
@@ -28,7 +28,7 @@ export class Numeric extends Base {
 
   equals(other: any) {
     return (
-      other instanceof Numeric
+      other instanceof _Number
       && (
         this.value === other.value
         || (Number.isNaN(this.value) && Number.isNaN(other.value))));

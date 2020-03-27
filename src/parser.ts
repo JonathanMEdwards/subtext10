@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, Numeric, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -728,7 +728,7 @@ export class Parser {
   /** Parse a literal value */
   parseLiteral(): Value | undefined {
     if (this.matchToken('number')) {
-      let num = new Numeric;
+      let num = new _Number;
       num.token = this.prevToken;
       num.value = Number(this.prevToken.text);
       assert(Number.isFinite(num.value));
@@ -736,7 +736,7 @@ export class Parser {
     }
 
     if (this.matchToken('_number_')) {
-      let num = new Numeric;
+      let num = new _Number;
       num.token = this.prevToken;
       num.value = NaN;
       return num;
