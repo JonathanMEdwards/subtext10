@@ -342,8 +342,8 @@ builtins['skip-white'] = (s: Statement, a: _Array) => {
 export class Loop extends _Array<Do> {
 
   /** type of loop */
-  loopType!: 'find?' | 'find!' | 'transform' | 'transform?' | 'transform!'
-    | 'select&transform'| 'check-none?' | 'accumulate';
+  loopType!: 'find?' | 'find!' | 'for-all' | 'for-all?' | 'for-all!'
+    | 'for-none?' | 'query' | 'accumulate';
 
   /** input array, set on eval */
   input!: _Array;
@@ -443,14 +443,15 @@ export class Loop extends _Array<Do> {
         exportField.setConditional(guarded);
         return;
 
-      case 'transform':
-      case 'transform?':
-      case 'transform!':
-      case 'select&transform':
-        if (this.loopType === 'transform') {
+      case 'for-all':
+      case 'for-all?':
+      case 'for-all!':
+      case 'query':
+        if (this.loopType === 'for-all') {
           if (templateBlock.conditional) {
             throw new StaticError(templateBlock.token, 'block cannot be conditional');
           }
+        } else if (this.loopType === 'query') {
         } else if (!templateBlock.conditional) {
           throw new StaticError(templateBlock.token, 'block must be conditional');
         }
@@ -468,11 +469,11 @@ export class Loop extends _Array<Do> {
         this.items.forEach(iteration => {
           let iterationBlock = assertDefined(iteration.value);
           if (iterationBlock.rejected) {
-            if (this.loopType === 'transform?') {
+            if (this.loopType === 'for-all?') {
               // reject whole function
               statement.rejected = true;
             } else if (
-              this.loopType === 'transform!'
+              this.loopType === 'for-all!'
               && !this.workspace.analyzing
             ) {
               // failed assertion
@@ -496,7 +497,7 @@ export class Loop extends _Array<Do> {
         })
         return;
 
-      case 'check-none?':
+      case 'for-none?':
         if (!templateBlock.conditional) {
           throw new StaticError(templateBlock.token, 'block must be conditional');
         }

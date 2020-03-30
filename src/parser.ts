@@ -543,8 +543,8 @@ export class Parser {
   /** parse a loop block */
   parseLoop(): Loop | undefined {
     let token = this.parseToken(
-      'find?', 'find!', 'transform', 'transform?', 'transform!',
-      'select&transform', 'check-none?', 'accumulate'
+      'find?', 'find!', 'for-all', 'for-all?', 'for-all!',
+      'for-none?', 'query', 'accumulate'
     );
     if (!token) return undefined;
     let loop = new Loop;
@@ -552,11 +552,11 @@ export class Parser {
     switch (token.text) {
       case 'find?':
       case 'find!':
-      case 'transform':
-      case 'transform?':
-      case 'transform!':
-      case 'select&transform':
-      case 'check-none?':
+      case 'for-all':
+      case 'for-all?':
+      case 'for-all!':
+      case 'for-none?':
+      case 'query':
       case 'accumulate':
         loop.loopType = token.text;
         break;

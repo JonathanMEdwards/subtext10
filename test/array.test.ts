@@ -80,18 +80,18 @@ test('find', () => {
     .toThrow('block must be conditional')
 })
 
-test('transform', () => {
-  expectDump(`a = array{0} & 1 & 2; b = a transform{+ 1}`)
+test('for-all', () => {
+  expectDump(`a = array{0} & 1 & 2; b = a for-all{+ 1}`)
     .toEqual({ a: [1, 2], b: [2, 3]});
-  expectDump(`a = array{0} & 1 & 2 & 3; b = a select&transform{check not=? 2}`)
+  expectDump(`a = array{0} & 1 & 2 & 3; b = a query{check not=? 2}`)
     .toEqual({ a: [1, 2, 3], b: [1, 3]});
-  expectDump(`a = array{0} & 1 & 2 & 3; b? = a transform?{check not=? 0}`)
+  expectDump(`a = array{0} & 1 & 2 & 3; b? = a for-all?{check not=? 0}`)
     .toEqual({ a: [1, 2, 3], b: [1, 2, 3]});
-  expectDump(`a = array{0} & 1 & 2 & 3; b? = a transform?{check not=? 2}`)
+  expectDump(`a = array{0} & 1 & 2 & 3; b? = a for-all?{check not=? 2}`)
     .toEqual({ a: [1, 2, 3], b: false });
-  expectDump(`a = array{0} & 1 & 2 & 3; b? = a check-none?{=? 0}`)
+  expectDump(`a = array{0} & 1 & 2 & 3; b? = a for-none?{=? 0}`)
     .toEqual({ a: [1, 2, 3], b: [1, 2, 3] });
-  expectDump(`a = array{0} & 1 & 2 & 3; b? = a check-none?{=? 1}`)
+  expectDump(`a = array{0} & 1 & 2 & 3; b? = a for-none?{=? 1}`)
     .toEqual({ a: [1, 2, 3], b: false });
 })
 

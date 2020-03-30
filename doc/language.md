@@ -722,30 +722,32 @@ The code is defined to input from the array template, and in each iteration that
 
 A `find-last?` does the same thing as `find?` except that it scans the table backwards. A `find-sole?` succeeds if there is exactly one match, and rejects if there are none or more than one.
 
-### Transforming and accumulating
+### Iterating
 
-A `transform` block will evaluate a `do` block on each item of an array in order, resulting in an unsorted array with items containing the results in the same order. The block cannot be conditional. This is like the traditional 'map’ combinator. A `transform?` or `transform!` takes a conditional block and either checks or asserts that every item is accepted, A `select&transform` will transform only the items accepted by a conditional block. This is like a combination of the traditional 'map' and 'filter’ combinators. A `check-none?` block rejects if the code block accepts any item, otherwise resulting in the input array. For example:
+A `for-all` block will evaluate a `do` block on each item of an array in order, resulting in an unsorted array of the results. The block cannot be conditional. This is like the traditional 'map’ combinator. A `for-all?` or `for-all!` takes a conditional block and either checks or asserts that every item is accepted. A `query` will transform only the items accepted by a (possibly) conditional block. This is like a combination of the traditional 'map' and 'filter’ combinators. A `for-none?` block rejects if the code block accepts any item, otherwise resulting in the input array. For example:
 
 ```
 test {
   l = array{0} & 1 & 2 & 3
 
   // transform each item with result of block on it
-  check l transform {+ 1} =? (clear() & 2 & 3 & 4)
+  check l for-all{+ 1} =? (clear() & 2 & 3 & 4)
 
   // filter out rejected items
-  check l select&transform {check not=? 2} =? (clear() & & 3)
+  check l query{check not=? 2} =? (clear() & & 3)
 
   // filter and transform together
-  check l select&transform {check not=? 2, + 1} =? (clear() & 1 & 3)
+  check l query{check not=? 2, + 1} =? (clear() & 1 & 3)
 
   // check every item satisfies a condition
-  check l transform? {>? 0}
+  check l for-all?{>? 0}
 
   // check no item satisfies a condition
-  check l check-none? {<? 0}
+  check l for-none? {<? 0}
 }
 ```
+
+### Accumulating
 
 An `accumulate` block is used to accumulate a result by scanning an array.
 ```
@@ -757,7 +759,9 @@ accumulate {
 }
 check =? 3
 ```
-An `accumulate` block must define two input items. The block will be executed repeatedly, like a `transform`, feeding items from the input array into the first input item. The first item (named `item` in this example) must be an input referencing the template value with `[]`. The second input (`sum`) acts as an accumulator. On the first call it defaults to the defined value (0). On the second and subsequent calls, `sum` becomes the result of the previous call. This example is equivalent to the built-in `sum()` function that sums an array of numbers. If the function rejects an item then it will be skipped and the accumulator value will be passed on to the next call. An `accumulate` is  like a conventional _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `s sum(100)`).
+An `accumulate` block must define two input items. The block will be executed repeatedly, like a `for-all`, feeding items from the input array into the first input item. The first item (named `item` in this example) must be an input referencing the template value with `[]`. The second input (`sum`) acts as an accumulator. On the first call it defaults to the defined value (0). On the second and subsequent calls, `sum` becomes the result of the previous call. This example is equivalent to the built-in `sum()` function that sums an array of numbers. An `accumulate` is  like a conventional _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `sum(100)` starts the accumulator at 100).
+
+> If an item is rejected, should it be skipped, or stop the accumulation?
 
 ## Tracked and untracked arrays
 
