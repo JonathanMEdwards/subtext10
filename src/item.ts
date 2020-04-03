@@ -380,7 +380,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // follow LHS dependent path within previous value
     let target = this.down(ref.path.ids.slice(ref.context));
     if (!target.isInput && target !== this) {
-      // allow modifying that in |=
+      // allow modifying that in #
       throw new StaticError(arrayLast(ref.tokens), 'changing an output')
     }
 

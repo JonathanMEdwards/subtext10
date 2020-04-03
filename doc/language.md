@@ -21,21 +21,21 @@ This section summarizes the notable programming language features of Subtext.
 
 * The traditional terminology of programming languages and software development is rejected in favor of plain English. We continue to use traditional terminology in this section.
 * Subtext specifies how to pronounce its syntax.
-* Code and data are combined into an autonomous artifact called a workspace which provides reproduceability, collaboration, version control, and schema change. A workspace changes both through direct manipulation by users and executing code within the workspace.
+* Code and data are combined into an autonomous artifact called a workspace which provides reproducibility, collaboration, version control, and schema change. A workspace changes both through direct manipulation by users and executing code within the workspace.
 * Everything is nestable: programs, databases, and workspaces can all be nested inside each other. A Subtext workspace is a tree.
-* All inputs and sources of randomness are recorded in the workspace history to make it autonomous and reproduceable.
-* Subtext is both a PL and a DB: data is either persistent and transactional, or determinstically computed from such persistent data.
+* All inputs and sources of randomness are recorded in the workspace history to make it autonomous and reproducible.
+* Subtext is both a PL and a DB: data is either persistent and transactional, or deterministically computed from such persistent data.
 * What a user can do by direct manipulation of data and what code can do when executed are similar. The recorded history of user interactions and external inputs is in fact a program that can replay that history, or be used as raw material for Programming by Demonstration.  Conversely, a program can be understood as a script that a user could follow to perform the same operations. The language syntax and semantics have been designed to make these connections as direct as possible. For example, the syntax for replacing a value at a path within a tree, which looks like an assignment statement, is used to record user edits in the history.
 * All code is strict, pure, and referentially transparent. Therefore programs are _functions_.
 * Function execution is materialized as data, completely visible to the programmer using the same UI as for data. Materialized execution takes the LISP idea that _syntax is data_ and applies it to semantics: _execution is data_. Straight-line code is a record, loops are lists, and conditionals are discriminated unions. Calling is inlining.
 * Materialized execution has an unconventional semantics: rather than seeing functions as _reducing to results_, they are seen as _expanding to traces_.
 * One IF to rule them all: there is a single mechanism of conditionality: partial functions which either return a result or reject their input. Inspired by SNOBOL, this single mechanism provides conventional control structures, backtracking logic, pattern matching, assertions, and data invariants.
-* Functions are not abstract entities, defined in one place then used in others. Instead functions, sometimes represented as formulas, compute a result from concrete inputs. Any such computation can be reused, with a conventional-looking call syntax, optionally replacing its input values. All functionms are continuously executing on concrete input values. Functions can be edited live, immediately seeing the execution results, as in a spreadsheet.
+* Functions are not abstract entities, defined in one place then used in others. Instead functions, sometimes represented as formulas, compute a result from concrete inputs. Any such computation can be reused, with a conventional-looking call syntax, optionally replacing its input values. All functions are continuously executing on concrete input values. Functions can be edited live, immediately seeing the execution results, as in a spreadsheet.
 * Calling a function is materialized as inlining a copy of it. Lexical closures fall out of the way that relative paths within a subtree are mapped through copies.
 * Functions can _export_ extra results, which do not need to be deconstructed at the call site as in conventional approaches. The exports of a function typically form a record. Exports of conditional clauses are combined into a discriminated union. Exports of a loop are collected into a list.
 * Subtext is statically (parametrically) typed, but types are not mentioned in the language nor error messages. Concrete values serve as witnesses of types.
-* Lists are homogeneuoulyt typed. Lists of records serve as a table.
-* Lists can be tracked by automatically assigning hidden unique IDs to their items. Tracking supports stable links into lists that act like database foreign keys with referential ingegrit maintenance. Tracking also supports precise workspace versioning and mergeing.
+* Lists are homogeneously typed. Lists of records serve as a table.
+* Lists can be tracked by automatically assigning hidden unique IDs to their items. Tracking supports stable links into lists that act like database foreign keys with referential Integrity maintenance. Tracking also supports precise workspace versioning and merging.
 
 ### Intentionally excluded features
 
@@ -62,7 +62,7 @@ The tree structure of Subtext workspaces strikes a balance: they are more flexib
 - The same structures are used to represent data and functions (as in LISP), but they also represent the execution of functions for inspection by the developer.
 - There are cross-references within the tree. Cross-references can be dynamic only to the extent of selecting different items within a specific array — other than that, cross-references are static.
 
-Subtext is statically typed, which conventionally means that the code and the types of values are fixed at _compile time_ and do not vary at _run time_. But there is no such thing as compile time in Subtext workspacess, which are always running and fully editable with their state stored persistently in a file. Subtext distinguishes between two kinds of changes: modifying data and editing the definitions of prgrams and data. It is possible to lock a workspace so that only data modifications are allowed — this is called _user mode_. In user mode data changes are highly constrained: data types are fixed. For example a number can’t be changed into text, and a newly created item in an array will have the same type as all the others. Only certain kinds of errors can occur in user mode. In _programming mode_ anything can be changed, which can lead to various sorts of inconsistencies called _static errors_, corresponding to the errors a traditional compiler might report. Static errors are reported to the programmer as problems in the workspace to be resolved, but unlike compiled languages, the workspace continues to function outside the implicated parts.
+Subtext is statically typed, which conventionally means that the code and the types of values are fixed at _compile time_ and do not vary at _run time_. But there is no such thing as compile time in Subtext workspaces, which are always running and fully editable with their state stored persistently in a file. Subtext distinguishes between two kinds of changes: modifying data and editing the definitions of code and data. It is possible to lock a workspace so that only data modifications are allowed — this is called _user mode_. In user mode data changes are highly constrained: data types are fixed. For example a number can’t be changed into text, and a newly created item in an array will have the same type as all the others. Only certain kinds of errors can occur in user mode. In _programming mode_ anything can be changed, which can lead to various sorts of inconsistencies called _static errors_, corresponding to the errors a traditional compiler might report. Static errors are reported to the programmer as problems in the workspace to be resolved, but unlike compiled languages, the workspace continues to function outside the implicated parts.
 
 Although Subtext is statically typed in the above sense, there is no mention of types in the language syntax or error messages, because concrete values serve as witnesses of their types (see _Types_).
 
@@ -116,7 +116,7 @@ This is like a spreadsheet: cells containing a formula are outputs, and cells co
 
 Note that the terms input and output mean different things in computational notebooks like Jupyter, where an input is a formula and the paired output is its value. Notebooks do not let the user directly edit a value as can be done with non-formula cells in a spreadsheet and input items in Subtext.
 
-Subtext specifies how to pronounce its syntax. The above example syntax is pronounced “record of, x as 0, y equals x plus 1”. A `{` is pronounced “of”, `:` is pronounced “as”, and `=` is pronounced “equals”. Note that, unlike imany programming languages, `=` means the same thing as in mathematics — the left and right sides have the same value. The ':' means the left hand side originally had the same value as the right-hand side.
+Subtext specifies how to pronounce its syntax. The above example syntax is pronounced “record of, x as 0, y equals x plus 1”. A `{` is pronounced “of”, `:` is pronounced “as”, and `=` is pronounced “equals”. Note that, unlike many programming languages, `=` means the same thing as in mathematics — the left and right sides have the same value. The ':' means the left hand side originally had the same value as the right-hand side.
 
 > The distinction between `:` and `=` may be too subtle, but we haven’t come up with a better alternative.
 
@@ -152,7 +152,7 @@ y = do {
 ```
 Like all blocks, a `do` block is an array of items, which we call _statements_. In this example there are three statements, one per line, and they are output items whose value is calculated from their formula. Unlike in previous examples, these are anonymous outputs, lacking a name and the following `=`.
 
-The first statement is just a reference to `x` but the last two statements are calls without a preceding input value: `+ 1` and `* 2`. In that case the value of the previous statement is used as the left input. We can see this as the value of statements flowing downward from the result of one formula into the start of the next formula. The result is the bottom value, which becomes the value of `y`. Note how this downward dataflow corresponds exactly to the rightward dataflow in the formula `x + 1 + 2`, with the result being the final value on the right. Thus data flows in formulas from left to right, and in outlined blocks from top to bottom. This matchs the reading order of English prose.
+The first statement is just a reference to `x` but the last two statements are calls without a preceding input value: `+ 1` and `* 2`. In that case the value of the previous statement is used as the left input. We can see this as the value of statements flowing downward from the result of one formula into the start of the next formula. The result is the bottom value, which becomes the value of `y`. Note how this downward dataflow corresponds exactly to the rightward dataflow in the formula `x + 1 + 2`, with the result being the final value on the right. Thus data flows in formulas from left to right, and in outlined blocks from top to bottom. This matches the reading order of English prose.
 
 A formula is a single-line representation of a `do` block, but it will only look like an array of infix calls when the `do` block follows the pattern shown above: an array of anonymous outputs with the first being a literal or reference and the following ones single calls without a  preceding value. Anything else will use the general notation for blocks in a line, with brackets and semicolons. For example, if we had named one of the items:
 ```
@@ -204,7 +204,7 @@ do {
 ```
 The value of the last item, 3, becomes the result of the call.
 
-> (possibole support for implicit inputs) We can abbreviate functions with just one input. For example:
+> (possible support for implicit inputs) We can abbreviate functions with just one input. For example:
 > ```
 > 0
 > increment = with{+ 1}
@@ -229,7 +229,7 @@ The value of the last item, 3, becomes the result of the call.
 
 > As a result of these abbreviations, every item is a function that can be called elsewhere. This design avoids premature abstraction. In most languages before code can be reused it must first be abstracted out into a separate definition, and replaced with a call to that definition. In Subtext every item’s definition can be reused elsewhere.
 
-Note that, unlike other languages, a function is not a separate entity or value — it is always the formula defininig an item, not the actual value of the item. In the prior example,
+Note that, unlike other languages, a function is not a separate entity or value — it is always the formula defining an item, not the actual value of the item. In the prior example,
 ```
 plus = do {
   x: 0
@@ -291,7 +291,7 @@ will increment the value of the `number` item. Note how this looks like an _assi
 
 Change operations can only be done on input items, those defined with `:`, not outputs defined with '='.
 
-Recall that `:=` is also used when supplying the third or later inputs when calling a function. This is not a cooincidence. For example:
+Recall that `:=` is also used when supplying the third or later inputs when calling a function. This is not a coincidence. For example:
 ```
 ternary-function = do {
   input1: 0
@@ -338,7 +338,7 @@ Skipping to the definition of `x`, we see that it calls the function `integral-d
 2. Its input item `numerator` becomes `5`
 3. Its input item `divisor` becomes `3`
 4. The output item `ratio` is calculated to be 1 using the `floor` function to round-down the division
-5. The remainder is exported with the name`remainder`
+5. The remainder is exported with the name `remainder`
 6. The `export` statement acts like a `let`, passing on the previous value, so `ratio` becomes the final result of the function.
 7. After the call, the item `y` references `x~remainder`, which imports the export `remainder` produced in the computation of `x`. We pronounce `x~remainder` as “x import remainder”.
 
@@ -361,7 +361,7 @@ When a function executes (including formulas), exactly one of the following thin
 1. The function crashes. A crash indicates a programming error, not a user error: some condition has arisen that ought to be impossible. A crash is reported to the workspace developer, including a snapshot of the workspace that can reproduce the crash. No changes are made to the workspace when an input event (including user actions) causes a crash. Sometimes crashes can be predicted ahead of time when formulas are being edited (for example type mismatches). These are called static errors and are presented to the developer as problems to be fixed. Unlike conventional compiler errors, static errors do not prevent the system from running, so long as the erroneous formula is not used.
 2. The function is terminated before it completes because it has taken too long or used too many resources.
 3. The function completes successfully, producing results.
-4. The function intentionally _rejects_ without producing a result. Rejection means the function refuses to handle the input values supplied to it. Rejection is inspired by [SNOBOL](https://en.wikipedia.org/wiki/SNOBOL), which calls it _failure_, as do many parsing DSLs. We call it rejection rather than failure to make clear it is an intentional occurence, not a programming error (a crash).
+4. The function intentionally _rejects_ without producing a result. Rejection means the function refuses to handle the input values supplied to it. Rejection is inspired by [SNOBOL](https://en.wikipedia.org/wiki/SNOBOL), which calls it _failure_, as do many parsing DSLs. We call it rejection rather than failure to make clear it is intentional, not a programming error (a crash).
 
 If a function may reject it is called _conditional_, a function that never rejects is called _unconditional_. The name of a conditional function has a question mark appended to it. For example, the equality function `=?` tests whether two values are equal, rejecting if they aren’t. It is called like this: `x =? y`. You can tell that a function is conditional by the presence of a `?` inside it, which indicates a point where it may reject.
 
@@ -502,7 +502,7 @@ test {
 ```
 All `test` blocks in the workspace are executed after programmer edits that could affect them (after all edits in the prototype implementation). If a rejection occurs inside the test block then it is treated as a static error, which is a problem for the programmer to resolve, but does not prevent the workspace from being used.
 
-Each `test` block executes inside a copy of the workspace where all input items have been reset to their initial state. This reset workspace is also the input value to the `test` block. That way tests are isolated and reproduceable, even if they explore changes to the workspace. For example:
+Each `test` block executes inside a copy of the workspace where all input items have been reset to their initial state. This reset workspace is also the input value to the `test` block. That way tests are isolated and reproducible, even if they explore changes to the workspace. For example:
 ```Txt
 x: 0
 y = x + 1
@@ -534,26 +534,26 @@ expr: choice {
   }
 }
 ```
-The `expr` item can choose to be a `literal?` with a numeric value, or it can choose to be a `plus?`, with a value as a record containing items `left` and `right`, both of which are recursively another `expr` value. Choices always intially choose the first option (which can’t recurse so as to prevent infinitely deep values).
+The `expr` item can choose to be a `literal?` with a numeric value, or it can choose to be a `plus?`, with a value as a record containing items `left` and `right`, both of which are recursively another `expr` value. Choices always initially choose the first option (which can’t recurse so as to prevent infinitely deep values).
 
 The names of the options have a question mark, because accessing them is conditional on their being chosen. For example `expr.literal?` will provide the numeric value of the `literal?` item if it is currently chosen by `expr`, but will reject if it isn’t chosen.
 
-Choices are made with the _choice operation_ `|=`. For example:
+Choices are made with the _choice operation_ `#`. For example:
 ```Txt
-a-literal = expr |= literal 1
+a-literal = expr #literal 1
 ```
-This pronounced “a-literal equals expr choosing literal one”. The `|=` expects a choice value on its left (`expr`) and to its right the name of an option without the question mark (`literal`), followed by a formula resulting in a value for the option. The right hand formula can be left out, which will change the option to its default value (0 for `literal`):
+This pronounced “a-literal equals expr choosing literal one”. The `#` expects a choice value on its left (`expr`) and to its right the name of an option without the question mark (`literal`), followed by a formula resulting in a value for the option. The right hand formula can be left out, which will change the option to its default value (0 for `literal`):
 ```Txt
-a-literal = expr |= literal
+a-literal = expr #literal
 ```
 
-The choice operation `|=` is similar to the change operation `:=`, except that it doesn’t require a dependent path on the left (one starting with `.`). However `|=` can also be used with a dependent path, which is useful when chaining nested choices:
+The choice operation `#` is similar to the change operation `:=`, except that it doesn’t require a dependent path on the left (one starting with `.`). However `#` can also be used with a dependent path, which is useful when chaining nested choices:
 ```Txt
-a-plus = expr |= plus with{.left |= literal 2; .right |= literal 2}
+a-plus = expr #plus with{.left #literal 2; .right #literal 2}
 ```
-Note how, like a `:=`, the result of `.left |= literal 2` is the containing `plus` term, not the `left` term. That allows chaining the subsequent `.right |= literal 2` statement.
+Note how, like a `:=`, the result of `.left #literal 2` is the containing `plus` term, not the `left` term. That allows chaining the subsequent `.right #literal 2` statement.
 
-Note that `|=` always initializes the chosen option to its orginally defined value, even if it was already chose and had a different value. Likewise, the optional expression to the right of the option will be given a previous value that is the initially defined value of the option. Thus for example `|= literal + 1` will always result in 1. This is useful when function arguments are choices, for example `f(|= red)` will choose the initial value of the `red` option of a choice argument.
+Note that `#` always initializes the chosen option to its originally defined value, even if it was already chose and had a different value. Likewise, the optional expression to the right of the option will be given a previous value that is the initially defined value of the option. Thus for example `# literal + 1` will always result in 1. This is useful when function arguments are choices, for example `f(#red)` will choose the initial value of the `red` option of a choice argument.
 
 Sometimes there is no value of interest to associate with an option — we want it to indicate just that we made the choice. This is called an _enumeration_ in many languages. We use the special value `nil` in this case:
 ```Txt
@@ -565,7 +565,7 @@ color: choice {
 ```
 The value `nil` is called a _unit value_ in some languages: it contains no information, and is the sole value within its datatype. As such `nil` options can be chosen without supplying a value:
 ```Txt
-color |= red
+color #red
 ```
 
 ### Pattern matching
@@ -581,7 +581,7 @@ eval-expr = do {
 }
 ```
 
-Here the first try clause accesses the `literal?` option. If it was chosen, its numeric value becomes the result. But if `plus?` was chosen, then the first clause will reject and the second will execute instead, recursively evaluating the `left` and `right` items of the `plus?` option and then adding them together. We get pattern matching “for free” because accessing an option makes the entire containing try clause conditional on that option having been choosen.
+Here the first try clause accesses the `literal?` option. If it was chosen, its numeric value becomes the result. But if `plus?` was chosen, then the first clause will reject and the second will execute instead, recursively evaluating the `left` and `right` items of the `plus?` option and then adding them together. We get pattern matching “for free” because accessing an option makes the entire containing try clause conditional on that option having been chosen.
 
 ## Arrays and tables
 
@@ -600,7 +600,7 @@ The `&` function (pronounced “and”) is used to add items to an array. For ex
 n = numbers & 1 & 2 & 3
 c = customers &(with{.name := 'Joe', .address := 'Pleasantown, USA'})
 ```
-The `&` function takes an array as it’s left input and an item value as its right input, resulting in an array equal to the input plus a new item with that value. The default value of the item is the template of the seqence. In a table it is often convenient to use a `with` block as above to change some of the columns and let the others default to their template values.
+The `&` function takes an array as it’s left input and an item value as its right input, resulting in an array equal to the input plus a new item with that value. The default value of the item is the array template. In a table it is often convenient to use a `with` block as above to change some of the columns and let the others default to their template values.
 
 The `followed-by` function concatenates two arrays: `array1 followed-by array2` is a copy of `array1` with all the items from `array2` added to its end. The two array must have the same type template.
 
@@ -614,7 +614,7 @@ check n at? 2 =? 2
 ```
 The `at?` function will reject if the index is less than 1 or greater than the length of the array. To assert that the index is valid, use `at!` (which will crash if it is invalid).
 
-The first and last items can be accesed with `first?()` and `last?()`, which will reject if the array is empty. The function `sole?()` will return the only item in the array or reject.
+The first and last items can be accessed with `first?()` and `last?()`, which will reject if the array is empty. The function `sole?()` will return the only item in the array or reject.
 
 Items in an array can be updated with the `update?` function, which inputs from a sequence and takes 2 arguments containing an index number and an item value. It produces an updated sequence like the input except that the specified array item is replaced with the new value. `update?` rejects if the index is invalid. Here is an example:
 ```
@@ -970,7 +970,7 @@ Sometimes when matching sequential patterns like this we want to combine the ent
 check selected() =? 'foobar'
 ```
 
-Another useful matching function is `match-number?` which matches a numeric text and exports its numeric value as `~value`. For example:
+Another useful matching function is `match-number?` which matches a numeric text and exports the numeric value as `~value`. For example:
 ```
 '123foo'
 match-number?()
@@ -978,7 +978,7 @@ check after() =? 'foo'
 check ~value =? 123
 ```
 
-When a matching function does not see the expected pattern in the input, it rejects. This means it is easy to use `try` blocks to test for alternative patterns. Here is a classic textbook example of matching a little languge of addition formulas:
+When a matching function does not see the expected pattern in the input, it rejects. This means it is easy to use `try` blocks to test for alternative patterns. Here is a classic textbook example of matching a little language of addition formulas:
 
 ```
 match-expr? = '' try {
@@ -1114,10 +1114,10 @@ A `scan?` block repeatedly executes. At first the input text or selection is pas
 
 Scanning can be combined with replacing text:
 ```
-'Some Millenials attacking other Millenials'
+'Some Millennials attacking other Millennials'
 repeat {
   optionally {
-    scan? {match? 'Millenial'}
+    scan? {match? 'Millennial'}
     replace-selection 'snake-people'
     continue()
   }
@@ -1178,7 +1178,7 @@ array{0} & ''	  // this will report a type mismatch static error
 array{0} &()      // this will insert 0
 ```
 
-A generic function is one with an input containing `anything`. The function can be called with any input value where the `anything` occurs. Every call of a generic function will recompute the input default values based on the actual input values before becoming the value from the call. Inputs to the call are type-checked against those new defaults. Note that type checking is still static: every call to a generic function gets statically checked — types can not vary dynamically, only across different call-sites. It is notable that we acheive parametric types without introducing an explicitly parametric type system with type variables like `<T>`, which are notoriously baffling to beginners. Yet unlike template meta-programming, we retain static type checking at call sites for comprehensible errors.
+A generic function is one with an input containing `anything`. The function can be called with any input value where the `anything` occurs. Every call of a generic function will recompute the input default values based on the actual input values before becoming the value from the call. Inputs to the call are type-checked against those new defaults. Note that type checking is still static: every call to a generic function gets statically checked — types can not vary dynamically, only across different call-sites. It is notable that we obtain parametric types without introducing an explicitly parametric type system with type variables like `<T>`, which are notoriously baffling to beginners. Yet unlike template meta-programming, we retain static type checking at call sites for comprehensible errors.
 
 # Appendix: Deferred features
 
@@ -1202,7 +1202,7 @@ customer: record {
   age >=? 21
 }
 ```
-Customers must be at least 21. However it would be very inconvenient to treat failed constraints as an error as soon as they occur, because sometimes complex constraints can be transiently invalid while multiple data fields are changed. Therefore failed constraints are treated as errors only when they occur inside a (possiby nested) data field of a document. In other words, failed constraints are an error inside the persistent state of the document, but not when they are local values inside computations. Failed data constraints do not cause user actions to fail. Instead they mark the document as in an invalid state, and prevent the document from being published to others (unless explicitly forced by the user). Normally the user is expected to resolve failed data constraints manually. Changes triggered by incoming network requests will be checked more strictly: a broken constraint will cause the request to be cancelled with an error.
+Customers must be at least 21. However it would be very inconvenient to treat failed constraints as an error as soon as they occur, because sometimes complex constraints can be transiently invalid while multiple data fields are changed. Therefore failed constraints are treated as errors only when they occur inside a (possibly nested) data field of a document. In other words, failed constraints are an error inside the persistent state of the document, but not when they are local values inside computations. Failed data constraints do not cause user actions to fail. Instead they mark the document as in an invalid state, and prevent the document from being published to others (unless explicitly forced by the user). Normally the user is expected to resolve failed data constraints manually. Changes triggered by incoming network requests will be checked more strictly: a broken constraint will cause the request to be cancelled with an error.
 
 There are a set of predefined qualifiers on state fields that impose useful constraints on their value. For example:
 ```Txt
@@ -1276,7 +1276,7 @@ l target-index i  // converts index within links to index in target
 
 ## Reflected links
 
-When a link is used inside a row of a table, it is often useful to have a _reflected_ link in each row of the target table that is its inverse. When a row in the source links to a row in the target, the target will link back to it, and vice-versa. In data modelling this is called a _relationship_. For example:
+When a link is used inside a row of a table, it is often useful to have a _reflected_ link in each row of the target table that is its inverse. When a row in the source links to a row in the target, the target will link back to it, and vice-versa. In data modeling this is called a _relationship_. For example:
 ```
 customers: tracked table {
   name: ''
@@ -1407,7 +1407,7 @@ Op :=
 	| Path Arguments				// function call
 	| 'continue' Arguments			// tail call
 	| RelPath ':=' Formula			// change
-	| RelPath '|=' Name Formula?	// choose
+	| RelPath '#' Name Formula?		// choose
 	| RelPath						// follow
 	| Conditional
 	| Control Block

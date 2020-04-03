@@ -326,20 +326,20 @@ export class Parser {
 
     // reference
     let ref = this.parseReference();
-    if (!ref && this.peekToken('|=')) {
-      // implicit 'that' to left of |=
+    if (!ref && this.peekToken('#')) {
+      // implicit 'that' to left of #
       ref = new Reference;
       ref.tokens = [Token.fake('that', this.cursorToken)];
     }
     if (ref) {
       if (
         this.matchToken(':=')
-        // treat |= after structural path as separate operation
-        || (ref.dependent && this.matchToken('|='))
+        // treat # after structural path as separate operation
+        || (ref.dependent && this.matchToken('#'))
       ) {
         // change/choose operation
         if (!ref.dependent) {
-          throw this.setError(`|= requires dot-path`, ref.tokens[0]);
+          throw this.setError(`# requires dot-path`, ref.tokens[0]);
         }
 
         field.setMeta('^lhs', ref);
