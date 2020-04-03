@@ -66,7 +66,6 @@ Subtext is statically typed, which conventionally means that the code and the ty
 
 Although Subtext is statically typed in the above sense, there is no mention of types in the language syntax or error messages, because concrete values serve as witnesses of their types (see _Types_).
 
-
 ## Base values
 Subtext provides several kinds of values out of which a workspace is built:
 
@@ -76,7 +75,7 @@ Subtext provides several kinds of values out of which a workspace is built:
 - _character_: a unicode character, using a literal of the form `char'a'`
 - `nil`, the unit value, useful in enumerations (see _Choices_)
 - `anything`, the top value used to define generic functions (see _Types_)
-- TODO: fancy text with fonts and formating
+- TODO: fancy text with fonts and formatting
 - TODO: date-times and calendars
 - TODO: media (MIME-typed blobs)
 
@@ -134,11 +133,11 @@ formula1 function reference
 formula1 function(formula2)
 formula1 function(formula2, .input3 := formula3)
 ```
-Every function has at least one input. In a call the first input is the value of the formula to the left of the reference to the function. A function may have more than one input, but only the first input must be supplied in a call — the extra input items have an initial value that serves as a default. A call supplying only the first input puts empty parentheses `()` after the function reference. Conventional infix notation can be used when only the first and second inputs are used, and the second input is a literal or reference, as in `x + 1`. If the second input is instead a more complex formula then it is put in parentheses, for example in `x +(y * 2)`.
+Every function has at least one input. In a call the first input is the value of the formula to the left of the reference to the function. A function may have more than one input, but only the first input must be supplied in a call — the extra input items have an initial value that serves as a default. A call supplying only the first input puts empty parentheses `()` after the function reference. Conventional infix notation can be used when only the first and second inputs are used, and the second input is a literal or reference, as in `x + 1`. If the second input is instead a more complex formula it must be put in parentheses, for example in `x +(y * 2)`.
 
 When a call supplies the third or later input of a function, shown in the last case above, the name of the input item is specified with the syntax `.input3 := formula3`, like the _keyword arguments_ in some languages. The design philosophy behind these conventions is that many programs have one or two inputs, and it is natural to read infix notation like an Object-Verb-Subject construct in English, not to mention the familiarity of infix notation in math. But when there are  more than two inputs, it is better to name their roles explicitly.
 
-Formulas executely strictly left-to-right, which can violate the rules of arithmetic precedence. For example the formula `1 + 2 * 3` is equal to 6, not 7 as we have been taught. This becoes clearer if we use parentheses: `1 +(2) *(3)`. For that reason the UI will always fill in parentheses in program calls, but fade them out when they contains a single value, so that they still resemble the familiar parentheses-free infix notation, but hopefully still look different enough to break the expectations of arithmetic precedence. We retain the parentheses-free syntax because that is the expectation of this document’s audience of experienced programmers.
+Formulas evaluate strictly left-to-right, which can violate the rules of arithmetic precedence. For example the formula `1 + 2 * 3` is equal to 6, not 7 as we have been taught. This becomes clearer if we use parentheses: `1 +(2) *(3)`. For that reason the UI will always fill in parentheses in program calls, but fade them out when they contains a single value, so that they still resemble the familiar parentheses-free infix notation, but hopefully still look different enough to break the expectations of arithmetic precedence. We retain the parentheses-free syntax because that is the expectation of this document’s audience of experienced programmers.
 
 ### `do` blocks
 Formulas are used when an item is formatted as a line, but when we format it as an outline the formula is revealed as a `do` block. For example,
@@ -240,7 +239,7 @@ plus = do {
 ```
 the value of `plus` is just 1, the result of executing the function, not a special kind of value representing a function. When we call the program, as in `1 plus 1` what we are really doing is reusing the function that defines the value of `plus` with different inputs.
 
-> In fact programs really are “first-class” values, but they are only used in the UI and planned metaprogramming capabilities.
+> In fact functions really are “first-class” values, but they are only used in the UI and planned meta-programming capabilities.
 
 ### Block modification
 So far all of the examples have used arithmetic. But it is very common to work with blocks, particularly records,  as they are the rows of tables. Take the record:
@@ -306,7 +305,7 @@ The syntax `.input3 := 3` is actually a change operation on the `do` block of `t
 
 ### Local variables
 
-Inside a block an ouput item can be used to name an intermediate computation and then reference it by name later. This is called a _local variable_ in some languages. As we have seen, it is common in `do` blocks for values to flow downward from one item to the next. Local variables can break this flow, so there is special output qualifier `let` that lets the previous value flow “around” it:
+Inside a block an output item can be used to name an intermediate computation and then reference it by name later. This is called a _local variable_ in some languages. As we have seen, it is common in `do` blocks for values to flow downward from one item to the next. Local variables can break this flow, so there is special output qualifier `let` that lets the previous value flow “around” it:
 ```
 ...
 let foo = ... // compute something from previous value for later
@@ -347,9 +346,9 @@ What is going on here is that `x~` imports the exported value of the function th
 
 Note that in the example above, `x` is defined as `x = 5 integral-divide 3`, which is equivalent to the `do` block: `x = do {5; integral-divide 3}`. There are no `export` statements in this `do` block. In that case, if the last statement (the call to `integral-divide`) has an export then it is exported from the whole do-block. That allows us to say `x~remainder`. You can also declare a single value to be the export of the entire block explicitly with a statement `export ...` that does not name the result, and which is only allowed if there are no other `export` statements in the block. This when there are no `export` statements, there is an implicit `export ~` at the end of the block re-exporting the exports of the final statement.
 
-### TODO: Reference binding
+### Reference binding
 
-The syntax uses conventional _lexical binding_, but the UI will not be constrained by that, nor subject to lexical shadowing. References starting with `.`, `~` or `that` are _dependent_ on the previous value.
+The syntax uses conventional _lexical binding_, but the UI will not be constrained by that, nor subject to lexical shadowing. References starting with `.`, `~`, `[]` or `that` are _dependent_ on the previous value.
 
 > When the UI lets the developer make references that can’t be expressed lexically, we might want to automatically fix that by adding names to anonymous items and renaming shadowed items.
 
@@ -523,9 +522,8 @@ Sometimes a function takes too long to execute, or consumes too many internal re
 
 > However it would be nicer to be able to interrupt a long-running execution, observe it’s execution so far, and resume if desired. That should probably wait for an implementation of incremental execution.
 
-### TODO: Input event rejection, transactions, and constraints
-
 ## Choices
+
 A `choice` block defines a set of named input items called _options_, exactly one of which is _chosen_. The options can be different kinds of items, as in all blocks. Choices are like _discriminated unions_ and _sum types_ in conventional languages. Here is an example:
 ```Txt
 expr: choice {
@@ -638,7 +636,7 @@ test {
 > ```
 > .customers[1] := with{.name := 'Joe Jr.'}
 > ```
-> Brackets will assert the index is vaid. They can be suffixed with `?` to check the index is valid. Indexing complicates references, especially their visualization, and isn’t strictly necessary, though desireable.
+> Brackets will assert the index is valid. They can be suffixed with `?` to check the index is valid. Indexing complicates references, especially their visualization, and isn’t strictly necessary, though desirable.
 
 We can delete an item in an array with the `delete?` function, which results in an array with that item removed, rejecting if the index is invalid:
 ```
@@ -700,7 +698,7 @@ Two arrays are considered equal by the `=?` function when they have the same num
 
 > Maybe we need `currently=?` to compare ignoring the values of the templates and sorting/tracking, which only affect new insertions.
 
-## Searching
+### Searching
 
 A `find?` block searches in an array:
 ```
@@ -730,20 +728,20 @@ A `for-all` block will evaluate a `do` block on each item of an array in order, 
 test {
   l = array{0} & 1 & 2 & 3
 
-  // transform each item with result of block on it
+  // replace each item with result of block on it
   check l for-all{+ 1} =? (clear() & 2 & 3 & 4)
 
   // filter out rejected items
   check l query{check not=? 2} =? (clear() & & 3)
 
-  // filter and transform together
+  // filter and replace together
   check l query{check not=? 2, + 1} =? (clear() & 1 & 3)
 
   // check every item satisfies a condition
   check l for-all?{>? 0}
 
   // check no item satisfies a condition
-  check l for-none? {<? 0}
+  check l for-none?{<? 0}
 }
 ```
 
@@ -763,108 +761,173 @@ An `accumulate` block must define two input items. The block will be executed re
 
 > If an item is rejected, should it be skipped, or stop the accumulation?
 
-## Tracked and untracked arrays
 
-An array is defined to be either _tracked_ or _untracked_. Untracked is the default. _Is this rught?_
-A tracked array automatically assigns a unique ID to each item when it is created. The ID is used to precisely track changes to the item. Such IDs are called _surrogate keys_ in databases. The tracking ID is hidden from the user and programmer. Tracking allows two important capabilities:
+# Features not yet implemented
+ 
 
-1. Relationships between tracked arrays can be maintained, similar to relational databases, but without requiring that every item contain a unique and immutable key (see Links)
-2. Tracked arrays can be versioned and merged, similar to version control systems like git, except more precisely.
+## Relational data and queries
 
-Two tracked arrays are equal if their items are not only equal but also were created in the same relative order, including all items that were deleted. Tracked equality means that the array not only have the same current state but also effectively the same history of changes.
-
-Text is an an untracked array of characters. Two texts are equal if they have the same characters in the same order, regardless of their change histories.
-
-> Tracked arrays could offer sorting by creation time, and creation-time could be used to order duplicates in an array sorted by value.
-
-> The IDs in a tracked array are implemented as monotonically increasing serial numbers within the array, as in an “auto-increment” item in a relational database. We are not exposing this because merging may renumber items.
-
-### Links
-
-Links are used to store user-modifiable references to items from outside the array. A common scenario is what relational databases call _foreign keys_, where rows in one table reference rows in another:
+Subtext lets you work with relational data without learning SQL or understanding what a join is. A Subtext workspace already is a database, in the sense that it persists even after you turn off the computer. Traditional programming languages are concerned only with data in memory, and so must access persistent data stored externally in a database using completely different syntax and semantics. Consider this simple example database:
 
 ```
-customers: tracked table {
-  name: ''
-  address: ''
+orders: table {
+  id: _number_
+  customer: ''
 }
-orders: tracked table {
-  item: ''
-  customer: one in customers
+order-lines: table {
+  order-id: _number_
+  product: ''
+  quantity: 1
 }
 ```
 
-The `customer` item of `orders` rows is a _link_. Links designate an array they reference into (called the _target_), and a constraint on the number of linked items they permit. In this example, exactly one customer must be linked. The number of linked items can be constrained in several ways:
-```
-one in customers         // exactly 1 item
-maybe one in customers   // 0 or 1 items
-some in customers        // 1 or more items
-maybe some in customers  // 0 or more items
-```
+This database contains a table of orders, each with a unique id number. Orders can include multiple products, which are recorded in the order-lines table. A common question to ask this database is to list the order-lines in a given order. This would normally require a query called a _join_. Subtext avoids this kind of query by defining _links_.
 
-A link records a subset of the IDs in its target array. Links are equal when their target array are equal and they link the same items. A link is edited in the UI with something like a pick-list of the items in the target array (and radio buttons for a singular link). Links can be modified with several functions that produce modified links:
-```
-l link i                  // add link to item with index i in target
-l unlink i                // unlink item with index i in target
-l links? i                // rejects if target index i is not linked
-l clear()                 // unlink everything
-l link-all array          // link all IDs from another array or link
-l unlink-all array        // unlink all IDs from another array or link
-l copy array              // clear and link-all
-```
+### `in` links
 
-Links act in some ways as if they were a sub-array containing the linked items in their order in the target array, for example they can be indexed with `[...]` and searched with `find?{...}`. But note the indexes used in those examples are the index within the links, not the index in the target array. We can access the underlying target array with:
+The fields `order-id` and `product-id` in `order-lines` are called _foreign keys_ in a relational database. This means their value refers to a matching value in the _primary key_ field of a table, which in this case are the `id` fields in `products` and `orders`. In Subtext we call foreign keys an `in` link and define them like this:
 
 ```
-l target()        // copy of the target array
-l target-index i  // converts index within links to index in target
-```
-
-### Reflected links
-When a link is used inside a row of a table, it is often useful to have a _reflected_ link in each row of the target table that is its inverse. When a row in the source links to a row in the target, the target will link back to it, and vice-versa. In data modelling this is called a _relationship_. For example:
-```
-customers: tracked table {
-  name: ''
-  address: ''
-  orders: maybe some in orders reflecting customer
-}
-orders: tracked table {
-  item: ''
-  customer: one in customers reflecting orders
+order-lines: table {
+  order: in orders
+  product: ''
+  quantity: 1
 }
 ```
-Note that each link names the item within the opposite table that contains its reflection.
 
-Reflected links can also be declared as _unique_, _complete_, or _paired_, corresponding to injective (into), surjective (onto), and bijective (1-1) mappings.
+The definition `order: in orders` says that the `order` field must contain a value that is present in the first field of the `orders` table in exactly one row.  If the value of `order` does not meet that constraint it is flagged in the UI as an invalid value. _It may also prevent a transaction from being committed — See Constraints_.
 
-Note that while the above example is familiar from relational databases, in Subtext it would be simpler to just nest orders inside customers:
+The UI will display an `in` link using a “combo box” control that can edits it by opening a view of the `orders` table and allowing one row to be picked with a checkbox. The UI will also provide an affordance in the table header that allows the `order` column to expand to show the entire corresponding record from the `orders` table.
+
+Code can “follow” an `in` link with the metadata reference `.order^lookup?`. The metadata field `^lookup?` contains the corresponding record from the `orders` table. Thus for example the customer name could be accesses as `.order^lookup?.customer`. If the `order` is invalid, meaning there are no or multiple matching orders, then the access is rejected, signified  by the question mark in `^lookup?`. As usual the constraint can be asserted by using `^lookup!`.
+
+> Note that for simplicity we require that the primary key be the first field, which is the standard convention. We also require that multiple-field “compound keys” be defined as a record in the first field.
+
+### `from` links
+
+To find all the `order-lines` in an order, we want to follow the link “backwards”. This is done by defining a `from` link on the opposite side of the `in` link, as follows:
+
 ```
-customers: table {
-  name: ''
-  address: ''
-  orders: table {
-    item: ''
+orders: table {
+  id: _number_
+  customer: ''
+  order-lines = from order-lines.order
+}
+order-lines: table {
+  order: in orders
+  product: ''
+  quantity: 1
+}
+```
+
+The `from` link is defined inside the `orders` table as `order-lines = from order-line.order`. Following `from` must be a reference to a field of a table that defines an `in` link which points back to the containing table (`orders`). The value of the `order-lines` field in an order is a table of all the `order-lines` rows for that order. Note that Subtext allows fields of a table to be tables themselves, which is disallowed in relational databases. The benefit is there is no longer any need to write a query to find the order-lines in each order: they are automatically shown inside the `order-lines` field of each order.
+
+Every `from` link must match an `in` link, but `in` links do not require a matching `from` link. However it will likely be good practice to pair them up. The UI will offer to create the matching `from` link for an `in` link, and may do so automatically.
+
+### Nested tables
+
+The preceding example is typical in relational databases, but is a bit silly in Subtext. Since Subtext allows nested tables, the most natural thing is to just nest order-lines inside orders:
+
+```
+orders: table {
+  id: _number_
+  customer: ''
+  lines: table {
+    product: ''
+    quantity: 1
   }
 }
 ```
 
+The UI will provide refactorings that convert between this and the previous linked form.
 
-### TODO: Nested links
-Links can target nested arrays, linking to a path of IDs. Reflecting links can cross multiple layers of containing arrays. Cardinality constraints are specified seperately for each level of nesting.
+The `id` field might also be dispensed with by using a _tracked_ table instead (See Tracking):
 
-### TODO: link updates and referential integrity
+```
+orders: tracked table {
+  customer: ''
+  lines: table {
+    product: ''
+    quantity: 1
+  }
+}
+```
 
-### Merging
+### Advanced queries
 
-Copies happen. Workspaces get shared as email attachments. Workspaces get incorporated into other workspaces. Inevitably both the copy and the original change. Tracking allows such changes to be later sent to the other version without wiping out all the changes that have happened to it in the meantime. This is called _merging_.
+Links eliminate many simple queries, but there can still be a need for queries in more complex cases. Let’s return to the original example and avoid using links to see how relational-style queries can be done. Here is the database again:
 
-Two copies of a tracked array can be compared to see exactly how they have diverged. The IDs in a tracked array allow changes made to an item to be tracked despite any changes made to its value or location. Deletions and creations are also known exactly. Tracking provides more precise information than text-based version control systems like git.
+```
+orders: table {
+  id: _number_
+  customer: ''
+}
+order-lines: table {
+  order-id: _number_
+  product: ''
+  quantity: 1
+}
+```
 
-Changes made to one copy can be merged into the other. If changes are merged in both directions the two copies become equal again. Sometimes changes made to both copies are such that merging must lose some information, for example if the same item in the same item is changed to be two different numbers. Merging can be done using an automatic policy to resolve such conflicts, or human intervention can be requested, either immediately in the UI when performing the merge, or later by reifying such conflicts into the workspace itself (but without breaking the workspace as textual version-control does).
+To find the `order-lines` in an order we can use a `query` block (see Iterating):
+```
+order-lines query{.order-id =? order.id}
+```
 
-Merging can be done across copies of entire workspaces. Merging can also apply to workspaces included inside another workspace (see _include_ and _variant_). Merging applies to all tracked arrays and links within a workspace. Non-tracked arrays (like text) are treated like base values that change as a whole.
+That formula will produce a table containing all the `order-line` rows for the order `order`. This is the equality constraint at the heart of  the _join_ operation in a relational query. However relational joins are typically expressed not just as doing a lookup for one order, but doing it for all of them at once, and combining the results into a big table where the order information gets duplicated for each order-line. While that may be appealing from a theoretical perspective, we feel that is not typically how people or programs prefer to see the information. Nevertheless if that is what you want, you can still do it in Subtext, which we will walk through in several steps:
 
-TODO: details.
+```
+orders for-all{
+  order: []
+  order-lines query{.order-id =? order.id}
+}
+```
+This formula produces a table that replaces each row of the `orders` table with a table of the corresponding `order-lines` rows. But that discards information from the orders table. So instead we can add a field to each order containing the order-lines:
+```
+orders for-all{
+  order: []
+  extend{
+    lines = order-lines query{.order-id =? order.id}
+  }
+}
+```
+The `extend` block expects a record as its input, and adds all the fields defined inside its block to the end of that record. In this case we get a table that looks like this:
+```
+table{
+  id: _number_
+  customer: ''
+  lines: table{
+    order-id: _number_
+    product: ''
+    quantity: 1
+  }
+}
+```
+Note that this is equivalent to what we got by adding the `from` link to `orders`. We computed the same result using a `for-all`, `query`, and `extend`. But this is still not quite a relational join, because it contains nested tables. We can flatten out the nesting with an `ungroup()`:
+```
+orders for-all{
+  order: []
+  extend{
+    order-lines query{.order-id =? order.id}
+  }
+}
+ungroup()
+```
+
+The `ungroup()` function takes a table as input, and looks for the first field that is a nested table. It then replaces that field with all the fields of its contained table. So in this case it produces the table:
+```
+table{
+  id: _number_
+  customer: ''
+  order-id: _number_
+  product: ''
+  quantity: 1
+}
+```
+The `ungroup()` function replaces each row of the input table with multiple rows of the expanded table, one per row of the nested table. The other fields outside the nested table are duplicated across all these rows. If the nested table (containing the query match) is empty, then the input row is skipped. That is exactly what an _inner join_ does in a relational query. Other kinds of joins can be produced by alternative forms of ungroup. The reason we call this `ungroup` instead of `join` is first, we think it is much more explanatory term, and second, it actually is the inverse of the `group()` function that will create a nested table to eliminate duplication in other columns.
+
+We have seen above how joins can be done in Subtext through several operations. Those fond of SQL might criticize this as verbose and complex. We stand with those not fond of SQL, finding it an overly abstract and mathematical language that forces everything into the Procrustean Bed of normalized relations. We think nested tables are actually more friendly for both humans and programs.
+
 
 ## Parsing
 
@@ -1017,7 +1080,6 @@ The recursive call `continue?()` has a question mark because the repeat block ca
 
 > Perhaps a `visit` block that can be multiply-recursive, and collects the exports in order of execution, concatenating them as in a “flat map”. Combined with skipping of conditional exports, this allows arbitrary search algorithms to be easily written.
 
-
 ## Repeated exports
 
 When we parse a CSV we typically want to produce an array of the numeric values. We can do that by adding an export:
@@ -1065,6 +1127,7 @@ combined() =? 'Some snake-people attacking other snake-people'
 The `replace-selection` replaces the selected part of the left-hand input with the right-hand text. Note that replacing the selection does not affect subsequent matches, which work on the after-part, so replacement can be done “on the fly”. The `combined()` call at the end converts the final selection back into a plain text by concatenating the before, selected, and after parts.
 
 ## Missing values
+
 _Nulls_ are a perennial controversy in PL and DB design. The idea is to add a special value Null to all types of values in order to represent a “missing” or “unknown” value. Unfortunately Null adds complexity and more ways for code to break, or more language features to avoid breaking. FP languages avoid Null values by using Option wrappers (like Subtext choices), but at the cost of continually wrapping and unwrapping values.  NULL in SQL is a widely acknowledged disaster. We want to avoid this whole mess if possible.
 
 We propose a simple solution for missing values that visualizes naturally in the UI:
@@ -1091,7 +1154,7 @@ A `maybe` block is often useful in cases where we would like to change an input 
 
 ## Types
 
-Subtext has no syntax for describing types: functions only talk about values. All inputs are defined with a default value, so no type needs be specified. For example in the definition `foo: _number_`, `_number_` is not the name of a type — it is just the name of the special missing number. Likewise error messages never talk about types — instead they point to a type mismatch between values at two code locations, additionally referencing the code locations where their types were defined.
+Subtext has no syntax for describing types: it only talks about values. Function inputs are defined with a default value, so no type needs be specified. For example in the definition `foo: _number_`, `_number_` is not the name of a type — it is just the name of the special missing number. Likewise error messages never talk about types — instead they point to a mismatch between values at two code locations, additionally referencing the code locations where they were defined.
 
 We believe that type systems are an essential formalism for language theoreticians and designers, but that many language users would prefer to obtain their benefits without having to know about them and write about them.
 
@@ -1102,12 +1165,13 @@ In PL theory terms, Subtext mixes aspects of structural and nominal type systems
 
 Subtext doesn’t have function types or higher-order values. Two values have the same type if they have the same data type and all embedded code is equal (modulo internal paths). Value equality requires type equality, so equal values are behaviorally equivalent, i.e. referentially transparent.
 
-Generic (parametrically typed) functions are defined with inputs using the special top value `anything`. For example the `&` function to add items to an array has the signature:
+Generic (parametrically typed) functions are defined with inputs using the special top value `anything`. For example the `&` function to add items to an array has the definition:
 
 ```
 & = do {
-  input: array {anything}    // input must be an array
-  item: input[]              // item must match array template
+  input: array{anything}    // input must be an array of some kind
+  item: input[]             // item must match array template
+  builtin &                 // execute builtin function
 }
 array{0} & 1      // this will insert 1
 array{0} & ''	  // this will report a type mismatch static error
@@ -1115,6 +1179,185 @@ array{0} &()      // this will insert 0
 ```
 
 A generic function is one with an input containing `anything`. The function can be called with any input value where the `anything` occurs. Every call of a generic function will recompute the input default values based on the actual input values before becoming the value from the call. Inputs to the call are type-checked against those new defaults. Note that type checking is still static: every call to a generic function gets statically checked — types can not vary dynamically, only across different call-sites. It is notable that we acheive parametric types without introducing an explicitly parametric type system with type variables like `<T>`, which are notoriously baffling to beginners. Yet unlike template meta-programming, we retain static type checking at call sites for comprehensible errors.
+
+# Appendix: Deferred features
+
+Mostly about application programming concerns which do not arise in a data-analysis setting.
+
+## Input rejects, transactions, and data constraints
+
+Rejections are like conventional exceptions: they “bubble-up” through blocks, giving each containing block a chance to “catch” them, based on the kind of block. We have seen that rejections are caught by `try`, `not`, `assert`, and `test` blocks. But what happens when a rejection isn’t caught and bubbles up all the way? To explain this we need to describe how documents  change.
+
+Every document has a _history-block_, which is a special kind of do-block. The initial value of the history-block is the initial value of the document itself when it was first created. Every time a user does something to the document (or a function is triggered by an incoming network request), a formula is appended to the history that computes a new version of the document. The current state of the document is the last value in the history document. If a history formula rejects it means that the requested change/operation is not possible, and the previous document value is passed along unchanged. Input actions are essentially executed in a transaction that discards the changes on rejection. User-written blocks can duplicate this behavior with the `guard{}` block, which passes on the value of the block if it succeeds, otherwise passing on the prior value. The history block catches rejects by implicitly wrapping every action in a `guard`.
+
+There is one other way that rejects can bubble up without being caught. That is when a formula in a record is recomputed as a result of a change to other fields it references. How this is treated depends on whether the formula is inside a record or document block. 
+
+Document blocks are special records used at top of every document, including documents that are meant to be included in other documents as modules or libraries. Rejected formulas at the top level of a document are permitted and not considered to be an error. For example you might define a conditional function in a library - whether its default execution is a rejection does not matter. Likewise we often use top level formulas in a document as a sort of REPL to explore values, and rejection is a normal occurrence.
+
+Conditional formulas inside record blocks are treated differently: they are considered to be _constraints_ on the state of the record, with a rejection indicating the record is in an invalid state. For example:
+```Txt
+customer: record {
+  name: ""
+  age: 0
+  age >=? 21
+}
+```
+Customers must be at least 21. However it would be very inconvenient to treat failed constraints as an error as soon as they occur, because sometimes complex constraints can be transiently invalid while multiple data fields are changed. Therefore failed constraints are treated as errors only when they occur inside a (possiby nested) data field of a document. In other words, failed constraints are an error inside the persistent state of the document, but not when they are local values inside computations. Failed data constraints do not cause user actions to fail. Instead they mark the document as in an invalid state, and prevent the document from being published to others (unless explicitly forced by the user). Normally the user is expected to resolve failed data constraints manually. Changes triggered by incoming network requests will be checked more strictly: a broken constraint will cause the request to be cancelled with an error.
+
+There are a set of predefined qualifiers on state fields that impose useful constraints on their value. For example:
+```Txt
+age: positive 1
+```
+constrains `age` to be positive. The predefined constraints are:
+```Txt
+positive     // >? 0
+negative     // <? 0
+non-negative // >=? 0
+non-zero     // not=? 0
+required     // not missing (see Missing Values)
+```
+
+## Tracked arrays
+
+An array is defined to be either _tracked_ or _untracked_. Untracked is the default. _Is this right?_
+A tracked array automatically assigns a unique ID to each item when it is created. The ID is used to precisely track changes to the item. Such IDs are called _surrogate keys_ in databases. The tracking ID is hidden from the user and programmer. Tracking allows two important capabilities:
+
+1. Relationships between tracked arrays can be maintained, similar to relational databases, but without requiring that every item contain a unique and immutable key (see Links)
+2. Tracked arrays can be versioned and merged, similar to version control systems like git, except more precisely.
+
+Two tracked arrays are equal if their items are not only equal but also were created in the same relative order, including all items that were deleted. Tracked equality means that the array not only have the same current state but also effectively the same history of changes.
+
+Text is an an untracked array of characters. Two texts are equal if they have the same characters in the same order, regardless of their change histories.
+
+> Tracked arrays could offer sorting by creation time, and creation-time could be used to order duplicates in an array sorted by value.
+
+> The IDs in a tracked array are implemented as monotonically increasing serial numbers within the array, as in an “auto-increment” item in a relational database. We are not exposing this because merging may renumber items.
+
+## Tracked links
+
+Links are used to store user-modifiable references to items from outside the array. A common scenario is what relational databases call _foreign keys_, where rows in one table reference rows in another:
+
+```
+customers: tracked table {
+  name: ''
+  address: ''
+}
+orders: tracked table {
+  item: ''
+  customer: one in customers
+}
+```
+
+The `customer` item of `orders` rows is a _link_. Links designate an array they reference into (called the _target_), and a constraint on the number of linked items they permit. In this example, exactly one customer must be linked. The number of linked items can be constrained in several ways:
+```
+one in customers         // exactly 1 item
+maybe one in customers   // 0 or 1 items
+some in customers        // 1 or more items
+maybe some in customers  // 0 or more items
+```
+
+A link records a subset of the IDs in its target array. Links are equal when their target array are equal and they link the same items. A link is edited in the UI with something like a pick-list of the items in the target array (and radio buttons for a singular link). Links can be modified with several functions that produce modified links:
+```
+l link i                  // add link to item with index i in target
+l unlink i                // unlink item with index i in target
+l links? i                // rejects if target index i is not linked
+l clear()                 // unlink everything
+l link-all array          // link all IDs from another array or link
+l unlink-all array        // unlink all IDs from another array or link
+l copy array              // clear and link-all
+```
+
+Links act in some ways as if they were a sub-array containing the linked items in their order in the target array, for example they can be indexed with `[...]` and searched with `find?{...}`. But note the indexes used in those examples are the index within the links, not the index in the target array. We can access the underlying target array with:
+
+```
+l target()        // copy of the target array
+l target-index i  // converts index within links to index in target
+```
+
+## Reflected links
+
+When a link is used inside a row of a table, it is often useful to have a _reflected_ link in each row of the target table that is its inverse. When a row in the source links to a row in the target, the target will link back to it, and vice-versa. In data modelling this is called a _relationship_. For example:
+```
+customers: tracked table {
+  name: ''
+  address: ''
+  orders: maybe some in orders reflecting customer
+}
+orders: tracked table {
+  item: ''
+  customer: one in customers reflecting orders
+}
+```
+Note that each link names the item within the opposite table that contains its reflection.
+
+Reflected links can also be declared as _unique_, _complete_, or _paired_, corresponding to injective (into), surjective (onto), and bijective (1-1) mappings.
+
+Note that while the above example is familiar from relational databases, in Subtext it would be simpler to just nest orders inside customers:
+```
+customers: table {
+  name: ''
+  address: ''
+  orders: table {
+    item: ''
+  }
+}
+```
+
+## TODO: Nested links
+
+Links can target nested arrays, linking to a path of IDs. Reflecting links can cross multiple layers of containing arrays. Cardinality constraints are specified separately for each level of nesting.
+
+## Synchronized links
+If a link and its target list are both defined as data in the same structure, then they will be kept in sync through changes to either. Likewise for reflected links. For example:
+
+```
+database: record {
+  customers: tracked table {
+    name: ''
+    address: ''
+  }
+  special-customers: some in customers 
+} 
+database do {
+  .customers := & with{.name := 'joe'} & with{.name := 'jane'}
+
+  // Jane is a special customer
+  .special-customers := link customers[2]
+
+  // write through link
+  .special-customers[1].address := 'Main St'
+  check .customers[2].address =? 'Main St'
+
+  // cascading delete
+  .customers delete 1
+  check .special-customers length() =? 0
+
+  // insert into target table via link
+  .special-customers & with{.name := 'john'}
+  check .customers last?() .name =? 'john'
+}
+
+```
+
+Synchronization takes place when a set statement (`:=`) executes on a context containing the affected tables and links, as in the `database` record in the above example. Changes made to copies of the links or tables have no side-effects until they are assigned back into a sufficiently broad context. _This feature is a sneak peek at the planned semantics of updatable views and bidirectional formulas._
+
+## TODO: invalid links
+Links can have the wrong number of linked items through several causes:
+1. The user edits the link in the UI
+2. Code computes a link
+3. Deleting an item in the target list deletes all links to it
+4. Creating a new item containing a link, which defaults to empty
+The basic idea is to distinguish data and formula contexts. Invalid links in a formula will crash. Invalid links in a data field are considered a constraint violation, which prevents committing them to the document state until they are corrected manually.
+
+## Merging
+
+Copies happen. Workspaces get shared as email attachments. Workspaces get incorporated into other workspaces. Inevitably both the copy and the original change. Tracking allows such changes to be later sent to the other version without wiping out all the changes that have happened to it in the meantime. This is called _merging_.
+
+Two copies of a tracked array can be compared to see exactly how they have diverged. The IDs in a tracked array allow changes made to an item to be tracked despite any changes made to its value or location. Deletions and creations are also known exactly. Tracking provides more precise information than text-based version control systems like git.
+
+Changes made to one copy can be merged into the other. If changes are merged in both directions the two copies become equal again. Sometimes changes made to both copies are such that merging must lose some information, for example if the same item in the same item is changed to be two different numbers. Merging can be done using an automatic policy to resolve such conflicts, or human intervention can be requested, either immediately in the UI when performing the merge, or later by reifying such conflicts into the workspace itself (but without breaking the workspace as textual version-control does).
+
+Merging can be done across copies of entire workspaces. Merging can also apply to workspaces included inside another workspace (see _include_ and _variant_). Merging applies to all tracked arrays and links within a workspace. Non-tracked arrays (like text) are treated like base values that change as a whole.
 
 # Appendix: Glossary
 
