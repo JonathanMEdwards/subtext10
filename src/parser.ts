@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character, OptionReference } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -342,18 +342,18 @@ export class Parser {
           throw this.setError(`# requires dot-path`, ref.tokens[0]);
         }
 
-        field.setMeta('^lhs', ref);
         field.formulaType = this.prevToken.type === ':=' ? 'change' : 'choose';
-
-        if (field.formulaType === 'choose') {
-          // option name
-          let option = new Text;
-          option.token = this.requireToken('name');
-          option.value = option.token.text;
-          if (option.value.endsWith('?')) {
-            throw this.setError(`option name shouldn't have ?`, option.token)
+        if (field.formulaType === 'change') {
+          field.setMeta('^lhs', ref);
+        } else {
+          // choose
+          let optionRef = new OptionReference;
+          optionRef.optionToken = this.requireToken('name');
+          if (optionRef.optionToken.text.endsWith('?')) {
+            throw this.setError(`option name shouldn't have ?`, optionRef.optionToken)
           }
-          field.setMeta('^option', option);
+          optionRef.tokens = ref.tokens;
+          field.setMeta('^lhs', optionRef);
           // formula is optional
           if (this.peekTerminator()) return true;
         }

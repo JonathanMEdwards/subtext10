@@ -1,4 +1,4 @@
-import { Block, FieldID, Item, Value, Dictionary, assert, assertDefined, Field, Reference, cast, Text, Choice, StaticError, ID } from "./exports";
+import { Block, FieldID, Item, Value, Dictionary, assert, assertDefined, Field, Reference, cast, Text, Choice, StaticError, ID, OptionReference } from "./exports";
 
 /** Metadata on an Item, containing fields with MetafieldID, and whose names all
  *start with '^' */
@@ -40,20 +40,16 @@ export class Metafield extends Field<MetaID> {
       let lhs = assertDefined(this.container.getMaybe('^lhs'));
       let ref = cast(lhs.value, Reference);
       // should already have been dereferenced
-      assert(ref.target);
-      let option = this.container.getMaybe('^option');
-      if (!option) {
-        return ref.target;
+      let target = assertDefined(ref.target);
+      if (ref instanceof OptionReference) {
+        // get initial value of option
+        assert(ref.optionID);
+        let option = target.get(ref.optionID);
+        assert(option.container instanceof Choice);
+        // use initial value of option, not current value
+        return option.get('^initial');
       }
-      // select option from previous value
-      let name = cast(option.value, Text).value;
-      let choice = cast(ref.target.value, Choice);
-      let prevOption = choice.getMaybe(name);
-      if (!prevOption) {
-        throw new StaticError(this, `undefined option: ${name}`)
-      }
-      // use initial value of option, not current value
-      return prevOption.get('^initial');
+      return target;
     }
     // previous value of base item
     return this.container.containingItem.previous();
@@ -77,7 +73,6 @@ export class MetaID extends FieldID {
     '^loop': new MetaID('^loop'),             // Loop block
     '^lhs': new MetaID('^lhs'),               // Dependent reference before :=
     '^rhs': new MetaID('^rhs'),               // Formula on right of :=
-    '^option': new MetaID('^option'),         // option name on #
     '^call': new MetaID('^call'),             // function call
     '^builtin': new MetaID('^builtin'),       // builtin call
     '^initial': new MetaID('^initial'),       // initial value of item

@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop, OptionReference} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -178,7 +178,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    * changeInput: special change used for input of a call
    *
-   * choose: dependent reference in ^lhs, option name in ^option, optional
+   * choose: dependent reference in ^lhs, optionReference in ^lhs, optional
    * formula in ^rhs
    *
    * call: Call block in ^call, starting with reference to function followed by
@@ -386,17 +386,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
     // choose
     if (this.formulaType === 'choose') {
+      assert(ref instanceof OptionReference);
       let choice = target.value;
-      if (!(choice instanceof Choice)) {
-        throw new StaticError(arrayLast(ref.tokens), 'expecting choice');
-      }
-      // choose option
-      let optionText = cast(this.get('^option').value, Text);
-      let option = target.getMaybe(optionText.value);
-      if (!option) {
-        throw new StaticError(optionText.token, 'no such option');
-      }
-
+      assert(choice instanceof Choice);
+      let option = target.get(ref.optionID);
       // resolve deferred analysis of the option
       option.resolve();
 

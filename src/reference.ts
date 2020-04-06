@@ -1,4 +1,4 @@
-import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice, _Array } from "./exports";
+import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice, _Array, FieldID } from "./exports";
 
 /** Guard on an ID in a reference */
 export type Guard = '?' | '!' | undefined;
@@ -466,4 +466,47 @@ export class Reference extends Base {
     // }
     // return this.tokens.join('.');
   }
+}
+
+/** Dependent reference to a choice option on LHS of # */
+export class OptionReference extends Reference {
+
+  /** name token for option */
+  optionToken!: Token;
+
+  /** FieldID of options */
+  optionID!: FieldID;
+
+  eval() {
+    super.eval();
+
+    if (!this.optionID) {
+      // bind optionID
+      let choice = this.target!;
+      if (!(choice.value instanceof Choice)) {
+        throw new StaticError(this.optionToken, 'expecting choice');
+      }
+      let option = choice.getMaybe(this.optionToken.text);
+      if (!option) {
+        throw new StaticError(this.optionToken, 'no such option');
+      }
+      this.optionID = cast(option.id, FieldID);
+    }
+  }
+
+  copy(srcPath: Path, dstPath: Path): this {
+    let to = super.copy(srcPath, dstPath);
+    to.optionToken = this.optionToken;
+    to.optionID = this.optionID;
+    return to;
+  }
+
+  changeableFrom(from: Value, fromPath: Path, thisPath: Path): boolean {
+    return (
+      from instanceof OptionReference
+      && this.optionID === from.optionID
+      && super.changeableFrom(from, fromPath, thisPath)
+    );
+  }
+
 }
