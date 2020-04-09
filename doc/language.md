@@ -361,7 +361,7 @@ When a function executes (including formulas), exactly one of the following thin
 1. The function crashes. A crash indicates a programming error, not a user error: some condition has arisen that ought to be impossible. A crash is reported to the workspace developer, including a snapshot of the workspace that can reproduce the crash. No changes are made to the workspace when an input event (including user actions) causes a crash. Sometimes crashes can be predicted ahead of time when formulas are being edited (for example type mismatches). These are called static errors and are presented to the developer as problems to be fixed. Unlike conventional compiler errors, static errors do not prevent the system from running, so long as the erroneous formula is not used.
 2. The function is terminated before it completes because it has taken too long or used too many resources.
 3. The function completes successfully, producing results.
-4. The function intentionally _rejects_ without producing a result. Rejection means the function refuses to handle the input values supplied to it. Rejection is inspired by [SNOBOL](https://en.wikipedia.org/wiki/SNOBOL), which calls it _failure_, as do many parsing DSLs. We call it rejection rather than failure to make clear it is intentional, not a programming error (a crash).
+4. The function intentionally _rejects_ without producing a result. Rejection means the function refuses to handle the input values supplied to it. Rejection is inspired by [SNOBOL](https://en.wikipedia.org/wiki/SNOBOL), which calls it _failure_, as do many parsing DSLs. We call it rejection rather than failure to make clear it is intentional, not a programming error (a crash). A related idiom in functional programming is [Railway oriented programming](https://fsharpforfunandprofit.com/rop/).
 
 If a function may reject it is called _conditional_, a function that never rejects is called _unconditional_. The name of a conditional function has a question mark appended to it. For example, the equality function `=?` tests whether two values are equal, rejecting if they aren’t. It is called like this: `x =? y`. You can tell that a function is conditional by the presence of a `?` inside it, which indicates a point where it may reject.
 
@@ -390,7 +390,11 @@ x do {
 
 ```
 
-> An alternative to prefixing `check` (and `let`) is to suffix `\`.
+> An alternative to prefixing `check` (and `let`) is suffixing `\`.
+
+> Maybe comparisons like `=?` and `>?` ought to return their input value not argument. Chaining is a special case, whereas cascading operations on the input is more frequent.
+
+> Maybe a not-operator: `\=?` `\=!` that complements semantics: rejects or crashes on success, succeeds on a rejection and returns input value (another reason to make that normal semantics)
 
 Only output items can be conditional, not input items, which would introduce problematic _null_ values. See _Missing values_ for further discussion of alternative techniques.
 
@@ -567,6 +571,8 @@ The value `nil` is called a _unit value_ in some languages: it contains no infor
 ```Txt
 color #red
 ```
+
+> Maybe when a choice is input to a `try` we should force the clauses to test each option. Then we can easily statically detect exhaustiveness, and also automatically add cases when needed.
 
 ### Pattern matching
 
@@ -1158,8 +1164,11 @@ Subtext has no syntax for describing types: it only talks about values. Function
 
 We believe that type systems are an essential formalism for language theoreticians and designers, but that many language users would prefer to obtain their benefits without having to know about them and write about them.
 
-_FIXME: simpler: names are nominal, everything else is structural_
+_FIXME: simpler: names are nominal, everything else is structural. Field names can be nominal because we can bind them contextually, even in constructors, because of argument defaults. _
+
 In PL theory terms, Subtext mixes aspects of structural and nominal type systems. It is structural in that `x = array{0}` and `y = array{1}` have the same type. It is nominal in that `x = record {a: 0}` and `y = record {a: 0}` have different types. Every time a block item is defined a globally unique ID is assigned to it. There is a workspace-wide dictionary that maps these item IDs to their current names. Renaming a block item just changes that dictionary entry. Type equality requires that block item IDs be equal, not that their names are currently spelled the same.
+
+> Consequence: syntax can’t always write down every type, e.g as argument type to a function taking a type that is “anonymously” generated elsewhere. The FieldIDs of names need to be referenced somehow. However that isn’t a problem in live code, which can just use FieldIDs defined elsewhere. Is this an example where liveness has major design impact on language: simplifying the type system? This is an obscure situation. Want a better example.
 
 > TODO: To share item IDs across different types of blocks we can use a traits-like mechanism that merges and restricts blocks. Deferred until we have the need.
 
