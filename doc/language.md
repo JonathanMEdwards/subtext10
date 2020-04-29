@@ -260,13 +260,17 @@ This is pronounced “x with name becoming Joe”. The result of this operation 
 do{x; .name := 'Joe'}
 ```
 
+> It would be possible to allow the syntax `x.name := 'Joe`. But that is dangerous. The lexical binding of the first name in the path establishes the context of the modification. Prefixing a name to resolve lexical shadowing would thus change the semantics. 
+
 We can chain multiple changes together:
 ```
 x with{.name := 'Joe'; .number := 2}
 ```
 Note how `.number :=` applies to the result of the previous change.
 
-Change operations can delve into nested blocks by using a dotted path to the left of the `:=`
+The `:=` operation passes the current value of the left hand side as an input to the expression on the right side. Thus for example `y = x with{.number := + 1}` will increment the value of the `number` field.
+
+Modifications can drill into nested records by using a dotted path to the left of the `:=`
 ```
 x: record {
   name: ''
@@ -275,19 +279,17 @@ x: record {
     street: ''
     city: ''
 }
-y = x with{.address.street := '12 Main St'; .address.city := 'Springville'}
+y = x with {
+  .address.street := '12 Main St'
+  .address.city := 'Springfield'}
 ```
-
-Instead of using dotted paths, we can nest `do` blocks:
+Instead of useing dotted paths, we can equivalently nest `with` blocks:
 ```
-y = x with{.address := with{.street := '12 Main St'; .city := 'Springville'}}
+y = x with {
+  .address := with {
+    .street := '12 Main St'
+    .city := 'Springfield'}}
 ```
-Note how the block is nested: `.address := with{.street := ...}`. Here `.address :=` passes the current value of `x.address` as the input to the `with` block on its right, and then changes the `address` item to be the result. This is an example of _default inputs_. We saw earlier how calls can take an input from the previous item. The change operation `:=` works similarly — any formula on the right will by default input from the current value of the item named on the left. Thus for example:
-
-```
-y = x with{.number := + 1}
-```
-will increment the value of the `number` item. Note how this looks like an _assignment statement_ in an imperative language, which modifies values “in place”. Subtext only modifies by creating new values, so in the above example `x` is not changed. Some functional languages force you to rebuild such new values “bottom up”. The Subtext `:=` operation does that automatically, copying an entire tree-structured value with one subtree replaced. Defaulting of inputs allows a `:=` to extract the current value at a path and transform it.
 
 Change operations can only be done on input items, those defined with `:`, not outputs defined with '='.
 
@@ -504,19 +506,7 @@ test {
   1 polarity() =? 'positive'
 }
 ```
-All `test` blocks in the workspace are executed after programmer edits that could affect them (after all edits in the prototype implementation). If a rejection occurs inside the test block then it is treated as a static error, which is a problem for the programmer to resolve, but does not prevent the workspace from being used.
-
-Each `test` block executes inside a copy of the workspace where all input items have been reset to their initial state. This reset workspace is also the input value to the `test` block. That way tests are isolated and reproducible, even if they explore changes to the workspace. For example:
-```Txt
-x: 0
-y = x + 1
-test {
-  check .x =? 0
-  .x := 2
-  check .y =? 3 // check modified state of y
-  check y =? 1 // check initial state of y
-}
-```
+All `test` blocks in the workspace are executed after programmer edits that could affect them. If a rejection occurs inside the test block then it is treated as a static error, which is a problem for the programmer to resolve, but does not prevent the workspace from being used.
 
 ### TODO: Termination
 
@@ -612,37 +602,36 @@ The `followed-by` function concatenates two arrays: `array1 followed-by array2` 
 
 The items in an array are numbered starting at 1 for the first item. This number is called the item’s _index_. The number of items in an array (not counting the template) is provided by the `length()` function. An array is initially created empty.
 
-An item in an array can be accessed by its index using the `at?` function:
+An item in an array can be accessed using square brackets:
 ```
 n = numbers & 1 & 2
-check n at? 1 =? 1
-check n at? 2 =? 2
+check n[1] =? 1
+check n[2] =? 2
 ```
-The `at?` function will reject if the index is less than 1 or greater than the length of the array. To assert that the index is valid, use `at!` (which will crash if it is invalid).
+The square brackets will cause a crash if an invalid index is supplied. To instead test that the index is valid, append a `?`:
+```
+check n[m]? =? 1
+```
 
 The first and last items can be accessed with `first?()` and `last?()`, which will reject if the array is empty. The function `sole?()` will return the only item in the array or reject.
 
-Items in an array can be updated with the `update?` function, which inputs from a sequence and takes 2 arguments containing an index number and an item value. It produces an updated sequence like the input except that the specified array item is replaced with the new value. `update?` rejects if the index is invalid. Here is an example:
+Items in an array can be updated by using square brackets on the left of a `:=` modification:
 ```
 n = numbers & 1 & 2
 test {
-  .n := update!(1, .value := 3)
-  check .n at! 1 =? 3
-  check .n at! 2 =? 2
+  m = n with{[1] := 3}
+  check m[1] =? 3
+  check m[2] =? 2
 }
 ```
-Individual fields in a row can be updated using a `with` block, which accesses the current value of the row:
+The square brackets can be part of a path to update individual fields of a row:
 ```
 test {
-  .customers := update!(1, .value := with{.name := 'Joe Jr.'})
+  c = customers with{[1].name := 'Joe Jr.'}
+  check c[1].name =? 'Joe Jr.'
 }
 ```
-
-> TODO: conventional syntax of square brackets in a reference to replace `at` and `update`. Square brackets would contain a formula producing a number. They would be allowed in any reference, including on the left of a `:=`, so the previous example would become:
-> ```
-> .customers[1] := with{.name := 'Joe Jr.'}
-> ```
-> Brackets will assert the index is valid. They can be suffixed with `?` to check the index is valid. Indexing complicates references, especially their visualization, and isn’t strictly necessary, though desirable.
+The square brackets above will crash if the array index is invalid. Append a `?` to instead test whether the index is invalid: `check n[i]? =? 3`
 
 We can delete an item in an array with the `delete?` function, which results in an array with that item removed, rejecting if the index is invalid:
 ```
@@ -660,19 +649,20 @@ t = do {
     name: ''
     amount: 0
   }
-  & do{.name := 'joe', .amount := 100}
-  & do{.name := 'jane', .amount := 200}
+  & with{.name := 'joe', .amount := 100}
+  & with{.name := 'jane', .amount := 200}
 }
 
 test {
-  check .t.amount[1] =? 100
-  check .t.amount sum() =? 300
+  check t.amount[1] =? 100
+  check t.amount sum() =? 300
 
-  .t.amount[1] := 150
-  check .t.amount =? (clear() & 150 & 200)
+  u = t with{[1].amount := 150}
+  check u.amount sum() =? 300
 
   // replacing whole column
-  .t.amount := (clear() & 150 & 200)
+  v = t with{.amount := array{0} & 10 & 20}
+  check v[1].amount =? 10
 }
 ```
 A column  can only be replaced with an array of the same length as the table, otherwise it will crash. In a tracked tabled (see below) no insertions, deletion, or moves can have happened in the column.
@@ -735,13 +725,13 @@ test {
   l = array{0} & 1 & 2 & 3
 
   // replace each item with result of block on it
-  check l for-all{+ 1} =? (clear() & 2 & 3 & 4)
+  check l for-all{+ 1} =? (array{0} & 2 & 3 & 4)
 
   // filter out rejected items
-  check l query{check not=? 2} =? (clear() & & 3)
+  check l query{check not=? 2} =? (array{0} & & 3)
 
   // filter and replace together
-  check l query{check not=? 2, + 1} =? (clear() & 1 & 3)
+  check l query{check not=? 2; + 1} =? (array{0} & 1 & 3)
 
   // check every item satisfies a condition
   check l for-all?{>? 0}
