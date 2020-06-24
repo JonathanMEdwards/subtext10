@@ -1,8 +1,8 @@
 {
   "name": "subtext",
-  "version": "10.0.0",
+  "version": "0.0.0",
   "private": true,
-  "description": "The missing link between spreadsheets and programming languages",
+  "description": "The missing link between spreadsheets and programming",
   "main": "index.js",
   "directories": {
     "doc": "doc"

@@ -1,4 +1,4 @@
-import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions, Code, Statement, StaticError, Try, Call, Do, With, assert  } from "./exports";
+import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions, Code, Statement, StaticError, Try, Call, Do, With, assert, Value, Reference  } from "./exports";
 
 /** A subtext workspace */
 export class Workspace extends Item<never, History> {
@@ -12,7 +12,7 @@ export class Workspace extends Item<never, History> {
   analyzing: boolean = false;
 
   /** serial numbers assigned to FieldIDs */
-  fieldSerial = 0;
+  private fieldSerial = 0;
 
   newFieldID(name?: string, token?: Token): FieldID {
     let serial = ++this.fieldSerial
@@ -23,9 +23,9 @@ export class Workspace extends Item<never, History> {
   }
 
   /** serial numbers assigned to Versions */
-  versionSerial = 0;
+  private versionSerial = 0;
 
-  newVersionID(name?: string): FieldID {
+  private newVersionID(name: string): FieldID {
     let serial = ++this.versionSerial
     let id = new VersionID(serial);
     id.name = name;
@@ -41,6 +41,42 @@ export class Workspace extends Item<never, History> {
   dumpAt(path: string): Item {
     return this.currentVersion.down(path).dump();
   }
+
+  /** write a value at a path in current version, creating a new version */
+  writeAt(path: string, value: number | string | Value) {
+    let target = this.currentVersion.down(path);
+    // TODO: assert(target.modifiable);
+    if (!target.isInput) throw 'unwritable location'
+
+    // append new version to history
+    let history = this.value!;
+    let newVersion = new Version;
+    // using time as label
+    newVersion.id = this.newVersionID(new Date().toLocaleString());
+    history.add(newVersion);
+    // new version formula is a change command
+    newVersion.formulaType = 'change';
+
+    // LHS is dependent reference to target in previous version
+    let lhs = new Reference;
+    newVersion.setMeta('^lhs', lhs);
+    lhs.path = target.path;
+    // context of the reference is the previous version
+    lhs.context = 1;
+    // FIXME: assert conditional fields in path
+    lhs.guards = new Array(target.path.length - 1);
+    lhs.guards.fill(undefined);
+    // flag as dependent ref
+    lhs.tokens = [new Token('that', 0, 0, '')];
+
+    // RHS is value to write
+    let rhs = newVersion.setMeta('^rhs');
+    rhs.setFrom(value);
+
+    // evaluate change
+    newVersion.eval();
+  }
+
 
   /** queue of items with deferred analysis */
   analysisQueue: Item[] = [];
@@ -60,11 +96,9 @@ export class Workspace extends Item<never, History> {
     let history = new History;
     ws.value = history;
     history.containingItem = ws;
-    // FIXME: make real history
     let version = new Version;
     version.id = ws.newVersionID('initial');
     history.add(version);
-    version.container = history;
     let head = new Head;
     version.value = head;
     head.containingItem = version;

@@ -5,14 +5,19 @@ import { Workspace} from "../src/exports";
  * Basic tests
  */
 
+/** Compile a workspace from source */
+export function compile(source: string) {
+  return Workspace.compile(source);
+}
+
 /** Compile and dump at a location to plain JS object */
 export function expectDump(source: string, at = '') {
-  return expect(Workspace.compile(source).dumpAt(at));
+  return expect(compile(source).dumpAt(at));
 }
 
 /** Test compiler exceptions */
 export function expectCompiling(source: string) {
-  return expect(() => Workspace.compile(source));
+  return expect(() => compile(source));
 }
 
 test('literal outputs', () => {
