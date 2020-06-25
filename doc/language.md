@@ -538,7 +538,7 @@ Choices are made with the _choice operation_ `#`. For example:
 ```Txt
 a-literal = expr #literal 1
 ```
-This pronounced “a-literal equals expr choosing literal one”. The `#` expects a choice value on its left (`expr`) and to its right the name of an option without the question mark (`literal`), followed by a formula resulting in a value for the option. The right hand formula can be left out, which will change the option to its default value (0 for `literal`):
+This pronounced “a-literal equals expr choosing literal one”. The `#` expects a choice value on its left (`expr`) and to its right the name of an option without the question mark (`literal`), followed by a formula resulting in a value for the option. The right hand formula can be left out, which will change the option to its default value (0 in the case of `literal`):
 ```Txt
 a-literal = expr #literal
 ```

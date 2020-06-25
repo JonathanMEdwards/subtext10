@@ -474,7 +474,7 @@ export class OptionReference extends Reference {
   /** name token for option */
   optionToken!: Token;
 
-  /** FieldID of options */
+  /** FieldID of option */
   optionID!: FieldID;
 
   eval() {

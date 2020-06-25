@@ -1,4 +1,4 @@
-import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions, Code, Statement, StaticError, Try, Call, Do, With, assert, Value, Reference  } from "./exports";
+import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions, Code, Statement, StaticError, Try, Call, Do, With, assert, Value, Reference, Choice, assertDefined, OptionReference  } from "./exports";
 
 /** A subtext workspace */
 export class Workspace extends Item<never, History> {
@@ -42,11 +42,18 @@ export class Workspace extends Item<never, History> {
     return this.currentVersion.down(path).dump();
   }
 
-  /** write a value at a path in current version, creating a new version */
-  writeAt(path: string, value: number | string | Value) {
+  /** write a value at a path in current version, creating a new version.
+   *
+   * If the path refers to a Choice, the value must be the FieldID or string
+   * name of an option. If the path refers to a non-Choice, the value can be a
+   * Value or number or string
+   */
+  writeAt(path: string, value: number | string | Value | FieldID) {
     let target = this.currentVersion.down(path);
     // TODO: assert(target.modifiable);
     if (!target.isInput) throw 'unwritable location'
+
+    let choose = target.value instanceof Choice;
 
     // append new version to history
     let history = this.value!;
@@ -54,26 +61,45 @@ export class Workspace extends Item<never, History> {
     // using time as label
     newVersion.id = this.newVersionID(new Date().toLocaleString());
     history.add(newVersion);
-    // new version formula is a change command
-    newVersion.formulaType = 'change';
+    // new version formula is a change ro choose command
+    newVersion.formulaType = choose ? 'choose' : 'change';
 
     // LHS is dependent reference to target in previous version
-    let lhs = new Reference;
+    let lhs = choose ? new OptionReference : new Reference;
     newVersion.setMeta('^lhs', lhs);
     lhs.path = target.path;
-    // context of the reference is the previous version
-    lhs.context = 1;
-    // FIXME: assert conditional fields in path
-    lhs.guards = new Array(target.path.length - 1);
-    lhs.guards.fill(undefined);
     // flag as dependent ref
     lhs.tokens = [new Token('that', 0, 0, '')];
+    // context of the reference is the previous version
+    lhs.context = 1;
+    // Assert all conditionals along path
+    lhs.guards = [];
+    for (
+      let up = target;
+      !!up.container;
+      up = up.container.containingItem
+    ) {
+      lhs.guards.unshift(up.conditional ? '!' : undefined);
+    }
 
-    // RHS is value to write
-    let rhs = newVersion.setMeta('^rhs');
-    rhs.setFrom(value);
-
-    // evaluate change
+    if (choose) {
+      // set option ID into lhs OptionalReference
+      assert(value instanceof FieldID || typeof value === 'string');
+      // validate option FieldID
+      let optionID = target.get(value).id as FieldID;
+      assert(lhs instanceof OptionReference);
+      lhs.optionID = optionID;
+      lhs.optionToken = new Token(
+        'name', 0, optionID.name!.length - 1, optionID.name!
+      );
+      // leave RHS undefined
+    } else {
+      // RHS is value to write
+      let rhs = newVersion.setMeta('^rhs');
+      assert(!(value instanceof FieldID));
+      rhs.setFrom(value);
+    }
+    // evaluate new version
     newVersion.eval();
   }
 

@@ -164,6 +164,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    * How value is computed. The formula is stored in various metadata fields
    * depending on this tag.
    *
+   * FIXME: this sould be encoded as metadata using standard datatypes.
+   * formulaType should become a Choice. Optionality should be made explicit.
+   *
    * none: value is a constant in item.value. Used for literal outputs.
    *
    * literal: value is in ^literal
@@ -178,8 +181,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    * changeInput: special change used for input of a call
    *
-   * choose: dependent reference in ^lhs, optionReference in ^lhs, optional
-   * formula in ^rhs
+   * choose: dependent optionReference in ^lhs, optional formula in ^rhs
    *
    * call: Call block in ^call, starting with reference to function followed by
    * changes on the arguments
