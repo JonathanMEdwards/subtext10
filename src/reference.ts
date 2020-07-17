@@ -154,10 +154,10 @@ export class Reference extends Base {
        * */
       assert(this.tokens.length === 1);
       assert(from.id.toString() === '^payload');
-      let change = from.container.containingItem;
-      assert(change.formulaType === 'changeInput');
-      assert(change.container instanceof Call);
-      let call = change.container.containingItem;
+      let replace = from.container.containingItem;
+      assert(replace.formulaType === 'replaceInput');
+      assert(replace.container instanceof Call);
+      let call = replace.container.containingItem;
       assert(call.id.toString() === '^call');
       target = this.previous(call, this.tokens[0]);
       if (target.evaluated === undefined) {

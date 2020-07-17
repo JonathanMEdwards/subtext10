@@ -61,8 +61,8 @@ export class Workspace extends Item<never, History> {
     // using time as label
     newVersion.id = this.newVersionID(new Date().toLocaleString());
     history.add(newVersion);
-    // new version formula is a change ro choose command
-    newVersion.formulaType = choose ? 'choose' : 'change';
+    // new version formula is a replace ro choose command
+    newVersion.formulaType = choose ? 'choose' : 'replace';
 
     // target is dependent reference to target in previous version
     let targetRef = choose ? new OptionReference : new Reference;

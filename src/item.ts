@@ -177,16 +177,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    * loop: value is result of a Loop block in ^loop
    *
-   * change: dependent reference in ^target, formula in ^payload
+   * replace: dependent reference in ^target, formula in ^payload
    *
-   * changeInput: special change used for input of a call
+   * replaceInput: special replace used for input of a call
    *
    * write: formula in ^delta, structural reference in ^target
    *
    * choose: dependent optionReference in ^target, optional formula in ^payload
    *
    * call: Call block in ^call, starting with reference to function followed by
-   * changes on the arguments
+   * replaces on the arguments
    *
    * include: currently includes only builtins
    *
@@ -194,7 +194,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    *  */
   formulaType: (
-    'none' | 'literal' | 'reference' | 'code' | 'change' | 'changeInput'
+    'none' | 'literal' | 'reference' | 'code' | 'replace' | 'replaceInput'
     | 'write' | 'choose' | 'call' | 'include' | 'builtin' | 'loop'
   ) = 'none';
 
@@ -313,14 +313,14 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           this.result(cast(this.get('^call').value, Call));
           break;
 
-        case 'change':
-        case 'changeInput':
+        case 'replace':
+        case 'replaceInput':
         case 'choose':
-          this.change();
+          this.replace();
           break;
 
         case 'write':
-          // write is actually performed in triggering change operation
+          // write is actually performed in triggering replace operation
           // target and delta in metadata already evaluated
           // copy value of delta
           this.copyValue(this.get('^delta'));
@@ -374,8 +374,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
   }
 
-  /** evaluate change/choose operation */
-  private change() {
+  /** evaluate replace/choose operation */
+  private replace() {
     // target and payload in metadata already evaluated
     let ref = cast(this.get('^target').value, Reference);
     assert(ref.dependent);
@@ -416,7 +416,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       // fall through to set option value
       target = option;
     } else {
-      // changes need to be within previous value
+      // replaces need to be within previous value
       assert(ref.path.length > ref.context);
     }
 
@@ -432,7 +432,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     target.detachValue()
     assert(source.value);
     target.copyValue(source);
-    if (this.formulaType === 'changeInput') {
+    if (this.formulaType === 'replaceInput') {
       // initialize call body to recalc input defaults
       // preserving primary input value
       // let input = assertDefined(target.value);
@@ -668,7 +668,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return to;
   }
 
-  /** Type-checking for change operations. Can this item be changed from
+  /** Type-checking for replace operations. Can this item be changed from
    * another. Recurses within a path context, which defaults to item paths */
   changeableFrom(from: Item, fromPath?: Path, thisPath?: Path): boolean {
     this.resolve();

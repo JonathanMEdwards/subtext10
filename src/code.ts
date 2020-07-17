@@ -210,7 +210,7 @@ export class With extends Code {
 }
 
 /** A Call is a special Do block used to call a function. It contains a
- * reference to the function body followed by changes on the input arguments.
+ * reference to the function body followed by replaces on the input arguments.
  * The final value is the function body modified with all supplied arguments. */
 export class Call extends Code {
 

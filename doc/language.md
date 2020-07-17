@@ -243,7 +243,7 @@ the value of `plus` is just 1, the result of executing the function, not a speci
 
 > In fact functions really are “first-class” values, but they are only used in the UI and planned meta-programming capabilities.
 
-### Block modification
+### Item replacement
 So far all of the examples have used arithmetic. But it is very common to work with blocks, particularly records,  as they are the rows of tables. Take the record:
 ```
 x: record {
@@ -253,22 +253,22 @@ x: record {
 ```
 This block contains two input items: `name`, which is an initially empty text, and `number`, which is initially the number `0`.
 
-The essential operations on a block are to read and change individual items. We read the items using paths, like `x.name` and `x.number`. To change an item we use a _change operation_ with the special operator `:=`
+The essential operations on a block are to read and replace individual items. We read the items using paths, like `x.name` and `x.number`. To replace an item we use a _replace operation_ with the special operator `:=`
 ```
 x with{.name := 'Joe'}
 ```
-This is pronounced “x with name becoming Joe”. The result of this operation is a record equal to the value of `x` except with the item `name` changed to `'Joe'`, while keeping the prior value of `number`. We used a `with` block to contain the change operation, which is like a `do` block except that it feeds the previous value into an array of operations, rather than starting with a value. The equivalent `do` block would be:
+This is pronounced “x with name as Joe”. The result of this operation is a record equal to the value of `x` except with the item `name` changed to `'Joe'` (keeping the prior value of `number`). We used a `with` block to contain the replace operation, which is like a `do` block except that it feeds the previous value into an array of operations, rather than starting with a value. The equivalent `do` block would be:
 ```
 do{x; .name := 'Joe'}
 ```
 
 > It would be possible to allow the syntax `x.name := 'Joe`. But that is dangerous. The lexical binding of the first name in the path establishes the context of the modification. Prefixing a name to resolve lexical shadowing would thus change the semantics. 
 
-We can chain multiple changes together:
+We can chain multiple replaces together:
 ```
 x with{.name := 'Joe'; .number := 2}
 ```
-Note how `.number :=` applies to the result of the previous change.
+Note how `.number :=` applies to the result of the previous replace.
 
 The `:=` operation passes the current value of the left hand side as an input to the expression on the right side. Thus for example `y = x with{.number := + 1}` will increment the value of the `number` field.
 
@@ -293,7 +293,7 @@ y = x with {
     .city := 'Springfield'}}
 ```
 
-Change operations can only be done on input items, those defined with `:`, not outputs defined with '='.
+Replace operations can only be done on input items: those defined with `:`, not outputs defined with '='.
 
 Recall that `:=` is also used when supplying the third or later inputs when calling a function. This is not a coincidence. For example:
 ```
@@ -305,7 +305,7 @@ ternary-function = do {
 }
 x = 1 ternary-function(2, .input3 := 3)
 ```
-The syntax `.input3 := 3` is actually a change operation on the `do` block of `ternary-function`. It changes the value of the `input3` input item to 3. The same thing happens with the second input, which is interpreted to mean `.input2 := 2`.
+The syntax `.input3 := 3` is actually a replace operation on the `do` block of `ternary-function`. It changes the value of the `input3` input item to 3. The same thing happens with the second input, which is interpreted to mean `.input2 := 2`.
 
 ### Local variables
 
@@ -543,7 +543,7 @@ This pronounced “a-literal equals expr choosing literal one”. The `#` expect
 a-literal = expr #literal
 ```
 
-The choice operation `#` is similar to the change operation `:=`, except that it doesn’t require a dependent path on the left (one starting with `.`). However `#` can also be used with a dependent path, which is useful when chaining nested choices:
+The choice operation `#` is similar to the replace operation `:=`, except that it doesn’t require a dependent path on the left (one starting with `.`). However `#` can also be used with a dependent path, which is useful when chaining nested choices:
 ```Txt
 a-plus = expr #plus with{.left #literal 2; .right #literal 2}
 ```
@@ -598,7 +598,7 @@ The `&` function (pronounced “and”) is used to add items to an array. For ex
 n = numbers & 1 & 2 & 3
 c = customers &(with{.name := 'Joe', .address := 'Pleasantown, USA'})
 ```
-The `&` function takes an array as it’s left input and an item value as its right input, resulting in an array equal to the input plus a new item with that value. The default value of the item is the array template. In a table it is often convenient to use a `with` block as above to change some of the columns and let the others default to their template values.
+The `&` function takes an array as it’s left input and an item value as its right input, resulting in an array equal to the input plus a new item with that value. The default value of the item is the array template. In a table it is often convenient to use a `with` block as above to replace some of the columns and let the others default to their template values.
 
 The `followed-by` function concatenates two arrays: `array1 followed-by array2` is a copy of `array1` with all the items from `array2` added to its end. The two array must have the same type template.
 
@@ -1189,7 +1189,7 @@ Mostly about application programming concerns which do not arise in a data-analy
 
 Rejections are like conventional exceptions: they “bubble-up” through blocks, giving each containing block a chance to “catch” them, based on the kind of block. We have seen that rejections are caught by `try`, `not`, `assert`, and `test` blocks. But what happens when a rejection isn’t caught and bubbles up all the way? To explain this we need to describe how documents  change.
 
-Every document has a _history-block_, which is a special kind of do-block. The initial value of the history-block is the initial value of the document itself when it was first created. Every time a user does something to the document (or a function is triggered by an incoming network request), a formula is appended to the history that computes a new version of the document. The current state of the document is the last value in the history document. If a history formula rejects it means that the requested change/operation is not possible, and the previous document value is passed along unchanged. Input actions are essentially executed in a transaction that discards the changes on rejection. User-written blocks can duplicate this behavior with the `guard{}` block, which passes on the value of the block if it succeeds, otherwise passing on the prior value. The history block catches rejects by implicitly wrapping every action in a `guard`.
+Every document has a _history-block_, which is a special kind of do-block. The initial value of the history-block is the initial value of the document itself when it was first created. Every time a user does something to the document (or a function is triggered by an incoming network request), a formula is appended to the history that computes a new version of the document. The current state of the document is the last value in the history document. If a history formula rejects it means that the requested change is not possible, and the previous document value is passed along unchanged. Input actions are essentially executed in a transaction that discards the changes on rejection. User-written blocks can duplicate this behavior with the `guard{}` block, which passes on the value of the block if it succeeds, otherwise passing on the prior value. The history block catches rejects by implicitly wrapping every action in a `guard`.
 
 There is one other way that rejects can bubble up without being caught. That is when a formula in a record is recomputed as a result of a change to other fields it references. How this is treated depends on whether the formula is inside a record or document block. 
 
@@ -1408,7 +1408,7 @@ Block := '{' Body '}'
 Op :=
 	| Path Arguments				// function call
 	| 'continue' Arguments			// tail call
-	| RelPath ':=' Formula			// change
+	| RelPath ':=' Formula			// replace
 	| RelPath '#' Name Formula?		// choose
 	| 'write' Formula? '->' Path	// write
 	| RelPath						// navigate
