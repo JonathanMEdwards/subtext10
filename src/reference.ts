@@ -149,11 +149,11 @@ export class Reference extends Base {
 
     if (this.tokens[0].type === 'input') {
       /** bind to input of a call.
-       * This occurs on ^rhs^reference of Call.
+       * This occurs on ^payload^reference of Call.
        * Possibly could generalize to outer-that.
        * */
       assert(this.tokens.length === 1);
-      assert(from.id.toString() === '^rhs');
+      assert(from.id.toString() === '^payload');
       let change = from.container.containingItem;
       assert(change.formulaType === 'changeInput');
       assert(change.container instanceof Call);
@@ -437,7 +437,9 @@ export class Reference extends Base {
 
   /** References are the same type if they reference the same location
    * contextually */
-  changeableFrom(from: Value, fromPath: Path, thisPath: Path): boolean {
+  changeableFrom(from: Value, fromPath?: Path, thisPath?: Path): boolean {
+    if (!fromPath) fromPath = from.containingItem.path;
+    if (!thisPath) thisPath = this.containingItem.path;
     return (
       from instanceof Reference
       // FIXME: compare translated guards
@@ -468,7 +470,7 @@ export class Reference extends Base {
   }
 }
 
-/** Dependent reference to a choice option on LHS of # */
+/** Dependent reference to a choice option on target of # */
 export class OptionReference extends Reference {
 
   /** name token for option */
@@ -501,7 +503,7 @@ export class OptionReference extends Reference {
     return to;
   }
 
-  changeableFrom(from: Value, fromPath: Path, thisPath: Path): boolean {
+  changeableFrom(from: Value, fromPath?: Path, thisPath?: Path): boolean {
     return (
       from instanceof OptionReference
       && this.optionID === from.optionID

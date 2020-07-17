@@ -120,7 +120,7 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
   }
 
   // type compatibility requires same type templates
-  changeableFrom(from: Value, fromPath: Path, thisPath: Path): boolean {
+  changeableFrom(from: Value, fromPath?: Path, thisPath?: Path): boolean {
     return (
       from instanceof _Array
       && this.template.changeableFrom(from.template, fromPath, thisPath)
@@ -366,7 +366,7 @@ export class Loop extends _Array<Do> {
       // TODO: type check accumulator and result
       let accum = templateBlock.items[1];
       let result = templateBlock.result!;
-      if (!accum.value!.changeableFrom(result.value!, result.path, accum.path)) {
+      if (!accum.value!.changeableFrom(result.value!)) {
         throw new StaticError(accum.value!.token, 'result must be same type as accumulator')
       }
     }

@@ -22,7 +22,7 @@ export function expectCompiling(source: string) {
 
 test('literal outputs', () => {
   expectDump("a = 0, b = '', c = nil, d = record{x = 0, y: 1}")
-    .toEqual({ a: 0, b: '', c: null, d: { x: 0, y: 1} });
+    .toEqual({ a: 0, b: '', c: null, d: { x: 0, y: 1 } });
 });
 
 test('literal inputs', () => {

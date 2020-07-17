@@ -1,4 +1,4 @@
-import { Block, Field, assert, StaticError, Guard, Path, cast, Reference, Token, assertDefined, another, arrayLast, Crash, trap, arrayReverse, Value, Record, Item, Metafield } from "./exports";
+import { Block, Field, assert, StaticError, Guard, Path, cast, Reference, Token, assertDefined, another, arrayLast, Crash, trap, arrayReverse, Value, Record, Item, Metafield, Update, Parser } from "./exports";
 
 /** A Code block is evaluated to produce a result value. The fields of the block
  * are called statements */
@@ -21,6 +21,12 @@ export class Code extends Block<Statement> {
   /** whether evaluation is conditional */
   conditional = false;
 
+  /** update block at end else undefined */
+  get updateBlock(): Update | undefined {
+    let block = arrayLast(this.statements).value;
+    return block instanceof Update ? block : undefined
+  }
+
   eval() {
     if (this.result) {
       return;
@@ -39,11 +45,12 @@ export class Code extends Block<Statement> {
     }
 
     // evaluate statements until rejection
+    // Update section is left unevaluated to be possible used in an update
     for (let statement of this.statements) {
       statement.eval();
       if (statement.conditional) {
         if (statement.isInput) {
-          throw new StaticError(statement, 'input fields must be unconditional')
+          throw new StaticError(statement, 'input fields cannot be conditional')
         }
         this.conditional = true;
       }
@@ -133,7 +140,7 @@ export class Code extends Block<Statement> {
         this.workspace.exportAnalysisQueue.push(() => {
           let ref = cast(exportType.value, Reference);
           let target = assertDefined(ref.target);
-          if (!target.value!.changeableFrom(ex.value!, ex.path, target.path)
+          if (!target.value!.changeableFrom(ex.value!)
           ) {
             throw new StaticError(ref.tokens[0], 'changing type of value')
           }
@@ -162,8 +169,8 @@ export class Code extends Block<Statement> {
 /** Statement is a field of a code block */
 export class Statement extends Field {
 
-  /** dataflow qualifier: check/let/export */
-  dataflow?: 'let' | 'check' | 'export';
+  /** dataflow qualifier that passes previous value to next statement */
+  dataflow?: 'let' | 'check' | 'export' | 'update' | 'write';
 
   /** during analysis, whether field is used */
   used?: boolean;

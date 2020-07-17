@@ -9,7 +9,7 @@ export abstract class Value {
   get id(): ID { return this.containingItem.id }
 
   /** logical container (skipping base field of metadata) */
-  get up(): Item | undefined {
+  get up(): Item {
     return this.containingItem;
   }
 
@@ -44,7 +44,7 @@ export abstract class Value {
   }
 
   /** type equality */
-  changeableFrom(from: Value, fromPath: Path, thisPath: Path): boolean {
+  changeableFrom(from: Value, fromPath?: Path, thisPath?: Path): boolean {
     return this.constructor === from.constructor;
   }
 

@@ -38,7 +38,7 @@ export class Try extends Code {
             this.result = first;
           } else if (
             // check type compatible with first clause
-            !first.value!.changeableFrom(clause.value!, clause.path, first.path)
+            !first.value!.changeableFrom(clause.value!)
           ) {
             throw new StaticError(clause, 'clauses must have same type result')
           } else if (this.getMaybe('^export') && !clause.getMaybe('^export')) {

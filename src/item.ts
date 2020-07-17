@@ -40,16 +40,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
   /** Logical container: metadata is physically contained in base item, but
    * logically is a peer */
-  get up(): Item | undefined {
+  get up(): Item {
     return this.container!.up;
   }
 
   /** iterate upwards through logical containers to Workspace */
   *upwards(): Generator<Item> {
     for (
-      let item: Item = this;
+      let item: Item = this.up;
       !(item instanceof Workspace);
-      item = item.container.containingItem
+      item = item.up
     ) {
       yield item;
     }
@@ -177,11 +177,13 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    * loop: value is result of a Loop block in ^loop
    *
-   * change: dependent reference in ^lhs, formula in ^rhs
+   * change: dependent reference in ^target, formula in ^payload
    *
    * changeInput: special change used for input of a call
    *
-   * choose: dependent optionReference in ^lhs, optional formula in ^rhs
+   * write: formula in ^delta, structural reference in ^target
+   *
+   * choose: dependent optionReference in ^target, optional formula in ^payload
    *
    * call: Call block in ^call, starting with reference to function followed by
    * changes on the arguments
@@ -193,11 +195,14 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *  */
   formulaType: (
     'none' | 'literal' | 'reference' | 'code' | 'change' | 'changeInput'
-    | 'choose' | 'call' | 'include' | 'builtin' | 'loop'
+    | 'write' | 'choose' | 'call' | 'include' | 'builtin' | 'loop'
   ) = 'none';
 
   /** whether input or output item */
   isInput = false;
+
+  /** updatable output */
+  isUpdatableOutput = false;
 
   /** whether value should be rederived on copies */
   get isDerived() {
@@ -314,6 +319,13 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           this.change();
           break;
 
+        case 'write':
+          // write is actually performed in triggering change operation
+          // target and delta in metadata already evaluated
+          // copy value of delta
+          this.copyValue(this.get('^delta'));
+          break;
+
         case 'include':
           this.copyValue(builtinWorkspace.currentVersion);
           break;
@@ -364,13 +376,13 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
   /** evaluate change/choose operation */
   private change() {
-    // lhs and rhs in metadata already evaluated
-    let ref = cast(this.get('^lhs').value, Reference);
+    // target and payload in metadata already evaluated
+    let ref = cast(this.get('^target').value, Reference);
     assert(ref.dependent);
     // get previous value, which is context of reference
     this.setConditional(ref.conditional);
     if (ref.rejected) {
-      // LHS reference rejected
+      // target reference rejected
       this.rejected = true;
       if (!this.workspace.analyzing) return;
     }
@@ -379,7 +391,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // prev.eval(); // don't think this is needed
     // copy previous value
     this.copyValue(prev);
-    // follow LHS dependent path within previous value
+    // follow target dependent path within previous value
     let target = this.down(ref.path.ids.slice(ref.context));
     if (!target.isInput && target !== this) {
       // allow modifying that in #
@@ -396,7 +408,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       option.resolve();
 
       choice.setChoice(choice.fields.indexOf(option as Field));
-      if (!this.getMaybe('^rhs')) {
+      if (!this.getMaybe('^payload')) {
         // no value - default to initial value of option
         return;
       }
@@ -408,10 +420,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       assert(ref.path.length > ref.context);
     }
 
-    // replace target value with value of RHS
+    // replace target value with value of payload
     target.eval();
-    let source = this.get('^rhs');
-    if (!target.value!.changeableFrom(source.value!, source.path, target.path)) {
+    let source = this.get('^payload');
+    if (!target.value!.changeableFrom(source.value!)) {
       throw new StaticError(ref.tokens[0], 'changing type of value')
     }
     this.setConditional(source.conditional);
@@ -432,6 +444,45 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       target.container.items.slice(1).forEach(statement =>
         statement.initialize())
     }
+  }
+
+  /** Iterate through containing items, starting with this and ending with
+   * Workspace */
+  *containmentWalk(): Generator<Item> {
+    for (
+      let item: Item = this;
+      item.container;
+      item = item.container.containingItem
+    ) {
+      yield item;
+    }
+  }
+
+  /** whether this item comes before other item in tree (but doesn't contain
+   * other item) */
+  comesBefore(other: Item): boolean {
+    // construct containment arrays starting with workspace
+    let thisItems = Array.from(this.containmentWalk()).reverse();
+    let otherItems = Array.from(other.containmentWalk()).reverse();
+    for (let i = 0; i < Math.min(thisItems.length, otherItems.length); i++) {
+      // find where containment paths diverge
+      let thisItem = thisItems[i];
+      let otherItem = otherItems[i];
+      if (thisItem === otherItem) continue;
+      assert(i > 0); // workspaces must be the same
+
+      let siblings = thisItem.container.items;
+      if (siblings !== otherItem.container.items) {
+        // comparing metadata and base data
+        // metadata comes before base data
+        return thisItem instanceof Metafield;
+      }
+      // compare container indexes
+      return siblings.indexOf(thisItem) < siblings.indexOf(otherItem)
+    }
+    // one item contains other
+    // If this item is metadata of other it comes before
+    return thisItems[otherItems.length] instanceof Metafield;
   }
 
   /** whether this item uses the value of the previous item */
@@ -618,10 +669,12 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   }
 
   /** Type-checking for change operations. Can this item be changed from
-   * another. Recurses within a path context */
-  changeableFrom(from: Item, fromPath: Path, thisPath: Path): boolean {
+   * another. Recurses within a path context, which defaults to item paths */
+  changeableFrom(from: Item, fromPath?: Path, thisPath?: Path): boolean {
     this.resolve();
     from.resolve();
+    if (!thisPath) thisPath = this.path;
+    if (!fromPath) fromPath = from.path;
     return (
       this.id === from.id
       && this.isInput === from.isInput

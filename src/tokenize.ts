@@ -5,6 +5,7 @@ import { arrayLast } from "./exports";
 
 export type TokenType = (
   ':' | '=' | ':=' | '#' | '.' | ',' | ';' | '{' | '}' | '(' | ')'
+  | '=|>' | 'update' | 'write' | '->'
   | '[' | ']' | '[]' | 'string' | 'number' | '_number_'
   | 'name' | 'end' | '\n'
   | 'call' | 'arg1' | 'arg2' | 'input'
@@ -99,13 +100,6 @@ export function tokenize(source: string): Token[] {
   function matchToken(): TokenType {
     let start = cursor;
 
-    // match minus
-    let minus = match('-');
-    // match number
-    if (matchNumber()) return 'number'
-    // convert lone minus into name of subtraction operation
-    if (minus) return 'name';
-
     // match single-quoted string and character literal
     if (match("'") || match(Token.characterLiteralStart)) {
       while (true) {
@@ -168,7 +162,9 @@ export function tokenize(source: string): Token[] {
     if (match(':=')) return ':=';
     if (match('#')) return '#';
     if (match(':')) return ':';
+    if (match('=|>')) return '=|>';
     if (match('=')) return '=';
+    if (match('->')) return '->';
     if (match('{')) return '{';
     if (match('}')) return '}';
     if (match('(')) return '(';
@@ -176,6 +172,13 @@ export function tokenize(source: string): Token[] {
     if (match('[]')) return '[]';
     if (match('[')) return '[';
     if (match(']')) return ']';
+
+    // match minus
+    let minus = match('-');
+    // match number
+    if (matchNumber()) return 'number'
+    // convert lone minus into name of subtraction operation
+    if (minus) return 'name';
 
     // match name, optionally prefixed by metadata or importcharacter
     if (matchAlpha() || match('^') || match('~')) {
@@ -233,6 +236,8 @@ export function tokenize(source: string): Token[] {
         case 'for-none?':
         case 'query':
         case 'accumulate':
+        case 'update':
+        case 'write':
 
           return name;
       }

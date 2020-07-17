@@ -64,40 +64,40 @@ export class Workspace extends Item<never, History> {
     // new version formula is a change ro choose command
     newVersion.formulaType = choose ? 'choose' : 'change';
 
-    // LHS is dependent reference to target in previous version
-    let lhs = choose ? new OptionReference : new Reference;
-    newVersion.setMeta('^lhs', lhs);
-    lhs.path = target.path;
+    // target is dependent reference to target in previous version
+    let targetRef = choose ? new OptionReference : new Reference;
+    newVersion.setMeta('^target', targetRef);
+    targetRef.path = target.path;
     // flag as dependent ref
-    lhs.tokens = [new Token('that', 0, 0, '')];
+    targetRef.tokens = [new Token('that', 0, 0, '')];
     // context of the reference is the previous version
-    lhs.context = 1;
+    targetRef.context = 1;
     // Assert all conditionals along path
-    lhs.guards = [];
+    targetRef.guards = [];
     for (
       let up = target;
       !!up.container;
       up = up.container.containingItem
     ) {
-      lhs.guards.unshift(up.conditional ? '!' : undefined);
+      targetRef.guards.unshift(up.conditional ? '!' : undefined);
     }
 
     if (choose) {
-      // set option ID into lhs OptionalReference
+      // set option ID into target OptionalReference
       assert(value instanceof FieldID || typeof value === 'string');
       // validate option FieldID
       let optionID = target.get(value).id as FieldID;
-      assert(lhs instanceof OptionReference);
-      lhs.optionID = optionID;
-      lhs.optionToken = new Token(
+      assert(targetRef instanceof OptionReference);
+      targetRef.optionID = optionID;
+      targetRef.optionToken = new Token(
         'name', 0, optionID.name!.length - 1, optionID.name!
       );
-      // leave RHS undefined
+      // leave payload undefined
     } else {
-      // RHS is value to write
-      let rhs = newVersion.setMeta('^rhs');
+      // payload is value to write
+      let payload = newVersion.setMeta('^payload');
       assert(!(value instanceof FieldID));
-      rhs.setFrom(value);
+      payload.setFrom(value);
     }
     // evaluate new version
     newVersion.eval();
@@ -153,8 +153,7 @@ export class Workspace extends Item<never, History> {
       if (
         item instanceof Statement &&
         !item.used
-        && item.dataflow !== 'check'
-        && item.dataflow !== 'export'
+        && (item.dataflow === undefined || item.dataflow === 'let')
         && !(item.container instanceof Try)
         && !(item.container instanceof Call)
       ) {

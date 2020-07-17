@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character, OptionReference } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character, OptionReference, Update } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -171,9 +171,15 @@ export class Parser {
     }
     // name definition
     const cursor = this.cursor;
-    if (this.parseToken('name') && this.parseToken(':', '=')) {
+    if (this.parseToken('name') && this.parseToken(':', '=', '=|>')) {
       // named field
       field.isInput = (this.prevToken.type === ':');
+      // updatable output
+      field.isUpdatableOutput = (this.prevToken.type === '=|>');
+      if (field.isUpdatableOutput && block instanceof Code) {
+        throw this.setError('Updatable output not allowed in code',
+          this.prevToken);
+      }
       // define field ID
       this.fieldID(field, this.tokens[this.cursor - 2]);
       if (block instanceof Choice) {
@@ -246,7 +252,7 @@ export class Parser {
 
   /** peek formula terminator */
   peekTerminator() {
-    return this.peekToken(',', ';', ')', '}', '\n', 'end');
+    return this.peekToken(',', ';', ')', '}', '\n', 'end', '->');
   }
 
   /** Require a formula defining a field. Sets formulaType and metadata */
@@ -286,6 +292,7 @@ export class Parser {
       if (!this.parseTerm(term, false)) {
         throw this.setError('expecting a formula')
       }
+      continue;
     }
   }
 
@@ -309,10 +316,46 @@ export class Parser {
     }
 
     // code block
-    let code = this.parseCode();
-    if (code) {
+    if (this.parseToken('do')) {
+      field.setMeta('^code', this.requireBlock(new Do));
       field.formulaType = 'code';
-      field.setMeta('^code', code);
+      return true;
+    }
+
+    if (this.parseToken('with')) {
+      field.setMeta('^code', this.requireBlock(new With));
+      field.formulaType = 'code';
+      return true;
+    }
+
+    if (this.parseToken('update')) {
+      // update block is literal value skipped in dataflow
+      field.formulaType = 'none';
+      // set dataflow attribute as 'update' to skip value
+      if (field instanceof Statement) {
+        if (field.dataflow) {
+          throw this.setError(`update block cannot be ` + field.dataflow,
+            this.prevToken);
+        }
+        field.dataflow = 'update';
+      } else {
+        throw this.setError(`update block must be in code block`,
+          this.prevToken);
+      }
+      let update = this.requireBlock(new Update);
+      field.setValue(update);
+      // inject change input field at beginning of block
+      this.injectInput(update, 'change: that');
+      if (arrayLast(update.statements).formulaType !== 'write') {
+        throw this.setError('update block must end with write',
+          this.prevToken);
+      }
+      return true;
+    }
+
+    if (this.parseToken('try')) {
+      field.setMeta('^code', this.requireTry());
+      field.formulaType = 'code';
       return true;
     }
 
@@ -344,7 +387,7 @@ export class Parser {
 
         field.formulaType = this.prevToken.type === ':=' ? 'change' : 'choose';
         if (field.formulaType === 'change') {
-          field.setMeta('^lhs', ref);
+          field.setMeta('^target', ref);
         } else {
           // choose
           let optionRef = new OptionReference;
@@ -353,14 +396,14 @@ export class Parser {
             throw this.setError(`option name shouldn't have ?`, optionRef.optionToken)
           }
           optionRef.tokens = ref.tokens;
-          field.setMeta('^lhs', optionRef);
+          field.setMeta('^target', optionRef);
           // formula is optional
           if (this.peekTerminator()) return true;
         }
 
-        // parse formula into ^rhs
-        let rhs = field.setMeta('^rhs', undefined);
-        this.requireFormula(rhs);
+        // parse formula into ^payload
+        let payload = field.setMeta('^payload', undefined);
+        this.requireFormula(payload);
         return true;
       }
 
@@ -378,6 +421,47 @@ export class Parser {
       // plain reference
       field.formulaType = 'reference';
       field.setMeta('^reference', ref);
+      return true;
+    }
+
+    // write
+    if (this.matchToken('write')) {
+      if (
+        !(field.container instanceof Update)
+        || !(field instanceof Statement) // redundant but casts type
+      ) {
+        throw this.setError('write must be in update block', this.prevToken);
+      }
+      field.formulaType = 'write';
+      if (field.dataflow) {
+        throw this.setError('illegal dataflow attribute on write',
+          this.prevToken);
+      }
+      field.dataflow = 'write';
+
+      if (this.parseToken('->')) {
+        // default delta to fake 'that' reference
+        let delta = field.setMeta('^delta', undefined);
+        delta.formulaType = 'reference';
+        let ref = new Reference;
+        ref.tokens = [Token.fake('that', this.prevToken)];
+        delta.setMeta('^reference', ref);
+      } else {
+        // parse optional formula into ^delta
+        let delta = field.setMeta('^delta', undefined);
+        this.requireFormula(delta);
+        this.requireToken('->');
+      }
+
+      // parse reference into ^target
+      let ref = this.parseReference();
+      if (!ref) {
+        throw this.setError('expecting a reference to write');
+      }
+      if (ref.dependent) {
+        throw this.setError('write requires a structural reference');
+      }
+      field.setMeta('^target', ref);
       return true;
     }
 
@@ -446,37 +530,37 @@ export class Parser {
     input.id = this.space.newFieldID(undefined, this.prevToken);
     call.add(input);
     input.formulaType = 'changeInput';
-    // LHS is dependent ref to first input
-    let lhs = new Reference;
-    lhs.tokens = [
+    // target is dependent ref to first input
+    let target = new Reference;
+    target.tokens = [
       Token.fake('that', this.prevToken),
       Token.fake('arg1', this.prevToken)
     ]
-    input.setMeta('^lhs', lhs);
-    // RHS is structural reference to input value
-    let rhsRef = new Reference;
-    rhsRef.tokens = [Token.fake('input', this.prevToken)]
-    let rhs = input.setMeta('^rhs');
-    rhs.formulaType = 'reference';
-    rhs.setMeta('^reference', rhsRef);
+    input.setMeta('^target', target);
+    // payload is structural reference to input value
+    let payloadRef = new Reference;
+    payloadRef.tokens = [Token.fake('input', this.prevToken)]
+    let payload = input.setMeta('^payload');
+    payload.formulaType = 'reference';
+    payload.setMeta('^reference', payloadRef);
 
     if (rightValue) {
       // unparenthesized value argument
       let arg = new Statement;
       arg.formulaType = 'change';
-      let lhs = new Reference;
-      lhs.tokens = [
+      let target = new Reference;
+      target.tokens = [
         Token.fake('that', startToken),
         Token.fake('arg2', startToken)
       ]
-      arg.setMeta('^lhs', lhs);
-      let rhs = arg.setMeta('^rhs');
+      arg.setMeta('^target', target);
+      let payload = arg.setMeta('^payload');
       if (rightValue instanceof Reference) {
-        rhs.formulaType = 'reference';
-        rhs.setMeta('^reference', rightValue)
+        payload.formulaType = 'reference';
+        payload.setMeta('^reference', rightValue)
       } else {
-        rhs.formulaType = 'none';
-        rhs.setValue(rightValue);
+        payload.formulaType = 'none';
+        payload.setValue(rightValue);
       }
       arg.id = this.space.newFieldID(undefined, startToken);
       call.add(arg);
@@ -493,23 +577,23 @@ export class Parser {
         if (call.fields.length !== 2) {
           throw this.setError('Only first argument can be anonymous', argToken);
         }
-        // move formula to RHS of arg2 change operation
+        // move formula to payload of arg2 change operation
         let anon = arg;
         arg = new Statement;
         arg.formulaType = 'change';
-        let lhs = new Reference;
-        lhs.tokens = [
+        let target = new Reference;
+        target.tokens = [
           Token.fake('that', argToken),
           Token.fake('arg2', argToken)
         ]
-        arg.setMeta('^lhs', lhs);
-        let rhsValue = anon.value;
-        if (rhsValue) anon.detachValue();
-        let rhs = arg.setMeta('^rhs', rhsValue);
-        rhs.formulaType = anon.formulaType;
+        arg.setMeta('^target', target);
+        let payloadValue = anon.value;
+        if (payloadValue) anon.detachValue();
+        let payload = arg.setMeta('^payload', payloadValue);
+        payload.formulaType = anon.formulaType;
         if (anon.metadata) {
-          rhs.metadata = anon.metadata;
-          rhs.metadata.containingItem = rhs;
+          payload.metadata = anon.metadata;
+          payload.metadata.containingItem = payload;
         }
       }
 
@@ -521,24 +605,17 @@ export class Parser {
     return call;
   }
 
-  /** parse a code block */
-  parseCode(): Code | undefined {
-    let token = this.parseToken('do', 'with', 'try');
-    if (!token) return undefined;
-    switch (token.type) {
-      case 'do':
-        return this.requireBlock(new Do);
-
-      case 'with':
-        return this.requireBlock(new With);
-
-      case 'try':
-        return this.requireTry()
-
-      default:
-        trap();
-    }
+  /** inject an input argument field at start of block with specified syntax */
+  injectInput(block: Block, syntax: string): Field {
+    let fieldParser = new Parser(syntax);
+    fieldParser.space = this.space;
+    let field = fieldParser.requireField(block);
+    // move to beginning
+    arrayRemove(block.items, field);
+    block.items.splice(0, 0, field);
+    return field;
   }
+
 
   /** parse a loop block */
   parseLoop(): Loop | undefined {
@@ -580,13 +657,8 @@ export class Parser {
         throw this.setError('input must be []', block.token);
       }
     } else {
-      // generate input field
-      let inputParser = new Parser('item: []');
-      inputParser.space = this.space;
-      inputField = inputParser.requireField(block) as Statement;
-      // move to beginning
-      arrayRemove(block.items, inputField);
-      block.items.splice(0, 0, inputField);
+      // inject input field
+      this.injectInput(block, 'item: []');
     }
     if (loop.loopType === 'accumulate' && !block.items[1]?.isInput) {
       throw this.setError('accumulate requires two inputs', block.token);

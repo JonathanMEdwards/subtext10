@@ -24,6 +24,7 @@ export * from "./history";
 export * from "./code";
 export * from "./try";
 export * from "./choice";
+export * from "./update";
 export * from "./workspace";
 import { Workspace } from "./workspace";
 export * from "./builtins";

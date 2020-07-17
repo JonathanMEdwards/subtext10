@@ -5,7 +5,7 @@ import { Block, FieldID, Item, Value, Dictionary, assert, assertDefined, Field, 
 export class Metadata extends Block<Metafield> {
 
   /** logical container is base item's logical container */
-  get up(): Item | undefined {
+  get up(): Item {
     return this.containingItem.up;
   }
 
@@ -31,14 +31,15 @@ export class Metadata extends Block<Metafield> {
 
 export class Metafield extends Field<MetaID> {
 
-  /** Previous item in metadata is previous item of the base data. Except ^rhs
-   * goes to ^lhs */
+  /** Previous item in metadata is previous item of the base data. Except ^payload
+   * goes to ^target */
   previous(): Item | undefined {
     this.usesPrevious = true;
-    if (this.id === MetaID.ids['^rhs']) {
-      // previous value of rhs is the lhs
-      let lhs = assertDefined(this.container.getMaybe('^lhs'));
-      let ref = cast(lhs.value, Reference);
+    if (this.id === MetaID.ids['^payload']) {
+      // previous value of payload is the target
+      let ref = cast(
+        assertDefined(this.container.getMaybe('^target')).value,
+        Reference);
       // should already have been dereferenced
       let target = assertDefined(ref.target);
       if (ref instanceof OptionReference) {
@@ -71,12 +72,13 @@ export class MetaID extends FieldID {
     '^reference': new MetaID('^reference'),   // Reference formula
     '^code': new MetaID('^code'),             // Code block
     '^loop': new MetaID('^loop'),             // Loop block
-    '^lhs': new MetaID('^lhs'),               // Dependent reference before :=
-    '^rhs': new MetaID('^rhs'),               // Formula on right of :=
+    '^target': new MetaID('^target'),         // target reference of := & ->
+    '^payload': new MetaID('^payload'),       // Formula after :=
     '^call': new MetaID('^call'),             // function call
     '^builtin': new MetaID('^builtin'),       // builtin call
     '^initial': new MetaID('^initial'),       // initial value of item
     '^export': new MetaID('^export'),         // Exported value
     '^exportType': new MetaID('^exportType'), // Exported value type
+    '^delta': new MetaID('^delta'),           // Formula before ->
   }
 }
