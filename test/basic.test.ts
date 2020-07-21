@@ -102,7 +102,7 @@ test('replace', () => {
   expectDump("a = record{x: 0, y : 0}, b = a with{.x := 1}")
     .toEqual({ a: {x: 0, y: 0}, b: {x: 1, y: 0}});
   expectCompiling("a = record{x = 0, y : 0}, b = .x := 1")
-    .toThrow('changing an output');
+    .toThrow('not updatable output');
   expectCompiling("a = record{x: 0, y : 0}, b = .x := 'foo'")
     .toThrow('changing type');
   expectDump(`
@@ -165,6 +165,13 @@ test('arithmetic', () => {
   expectDump("a = 1 + (2 * 3)")
     .toEqual({ a: 7 });
 });
+
+test('leading infix operator', () => {
+  expectDump("c: 0, f = + 32")
+    .toEqual({ c: 0, f: 32 });
+  expectDump("c: 0, f = * 1.8 + 32")
+    .toEqual({ c: 0, f: 32 });
+})
 
 test('conditionals', () => {
   expectDump("a? = 1 >? 0")

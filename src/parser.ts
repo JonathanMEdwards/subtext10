@@ -407,6 +407,7 @@ export class Parser {
         return true;
       }
 
+      // reference may be start of a call
       let call = this.parseCall(ref, first);
       if (call) {
         // call
@@ -419,6 +420,10 @@ export class Parser {
       }
 
       // plain reference
+      if (arrayLast(ref.tokens).isOperator) {
+        // HACK
+        throw this.setError('using operator as a value')
+      }
       field.formulaType = 'reference';
       field.setMeta('^reference', ref);
       return true;
@@ -495,8 +500,10 @@ export class Parser {
     let startToken = this.cursorToken;
     let rightValue = this.parseLiteral() || this.parseReference();
     if (
-      rightValue
-      && first
+      first
+      // HACK: assume operator token is a function call
+      && !arrayLast(ref.tokens).isOperator
+      && rightValue
       && (
         this.parseReference()
         || this.parseLiteral()

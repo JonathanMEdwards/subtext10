@@ -3,12 +3,13 @@ import { Code, StaticError, arrayLast, cast, Reference } from "./exports";
 /** update reaction blocks */
 export class Update extends Code {
 
-  // only evaluate during analysis, leaving initialized for updates
+  // note only called from containing eval during analysis
   eval() {
-    if (!this.workspace.analyzing) return
 
     super.eval();
 
+    // analyze update
+    if (!this.workspace.analyzing) return;
     let container = this.containingItem.container;
     if (
       !(container instanceof Code)
@@ -21,6 +22,9 @@ export class Update extends Code {
       throw new StaticError(this.containingItem,
         'update cannot be conditional')
     }
+    // generated input doesn't need to be used
+    let input = this.statements[0];
+    input.used = true;
     // TODO type check user-defined input
 
     // check target and type of writes
@@ -33,10 +37,14 @@ export class Update extends Code {
         throw new StaticError(statement, 'write changing type')
       }
       if (!target.comesBefore(delta)) {
-        throw new StaticError(targetRef.tokens[0], 'write must go backwards')
+        throw new StaticError(arrayLast(targetRef.tokens), 'write must go backwards')
+      }
+      if (!target.isInput && !target.isUpdatableOutput) {
+        throw new StaticError(arrayLast(targetRef.tokens),
+          'unwritable location');
+        // note contextual writability of target is checked in replace
       }
     })
-
   }
 
 }

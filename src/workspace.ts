@@ -50,8 +50,9 @@ export class Workspace extends Item<never, History> {
    */
   writeAt(path: string, value: number | string | Value | FieldID) {
     let target = this.currentVersion.down(path);
-    // TODO: assert(target.modifiable);
-    if (!target.isInput) throw 'unwritable location'
+    if (!this.currentVersion.isWritable(target)) {
+      throw 'unwritable location';
+    }
 
     let choose = target.value instanceof Choice;
 

@@ -30,16 +30,27 @@ test('update type check', () => {
 });
 
 test('updatable output', () => {
-  let w = compile("c: 0, f =|> c update{write -> c}");
-  expect(w.dumpAt('f')).toEqual(0);
-  w.writeAt('f', '100');
+  let w = compile("c: 0, f =|> c * 1.8 + 32 update{write - 32 / 1.8 -> c}");
+  expect(w.dumpAt('f')).toEqual(32);
+  w.writeAt('f', 212);
   expect(w.dumpAt('c')).toEqual(100);
 });
 
-test('updatable output ends with update', () => {
-  expectCompiling("c: 0, f =|> c")
-    .toThrow('updatable output requires update block');
+test('update in replace', () => {
+  let w = compile(`
+  s = record {
+    c: 0;
+    f =|> c * 1.8 + 32 update{write - 32 / 1.8 -> c}
+  }
+  t = s with{.f := 212}`);
+  expect(w.dumpAt('t')).toEqual({c: 100, f: 212});
 });
+
+// test('updatable output ends with update', () => {
+//   expectCompiling("c: 0, f =|> c")
+//     .toThrow('updatable output requires update block');
+// });
+
 test('update block ends with write', () => {
   expectCompiling("c: 0, f =|> c update{0}")
     .toThrow('update block must end with write');
@@ -54,3 +65,9 @@ test('write order check', () => {
   expectCompiling("c: 0, f =|> c update{write -> g}, g: 0")
     .toThrow('write must go backwards');
 });
+
+// equality testing
+// glitch avoidance
+// change aggregation
+// overwrites
+// writes in code blocks and conditionals

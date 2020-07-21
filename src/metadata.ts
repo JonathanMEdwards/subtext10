@@ -31,6 +31,11 @@ export class Metadata extends Block<Metafield> {
 
 export class Metafield extends Field<MetaID> {
 
+  /** base field */
+  get base(): Item {
+    return this.container.containingItem;
+  }
+
   /** Previous item in metadata is previous item of the base data. Except ^payload
    * goes to ^target */
   previous(): Item | undefined {
@@ -80,5 +85,6 @@ export class MetaID extends FieldID {
     '^export': new MetaID('^export'),         // Exported value
     '^exportType': new MetaID('^exportType'), // Exported value type
     '^delta': new MetaID('^delta'),           // Formula before ->
+    '^change': new MetaID('^change'),         // Update values
   }
 }

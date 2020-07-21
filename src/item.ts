@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop, OptionReference} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop, OptionReference, Update} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -342,11 +342,14 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
     // evaluate value contents deeply
     // Don't do this on the function bodies in a Call
+    // or update sections post analysis
     // FIXME: this looks like a huge mistake
     // Should have separated shallow and deep evaluation
     // maybe causes some of the needs for deferred evaluation
     // evalIfNeeded was another workaround
-    if (this.value && !(this.container instanceof Call)) {
+    if (this.value
+      && !(this.container instanceof Call)
+      && !(this.value instanceof Update && !this.workspace.analyzing)) {
       this.value.eval();
     }
 
@@ -374,10 +377,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
   }
 
-  /** evaluate replace/choose operation */
+  /** evaluate replace/choose operation, setting value of this item */
   private replace() {
     // target and payload in metadata already evaluated
-    let ref = cast(this.get('^target').value, Reference);
+    const ref = cast(this.get('^target').value, Reference);
     assert(ref.dependent);
     // get previous value, which is context of reference
     this.setConditional(ref.conditional);
@@ -387,16 +390,13 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       if (!this.workspace.analyzing) return;
     }
     assert(ref.target);
-    let prev = this.workspace.down(ref.path.ids.slice(0, ref.context));
-    // prev.eval(); // don't think this is needed
-    // copy previous value
-    this.copyValue(prev);
-    // follow target dependent path within previous value
+    const context = this.workspace.down(ref.path.ids.slice(0, ref.context));
+    // context.eval(); // don't think this is needed
+    // copy previous value of context into result value
+    this.copyValue(context);
+
+    // follow target dependent path within result value
     let target = this.down(ref.path.ids.slice(ref.context));
-    if (!target.isInput && target !== this) {
-      // allow modifying that in #
-      throw new StaticError(arrayLast(ref.tokens), 'changing an output')
-    }
 
     // choose
     if (this.formulaType === 'choose') {
@@ -408,42 +408,169 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       option.resolve();
 
       choice.setChoice(choice.fields.indexOf(option as Field));
-      if (!this.getMaybe('^payload')) {
-        // no value - default to initial value of option
-        return;
-      }
-
-      // fall through to set option value
+      // set option value from payload
       target = option;
     } else {
       // replaces need to be within previous value
       assert(ref.path.length > ref.context);
     }
 
-    // replace target value with value of payload
-    target.eval();
-    let source = this.get('^payload');
-    if (!target.value!.changeableFrom(source.value!)) {
-      throw new StaticError(ref.tokens[0], 'changing type of value')
-    }
-    this.setConditional(source.conditional);
-    if (source.rejected) this.rejected = true;
+    let payload = this.getMaybe('^payload');
+    if (!payload) {
+      // payload optional in choose
+      assert(this.formulaType === 'choose')
+    } else {
+      // replace target value with payload value
+      target.eval();
+      if (!target.value!.changeableFrom(payload.value!)) {
+        throw new StaticError(ref.tokens[0], 'changing type of value')
+      }
+      this.setConditional(payload.conditional);
+      if (payload.rejected) this.rejected = true;
 
-    target.detachValue()
-    assert(source.value);
-    target.copyValue(source);
-    if (this.formulaType === 'replaceInput') {
-      // initialize call body to recalc input defaults
-      // preserving primary input value
-      // let input = assertDefined(target.value);
-      // target.container.initialize();
-      // if (!target.value) {
-      //   target.setValue(input);
-      // }
-      assert(target === target.container.items[0]);
-      target.container.items.slice(1).forEach(statement =>
-        statement.initialize())
+      target.detachValue();
+      assert(payload.value);
+      target.copyValue(payload);
+      if (this.formulaType === 'replaceInput') {
+        // initialize call body to recalc input defaults
+        // preserving primary input value
+        // let input = assertDefined(target.value);
+        // target.container.initialize();
+        // if (!target.value) {
+        //   target.setValue(input);
+        // }
+        assert(target === target.container.items[0]);
+        target.container.items.slice(1).forEach(statement =>
+          statement.initialize())
+      }
     }
+
+    // check that target location is updatable in context
+    let source = ref.target;
+    for (
+      target = this.down(ref.path.ids.slice(ref.context));
+      target !== this;
+      target = target.container.containingItem
+    ) {
+      if (target.isInput) {
+        source = source.container.containingItem
+        continue;
+      }
+      if (target.isUpdatableOutput) break;
+      throw new StaticError(
+        ref.tokens[ref.context + target.path.length - this.path.length],
+        'not updatable output')
+    }
+    if (target === this) {
+      // target is inputs up to context - done
+      return;
+    }
+    assert(this.formulaType !== 'replaceInput');
+
+    /** Output update. Output updates are handled by explicit update blocks and
+     * implicit reverse execution of code blocks. These are executed in strict
+     * backwards tree order. Updates propagate backwards in the context value
+     * until they all ground out in input fields.
+     *
+     * Updates are executed within the input context value, stored in ^change
+     * metdata, and tracked in the array pendingDeltas. Updates grounding out in
+     * input fields get written into the copy of the context in value of this
+     * field.
+     *
+     * TODO: drop equal changes
+     * TODO: aggregate changes inside an updatable output
+     * TODO: detect overwrites
+     * TODO: Defer updates that try to escape context
+    */
+
+    // move target in result value to ^change in input. The rest of the replace
+    // operation will work inside the input value until it is done
+
+    // stack of pending changes, sorted in tree order
+    const pendingChanges = [source.replaceMeta('^change', target)];
+    target.detachValue();
+    // array of grounded changes (on input fields)
+    const groundedChanges: Metafield[] = [];
+
+    // propagate changes in reverse tree order
+    while (pendingChanges.length) {
+      let change = pendingChanges.pop()!;
+      let output = change.base;
+
+      // TODO: reverse function execution
+
+      // ground out changes to inputs
+      if (!output.isUpdatableOutput) {
+        assert(output.isInput);
+        groundedChanges.push(change);
+        continue;
+      }
+
+      switch (output.formulaType) {
+
+        case 'code': {
+          // execute update block at end of code block
+          // note types were already checked during analysis of def site
+          let code = cast(output.get('^code').value, Code);
+          let update = cast(arrayLast(code.statements).value, Update);
+
+          // set input change of update block
+          update.initialize();
+          let input = update.statements[0];
+          assert(input.isInput && !input.value);
+          input.setFrom(change);
+          // evaluate update and queue up writes
+          update.eval();
+          // FIXME scan nested code blocks for writes
+          for (let write of update.statements) {
+            if (write.formulaType !== 'write') continue;
+            const targetRef = cast(write.get('^target').value, Reference);
+            let target = targetRef.target!;
+            if (!context.path.contains(target.path)) {
+              // TODO: defer entire replace if leaves context
+              trap();
+            }
+            if (!context.isWritable(target)) {
+              throw new StaticError(arrayLast(targetRef.tokens),
+                'unwritable location')
+            }
+            let targetChange =
+              target.replaceMeta('^change', assertDefined(write.value));
+            // insert into pending changes sorted by location
+            let i = pendingChanges.length;
+            while (i > 0 && target.comesBefore(pendingChanges[--i].base)) { }
+            pendingChanges.splice(i + 1, 0, targetChange);
+          }
+          break;
+        }
+
+        case 'reference':
+
+        default:
+          trap();
+      }
+      continue;
+    }
+
+    // replace grounded changes in result, which was copied earlier from context
+    for (let grounded of groundedChanges) {
+      // follow path within change context
+      let target = this.down(grounded.base.path.ids.slice(ref.context));
+      target.detachValue()
+      target.copyValue(grounded);
+    }
+  }
+
+  /** whether a contained item is writable in this context. Must be inputs up to
+   * a containing updatable output or this */
+  isWritable(item: Item): boolean {
+    // scan upwards to this
+    for (; item !== this; item = item.container.containingItem) {
+      if (item instanceof Metafield) return false;
+      if (item.isUpdatableOutput) return true;
+      if (!item.isInput) return false;
+    }
+    return true;
   }
 
   /** Iterate through containing items, starting with this and ending with
@@ -539,6 +666,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     assert(this.value?.containingItem === this);
     this.value.containingItem = undefined as any;
     this.value = undefined;
+    this.evaluated = false;
   }
 
   /** whether item has been detached */
@@ -619,6 +747,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     to.id = this.id;
     to.formulaType = this.formulaType;
     to.isInput = this.isInput;
+    to.isUpdatableOutput = this.isUpdatableOutput;
     to.conditional = this.conditional;
     to.usesPrevious = this.usesPrevious;
 

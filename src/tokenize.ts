@@ -38,6 +38,26 @@ export class Token {
   toString() {
     return this.source.substring(this.start, this.end);
   }
+
+  /** Hack to special case parsing of operator names */
+  get isOperator(): boolean {
+    if (this.type !== 'name') return false;
+    if (this.text.startsWith('not=')) return true;
+    switch (this.text[0]) {
+      case '+':
+      case '-':
+      case '*':
+      case '/':
+      case '=':
+      case '<':
+      case '>':
+      case '&':
+        return true;
+
+      default:
+        return false;
+    }
+  }
 }
 
 
