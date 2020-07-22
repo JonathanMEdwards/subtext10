@@ -8,9 +8,9 @@ export class Code extends Block<Statement> {
     return this.items;
   }
 
-  /** field with result value. Undefined before eval and after rejection.
+  /** Statement with result value. Undefined before eval and after rejection.
    * Defined after analysis regardless of rejection */
-  result: Field | undefined;
+  result: Statement | undefined;
 
   /** field with exported value. Defined when result is */
   export: Item | undefined;
@@ -229,7 +229,7 @@ export class Call extends Code {
       super.eval();
       if (!this.rejected) {
         // pull result out of final instance of code body
-        let body = cast(arrayLast(this.fields).value, Code);
+        let body = cast(arrayLast(this.statements).value, Code);
         body.eval();
         this.result = body.result;
         this.export = body.export;

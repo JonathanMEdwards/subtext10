@@ -66,10 +66,13 @@ export class Metafield extends Field<MetaID> {
  * interned. */
 export class MetaID extends FieldID {
   // MetaID doesn't use a serial #. Instead the name is the globally unique ID.
-  constructor(name: string) {
+  constructor(name: string, dynamic = false) {
     super(NaN);
     this.name = name;
+    if (dynamic) this.dynamic = true;
   }
+  /** whether should be copied */
+  dynamic!: boolean;
 
   /** predefined metadata IDs */
   static ids: Dictionary<MetaID> = {
@@ -85,6 +88,6 @@ export class MetaID extends FieldID {
     '^export': new MetaID('^export'),         // Exported value
     '^exportType': new MetaID('^exportType'), // Exported value type
     '^delta': new MetaID('^delta'),           // Formula before ->
-    '^change': new MetaID('^change'),         // Update values
+    '^change': new MetaID('^change', true),  // Update values
   }
 }

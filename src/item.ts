@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop, OptionReference, Update} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop, OptionReference, Update, updateBuiltin, Do} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -331,8 +331,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           break;
 
         case 'builtin':
-          let name = cast(this.get('^builtin').value, Text).value;
-          evalBuiltin(cast(this, Statement), name);
+          evalBuiltin(cast(this, Statement));
           break;
 
         default:
@@ -476,11 +475,6 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
      * metdata, and tracked in the array pendingDeltas. Updates grounding out in
      * input fields get written into the copy of the context in value of this
      * field.
-     *
-     * TODO: drop equal changes
-     * TODO: aggregate changes inside an updatable output
-     * TODO: detect overwrites
-     * TODO: Defer updates that try to escape context
     */
 
     // move target in result value to ^change in input. The rest of the replace
@@ -492,26 +486,78 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // array of grounded changes (on input fields)
     const groundedChanges: Metafield[] = [];
 
+    /** function to record a write through a reference in pendingChanges */
+    const writeRef = (ref: Reference, change: Item) => {
+      let target = ref.target!;
+      if (!context.path.contains(target.path)) {
+        // TODO: defer entire replace if leaves context
+        trap();
+      }
+      if (!context.isWritable(target)) {
+        throw new StaticError(arrayLast(ref.tokens), 'unwritable location')
+      }
+      writeChange(target.replaceMeta('^change', change));
+    }
+
+    /** function to record a write in pendingChanges */
+    const writeChange = (target: Metafield) => {
+      // insert into pending changes sorted by location
+      let i = pendingChanges.length;
+      while (i > 0 && target.comesBefore(pendingChanges[--i].base)) { }
+      pendingChanges.splice(i + 1, 0, target);
+    }
+
     // propagate changes in reverse tree order
     while (pendingChanges.length) {
       let change = pendingChanges.pop()!;
-      let output = change.base;
+      let changeBase = change.base;
+      changeBase.eval();
 
-      // TODO: reverse function execution
-
-      // ground out changes to inputs
-      if (!output.isUpdatableOutput) {
-        assert(output.isInput);
-        groundedChanges.push(change);
-        continue;
+      // changes to inputs
+      // FIXME: check containers
+      if (changeBase.isInput) {
+        if (changeBase.container instanceof Code) {
+          let call = changeBase.container.containingItem.container;
+          if (call instanceof Call &&
+            changeBase.container.items[0] === changeBase
+          ) {
+            // primary input of a call - propagate change into call
+            let inputReplace = call.statements[1];
+            assert(inputReplace.formulaType === 'replaceInput');
+            let ref = inputReplace.get('^payload').get('^reference').value;
+            assert(ref instanceof Reference);
+            writeRef(ref, change);
+            continue;
+          }
+          throw new StaticError(changeBase, 'unwritable location')
+        } else {
+          // ground out data change
+          groundedChanges.push(change);
+          continue;
+        }
       }
 
-      switch (output.formulaType) {
+      switch (changeBase.formulaType) {
 
+        case 'call':
         case 'code': {
-          // execute update block at end of code block
+          let code: Code;
+          if (changeBase.formulaType === 'call') {
+            // call body is value of last statement of call
+            let call = cast(changeBase.get('^call').value, Call);
+            code = cast(arrayLast(call.statements).value, Do);
+          } else {
+            code = cast(changeBase.get('^code').value, Code);
+          }
+
+          if (arrayLast(code.statements).dataflow !== 'update') {
+            // no update block - write change onto result of code block
+            writeChange(code.result!.replaceMeta('^change', change));
+            continue;
+          }
+
+          // execute update block
           // note types were already checked during analysis of def site
-          let code = cast(output.get('^code').value, Code);
           let update = cast(arrayLast(code.statements).value, Update);
 
           // set input change of update block
@@ -524,27 +570,21 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           // FIXME scan nested code blocks for writes
           for (let write of update.statements) {
             if (write.formulaType !== 'write') continue;
-            const targetRef = cast(write.get('^target').value, Reference);
-            let target = targetRef.target!;
-            if (!context.path.contains(target.path)) {
-              // TODO: defer entire replace if leaves context
-              trap();
-            }
-            if (!context.isWritable(target)) {
-              throw new StaticError(arrayLast(targetRef.tokens),
-                'unwritable location')
-            }
-            let targetChange =
-              target.replaceMeta('^change', assertDefined(write.value));
-            // insert into pending changes sorted by location
-            let i = pendingChanges.length;
-            while (i > 0 && target.comesBefore(pendingChanges[--i].base)) { }
-            pendingChanges.splice(i + 1, 0, targetChange);
+            writeRef(cast(write.get('^target').value, Reference), write);
           }
           break;
         }
 
-        case 'reference':
+        case 'reference': {
+          // write through reference
+          writeRef(cast(changeBase.get('^reference').value, Reference), change);
+          break;
+        }
+
+        case 'builtin': {
+          writeChange(updateBuiltin(cast(changeBase, Statement), change));
+          break;
+        }
 
         default:
           trap();
@@ -566,7 +606,14 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   isWritable(item: Item): boolean {
     // scan upwards to this
     for (; item !== this; item = item.container.containingItem) {
-      if (item instanceof Metafield) return false;
+      if (item instanceof Metafield) {
+        // can't write into metadata
+        return false;
+      }
+      if (item instanceof Statement) {
+        // can write into any code block statement
+        return true
+      }
       if (item.isUpdatableOutput) return true;
       if (!item.isInput) return false;
     }
