@@ -72,10 +72,10 @@ export const builtinUpdates: Dictionary<(write: Item, ...args: any[]) => void>
 
 /** definition of builtins */
 export const builtinDefinitions = `
-+ = do{in: 0; plus: 0; builtin +}
-- = do{in: 0; subtrahend: 1; builtin -}
-* = do{in: 0; multiplicand: 2; builtin *}
-/ = do{in: 0; divisor: 2; builtin /}
++ = updatable{in: 0; plus: 0; builtin +}
+- = updatable{in: 0; subtrahend: 1; builtin -}
+* = updatable{in: 0; multiplicand: 2; builtin *}
+/ = updatable{in: 0; divisor: 2; builtin /}
 truncate = do{in: 0; builtin truncate; export fraction = 0}
 >? = do{in: 0, than: 0, builtin >?}
 >=? = do{in: 0, than: 0, builtin >=?}

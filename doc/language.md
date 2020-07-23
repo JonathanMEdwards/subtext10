@@ -1433,6 +1433,7 @@ Control :=
 	| 'do'
 	| 'with'
 	| 'update'
+	| 'updatable'
 	...fill in from Parse.matchCode()
 
 Path := GuardedName? RelPath

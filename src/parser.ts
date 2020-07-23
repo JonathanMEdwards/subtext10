@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character, OptionReference, Update } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character, OptionReference, Update, Updatable } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -324,6 +324,12 @@ export class Parser {
 
     if (this.parseToken('with')) {
       field.setMeta('^code', this.requireBlock(new With));
+      field.formulaType = 'code';
+      return true;
+    }
+
+    if (this.parseToken('updatable')) {
+      field.setMeta('^code', this.requireBlock(new Updatable));
       field.formulaType = 'code';
       return true;
     }

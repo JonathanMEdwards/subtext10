@@ -36,14 +36,11 @@ test('updatable output', () => {
   expect(w.dumpAt('c')).toEqual(100);
 });
 
-test('update in replace', () => {
-  let w = compile(`
-  s = record {
-    c: 0;
-    f =|> c * 1.8 + 32 update{write - 32 / 1.8 -> c}
-  }
-  t = s with{.f := 212}`);
-  expect(w.dumpAt('t')).toEqual({c: 100, f: 212});
+test('reverse formula', () => {
+  let w = compile("c: 0, f =|> c * 1.8 + 32");
+  expect(w.dumpAt('f')).toEqual(32);
+  w.writeAt('f', 212);
+  expect(w.dumpAt('c')).toEqual(100);
 });
 
 test('update in replace', () => {
@@ -52,8 +49,10 @@ test('update in replace', () => {
     c: 0;
     f =|> c * 1.8 + 32 update{write - 32 / 1.8 -> c}
   }
-  t = .f := 212`);
+  t = .f := 212
+  u = s with{.f := 212}`);
   expect(w.dumpAt('t')).toEqual({c: 100, f: 212});
+  expect(w.dumpAt('u')).toEqual({c: 100, f: 212});
 });
 
 test('reverse formula in replace', () => {
@@ -62,16 +61,11 @@ test('reverse formula in replace', () => {
     c: 0;
     f =|> c * 1.8 + 32
   }
-  t = s with{.f := 212}`);
+  t = .f := 212
+  u = s with{.f := 212}`);
   expect(w.dumpAt('s')).toEqual({c: 0, f: 32});
   expect(w.dumpAt('t')).toEqual({c: 100, f: 212});
-});
-
-test('reverse formula', () => {
-  let w = compile("c: 0, f =|> c * 1.8 + 32");
-  expect(w.dumpAt('f')).toEqual(32);
-  w.writeAt('f', 212);
-  expect(w.dumpAt('c')).toEqual(100);
+  expect(w.dumpAt('u')).toEqual({c: 100, f: 212});
 });
 
 // update conditional

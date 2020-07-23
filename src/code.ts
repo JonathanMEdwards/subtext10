@@ -21,6 +21,11 @@ export class Code extends Block<Statement> {
   /** whether evaluation is conditional */
   conditional = false;
 
+  /** Block can be updated in a call */
+  get callIsUpdatable(): boolean {
+    return this instanceof Updatable || !!this.updateBlock;
+  }
+
   /** update block at end else undefined */
   get updateBlock(): Update | undefined {
     let block = arrayLast(this.statements).value;
@@ -199,9 +204,15 @@ export class Statement extends Field {
 }
 
 /** A Do block is a procedure that evaluates statements sequentially without
- * using the previous value */
+ * using the previous value. Currently only Do blocks are callable */
 export class Do extends Code {
   private _nominal: undefined;
+}
+
+/** A Do block whose calls can execute in reverse on update.
+ * Cannot be recursive */
+export class Updatable extends Do {
+  private _nominal2: undefined;
 }
 
 /** A With block is a Do block that uses the previous value */
@@ -254,9 +265,8 @@ export class Call extends Code {
       this.conditional = true;
     }
 
-    // If generic call can't short-circuit
-    // FIXME: short-circuit from existing instances
-    if (def.isGeneric) {
+    // If generic or updatable call can't short-circuit, so can't recurse
+    if (def.isGeneric || def.callIsUpdatable) {
       // execute call normally except detect conditionality
       super.eval();
       let body = cast(arrayLast(this.fields).value, Code);
@@ -265,8 +275,8 @@ export class Call extends Code {
       this.export = body.export;
       this.rejected = body.rejected;
       // detect conditional arguments
-      this.fields.slice(2).forEach(arg => {
-        if (arg.conditional) this.conditional = true;
+      this.statements.slice(2).forEach(arg => {
+        if (arg.isInput && arg.conditional) this.conditional = true;
       })
       return;
     }

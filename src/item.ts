@@ -430,6 +430,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       target.detachValue();
       assert(payload.value);
       target.copyValue(payload);
+
       if (this.formulaType === 'replaceInput') {
         // initialize call body to recalc input defaults
         // preserving primary input value
@@ -546,6 +547,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             // call body is value of last statement of call
             let call = cast(changeBase.get('^call').value, Call);
             code = cast(arrayLast(call.statements).value, Do);
+            if (!code.result) {
+              // during analysis eval short-circuits on possibly recursive funcs
+              throw new StaticError(changeBase, 'called function not updatable')
+            }
           } else {
             code = cast(changeBase.get('^code').value, Code);
           }
@@ -592,11 +597,13 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       continue;
     }
 
-    // replace grounded changes in result, which was copied earlier from context
+    // replace grounded changes in result copied from context
+    this.detachValue();
+    this.copyValue(context);
     for (let grounded of groundedChanges) {
       // follow path within change context
       let target = this.down(grounded.base.path.ids.slice(ref.context));
-      target.detachValue()
+      target.detachValue();
       target.copyValue(grounded);
     }
   }
@@ -697,14 +704,13 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     if (this.metadata) this.metadata.initialize();
     this.evaluated = false;
     assert(this.formulaType);
+    this.rejected = false;
     if (this.formulaType !== 'none') {
       // recalc value
-      this.rejected = false;
       if (this.value) this.detachValue();
       return;
     }
     // recurse on predefined values
-    assert(!this.rejected);
     this.value!.initialize();
   }
 
