@@ -35,6 +35,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   // FIXME: report ordinals on anon fields, not serials
   get pathString() { return this.path.toString(); }
 
+
+  /** whether this item contains another */
+  contains(other: Item): boolean {
+    return this.path.contains(other.path);
+  }
+  /** whether this item contains or equals another based on paths */
+  containsOrEquals(other: Item): boolean {
+    return this.path.containsOrEquals(other.path);
+  }
+
   /** whether this item is in an array template */
   get inTemplate() { return this.path.ids.includes(0) }
 
@@ -320,6 +330,30 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           break;
 
         case 'write':
+          if (this.workspace.analyzing) {
+            // must be inside an update block
+            for (let up of this.upwards()) {
+              if (up.value instanceof Update) break;
+              if (up instanceof Workspace) {
+                throw new StaticError(this, 'write must be in update block');
+              }
+            }
+            // check target and type of writes
+            let targetRef = cast(this.get('^target').value, Reference);
+            let target = targetRef.target!;
+            const delta = this.get('^delta');
+            if (!target.value!.changeableFrom(delta.value!)) {
+              throw new StaticError(this, 'write changing type')
+            }
+            if (!target.comesBefore(delta)) {
+              throw new StaticError(arrayLast(targetRef.tokens), 'write must go backwards')
+            }
+            if (!target.isInput && !target.isUpdatableOutput) {
+              throw new StaticError(arrayLast(targetRef.tokens),
+                'unwritable location');
+              // note contextual writability of target is checked in replace
+            }
+          }
           // write is actually performed in triggering replace operation
           // target and delta in metadata already evaluated
           // copy value of delta
@@ -353,6 +387,41 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
 
     this.evaluated = true;
+  }
+
+  /** iterate through nested evaluated statements */
+  *evaluatedStatements(): Generator<Statement> {
+    switch (this.formulaType) {
+      case 'code':
+        yield *cast(this.get('^code').value, Code).evaluatedStatements();
+        break;
+
+      case 'loop':
+        let loop = cast(this.get('^loop').value, Loop);
+        trap(); // FIXME
+        break;
+
+      case 'call':
+        let call = cast(this.get('^call').value, Call);
+        for (let arg of call.statements.slice(1)) {
+          yield* arg.evaluatedStatements();
+        }
+        yield *cast(arrayLast(call.statements).value, Do).evaluatedStatements();
+        break;
+
+      case 'replace':
+      case 'replaceInput':
+      case 'choose':
+        let payload = this.getMaybe('^payload');
+        if (payload) {
+          yield* payload.evaluatedStatements();
+        }
+        break;
+
+      case 'write':
+        yield *this.get('^delta').evaluatedStatements();
+        break;
+    }
   }
 
   /** get result of code or call */
@@ -490,7 +559,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     /** function to record a write through a reference in pendingChanges */
     const writeRef = (ref: Reference, change: Item) => {
       let target = ref.target!;
-      if (!context.path.contains(target.path)) {
+      if (!context.contains(target)) {
         // TODO: defer entire replace if leaves context
         trap();
       }
@@ -504,7 +573,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     const writeChange = (target: Metafield) => {
       // insert into pending changes sorted by location
       let i = pendingChanges.length;
-      while (i > 0 && target.comesBefore(pendingChanges[--i].base)) { }
+      while (--i >= 0) {
+        let pending = pendingChanges[i].base;
+        if (pending.comesBefore(target)) break;
+        if (target.containsOrEquals(pending)) {
+          // overwrite
+          // TODO: optionally treat as a static error
+          pendingChanges.splice(i, 0);
+        }
+        continue
+      }
       pendingChanges.splice(i + 1, 0, target);
     }
 
@@ -572,8 +650,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           input.setFrom(change);
           // evaluate update and queue up writes
           update.eval();
-          // FIXME scan nested code blocks for writes
-          for (let write of update.statements) {
+          // Execute all internal write statements
+          for (let write of update.evaluatedStatements()) {
             if (write.formulaType !== 'write') continue;
             writeRef(cast(write.get('^target').value, Reference), write);
           }

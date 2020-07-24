@@ -315,7 +315,7 @@ export class Reference extends Base {
         if (target.container instanceof Code && !target.isInput) {
           // FIXME: only allow backward references within code
           // FIXME: outside references to outputs are conditionalized on block
-          assert(target.container.containingItem.path.contains(from.path));
+          assert(target.container.containingItem.contains(from));
           conditional = false;
         }
         if (conditional && token.text === '~') {

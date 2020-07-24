@@ -26,25 +26,6 @@ export class Update extends Code {
     let input = this.statements[0];
     input.used = true;
     // TODO type check user-defined input
-
-    // check target and type of writes
-    this.statements.forEach(statement => {
-      if (statement.formulaType !== 'write') return;
-      let targetRef = cast(statement.get('^target').value, Reference);
-      let target = targetRef.target!;
-      const delta = statement.get('^delta');
-      if (!target.value!.changeableFrom(delta.value!)) {
-        throw new StaticError(statement, 'write changing type')
-      }
-      if (!target.comesBefore(delta)) {
-        throw new StaticError(arrayLast(targetRef.tokens), 'write must go backwards')
-      }
-      if (!target.isInput && !target.isUpdatableOutput) {
-        throw new StaticError(arrayLast(targetRef.tokens),
-          'unwritable location');
-        // note contextual writability of target is checked in replace
-      }
-    })
   }
 
 }

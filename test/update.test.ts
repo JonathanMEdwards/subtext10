@@ -68,20 +68,6 @@ test('reverse formula in replace', () => {
   expect(w.dumpAt('u')).toEqual({c: 100, f: 212});
 });
 
-// update conditional
-// reverse conditional
-
-
-// test('updatable output ends with update', () => {
-//   expectCompiling("c: 0, f =|> c")
-//     .toThrow('updatable output requires update block');
-// });
-
-test('update block ends with write', () => {
-  expectCompiling("c: 0, f =|> c update{0}")
-    .toThrow('update block must end with write');
-});
-
 test('write type check', () => {
   expectCompiling("c: 0, f =|> c update{write 'foo' -> c}")
     .toThrow('write changing type');
@@ -92,8 +78,73 @@ test('write order check', () => {
     .toThrow('write must go backwards');
 });
 
+test('conditional update', () => {
+  let w = compile(`
+  c: 0
+  f =|> c * 1.8 + 32 update{
+    try {
+      check 1 =? 2
+      write 50 -> c
+    }
+    else {
+      write - 32 / 1.8 -> c
+    }
+  }`);
+  w.writeAt('f', 212);
+  expect(w.dumpAt('c')).toEqual(100);
+});
+
+test('conditional update 2', () => {
+  let w = compile(`
+  c: 0
+  f =|> c * 1.8 + 32 update{
+    try {
+      check 1 not=? 2
+      write 50 -> c
+    }
+    else {
+      write - 32 / 1.8 -> c
+    }
+  }`);
+  w.writeAt('f', 212);
+  expect(w.dumpAt('c')).toEqual(50);
+});
+
+test('reverse conditional update', () => {
+  let w = compile(`
+  c: 0
+  f =|> do{
+    try {
+      check 1 =? 2
+      c + 1
+    }
+    else {
+      c + 2
+    }
+  }`);
+  w.writeAt('f', 100);
+  expect(w.dumpAt('c')).toEqual(98);
+});
+
+test('reverse conditional update 2', () => {
+  let w = compile(`
+  c: 0
+  f =|> do{
+    try {
+      check 1 not=? 2
+      c + 1
+    }
+    else {
+      c + 2
+    }
+  }`);
+  w.writeAt('f', 100);
+  expect(w.dumpAt('c')).toEqual(99);
+});
+
+
+
 // equality testing
 // glitch avoidance
 // change aggregation
 // overwrites
-// writes in code blocks and conditionals

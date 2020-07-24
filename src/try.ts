@@ -1,4 +1,4 @@
-import { Do, StaticError, arrayLast, Crash, Field, Code, assert, cast, Choice, assertDefined, trap, Item, Reference } from "./exports";
+import { Do, StaticError, arrayLast, Crash, Field, Code, assert, cast, Choice, assertDefined, trap, Item, Reference, Statement } from "./exports";
 
 /** a try block is the basic control structure of Subtext. It contains a sequnce
  * of do-blocks called clauses. The clauses are executed in order until one does
@@ -125,4 +125,20 @@ export class Try extends Code {
       }
     }
   }
+
+  /** iterate through nested evaluated statements */
+  *evaluatedStatements(): Generator<Statement> {
+    if (this.workspace.analyzing) {
+      yield* super.evaluatedStatements();
+      return;
+    }
+    // when not analyzing yield only the executed clause
+    for (let clause of this.statements) {
+      if (!clause.rejected) {
+        yield* clause.evaluatedStatements();
+        return;
+      }
+    }
+  }
+
 }

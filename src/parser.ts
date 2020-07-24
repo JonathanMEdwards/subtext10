@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character, OptionReference, Update, Updatable } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character, OptionReference, Update, Updatable, Version, Container, Item } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -352,10 +352,6 @@ export class Parser {
       field.setValue(update);
       // inject change input field at beginning of block
       this.injectInput(update, 'change: that');
-      if (arrayLast(update.statements).formulaType !== 'write') {
-        throw this.setError('update block must end with write',
-          this.prevToken);
-      }
       return true;
     }
 
@@ -437,18 +433,14 @@ export class Parser {
 
     // write
     if (this.matchToken('write')) {
-      if (
-        !(field.container instanceof Update)
-        || !(field instanceof Statement) // redundant but casts type
-      ) {
-        throw this.setError('write must be in update block', this.prevToken);
+      if (!(field instanceof Statement)) {
+        throw this.setError('write must be in code block', this.prevToken);
       }
       field.formulaType = 'write';
       if (field.dataflow) {
         throw this.setError('illegal dataflow attribute on write',
           this.prevToken);
       }
-      field.dataflow = 'write';
 
       if (this.parseToken('->')) {
         // default delta to fake 'that' reference

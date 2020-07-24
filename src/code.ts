@@ -124,10 +124,7 @@ export class Code extends Block<Statement> {
       && exportOrigin.id.name === '^export'
     ) {
       let originBase = exportOrigin.container.containingItem;
-      if (
-        originBase.path.containsOrEquals(this.containingItem.path)
-        !== !!exportType
-      ) {
+      if (originBase.containsOrEquals(this.containingItem) !== !!exportType) {
         throw new StaticError(ex, 'recursive export must define reference');
       }
     }
@@ -157,6 +154,15 @@ export class Code extends Block<Statement> {
     }
   }
 
+  /** iterate through nested evaluated statements */
+  *evaluatedStatements(): Generator<Statement> {
+    for (let statement of this.statements) {
+      yield *statement.evaluatedStatements();
+      yield statement;
+    }
+  }
+
+
   /** initialize all values */
   initialize() {
     this.result = undefined;
@@ -175,7 +181,7 @@ export class Code extends Block<Statement> {
 export class Statement extends Field {
 
   /** dataflow qualifier that passes previous value to next statement */
-  dataflow?: 'let' | 'check' | 'export' | 'update' | 'write';
+  dataflow?: 'let' | 'check' | 'export' | 'update';
 
   /** during analysis, whether field is used */
   used?: boolean;
