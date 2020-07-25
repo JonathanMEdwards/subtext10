@@ -14,6 +14,7 @@ export class Choice extends Block {
 
   /** set choice. Unchoosen options are initialized */
   setChoice(index: number) {
+    assert(index >= 0 && index < this.fields.length);
     this.choice.initialize();
     this.choiceIndex = index;
   }

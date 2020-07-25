@@ -1,4 +1,4 @@
-import { Block, FieldID, Item, Value, Dictionary, assert, assertDefined, Field, Reference, cast, Text, Choice, StaticError, ID, OptionReference } from "./exports";
+import { Block, FieldID, Item, Value, Dictionary, assert, assertDefined, Field, Reference, cast, Text, Choice, StaticError, ID, OptionReference, Path } from "./exports";
 
 /** Metadata on an Item, containing fields with MetafieldID, and whose names all
  *start with '^' */
@@ -26,8 +26,14 @@ export class Metadata extends Block<Metafield> {
 
     return field;
   }
-
 }
+
+/** Special Metadata to contain ^delta Metafield, which is not stored in normal
+ * metadata. Stored in Item.delta*/
+export class DeltaContainer extends Metadata {
+  get deltaField() { return this.items[0] }
+}
+
 
 export class Metafield extends Field<MetaID> {
 
@@ -36,8 +42,8 @@ export class Metafield extends Field<MetaID> {
     return this.container.containingItem;
   }
 
-  /** Previous item in metadata is previous item of the base data. Except ^payload
-   * goes to ^target */
+  /** Previous item in metadata is previous item of the base data. Except
+   * ^payload goes to ^target */
   previous(): Item | undefined {
     this.usesPrevious = true;
     if (this.id === MetaID.ids['^payload']) {
@@ -66,15 +72,12 @@ export class Metafield extends Field<MetaID> {
  * interned. */
 export class MetaID extends FieldID {
   // MetaID doesn't use a serial #. Instead the name is the globally unique ID.
-  constructor(name: string, dynamic = false) {
+  constructor(name: string) {
     super(NaN);
     this.name = name;
-    if (dynamic) this.dynamic = true;
   }
-  /** whether should be copied */
-  dynamic!: boolean;
 
-  /** predefined metadata IDs */
+/** predefined metadata IDs */
   static ids: Dictionary<MetaID> = {
     '^literal': new MetaID('^literal'),       // Literal formula
     '^reference': new MetaID('^reference'),   // Reference formula
@@ -87,7 +90,7 @@ export class MetaID extends FieldID {
     '^initial': new MetaID('^initial'),       // initial value of item
     '^export': new MetaID('^export'),         // Exported value
     '^exportType': new MetaID('^exportType'), // Exported value type
-    '^delta': new MetaID('^delta'),           // Formula before ->
-    '^change': new MetaID('^change', true),  // Update values
+    '^writeValue': new MetaID('^writeValue'), // Formula before ->
+    '^delta': new MetaID('^delta'),      // Pending change in DeltaContainer
   }
 }

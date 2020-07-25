@@ -26,10 +26,6 @@ export abstract class Container<I extends Item> extends Value {
     let to = super.copy(srcPath, Path);
     this.items.forEach(item => {
       assert(item.container === this);
-      if (item.id instanceof MetaID && item.id.dynamic) {
-        // don't copy dynamic metadata
-        return;
-      }
       to.add(item.copy(srcPath, Path));
     })
     return to;

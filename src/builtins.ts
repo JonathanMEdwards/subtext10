@@ -39,22 +39,19 @@ export function updateBuiltin(statement: Statement, change: Item): Metafield {
     throw new StaticError(statement, `Builtin %{name} not updatable`)
   }
 
-  // write to ^change metadata field on first input parameter
+  // write to ^delta of first input parameter
   let input = statement.container.items[0];
   assert(input.isInput);
-  let write = input.getMaybe('^change') as Metafield;
-  if (write) {
-    write.detachValue();
-  } else {
-    write = input.setMeta('^change', undefined);
-  }
+  let write = input.setDelta(undefined);
 
   // append changed result to input values
   let values = inputs(statement);
   let delta = assertDefined(change.value);
   values.push(delta instanceof _Number ? delta.value : delta);
 
+  // call update function
   update(write, ...values);
+  assert(write.value);
 
   return write;
 }
@@ -66,8 +63,9 @@ export type builtinValue = number | Value;
 export const builtins: Dictionary<(statement: Statement, ...args: any[]) => void>
   = {};
 
-/** dispatch table for builtin updates */
-export const builtinUpdates: Dictionary<(write: Item, ...args: any[]) => void>
+/** dispatch table for builtin updates. write is the ^delta to set. args are the
+ * input argument values followed by the update value */
+export const builtinUpdates: Dictionary<(write: Metafield, ...args: any[]) => void>
   = {};
 
 /** definition of builtins */

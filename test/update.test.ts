@@ -143,8 +143,13 @@ test('reverse conditional update 2', () => {
 });
 
 
-
-// equality testing
-// glitch avoidance
-// change aggregation
-// overwrites
+test('update aggregation', () => {
+  let w = compile(`
+  s: record {
+    c: 0
+    d: 0
+  }
+  t =|> s`);
+  w.writeAt('t.c', 100);
+  expect(w.dumpAt('s')).toEqual({c: 100, d: 0});
+})

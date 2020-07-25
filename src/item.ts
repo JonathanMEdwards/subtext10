@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop, OptionReference, Update, updateBuiltin, Do} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop, OptionReference, Update, updateBuiltin, Do, DeltaContainer} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -191,7 +191,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    * replaceInput: special replace used for input of a call
    *
-   * write: formula in ^delta, structural reference in ^target
+   * write: formula in ^writeValue, structural reference in ^target
    *
    * choose: dependent optionReference in ^target, optional formula in ^payload
    *
@@ -341,11 +341,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             // check target and type of writes
             let targetRef = cast(this.get('^target').value, Reference);
             let target = targetRef.target!;
-            const delta = this.get('^delta');
-            if (!target.value!.changeableFrom(delta.value!)) {
+            const writeValue = this.get('^writeValue');
+            if (!target.value!.changeableFrom(writeValue.value!)) {
               throw new StaticError(this, 'write changing type')
             }
-            if (!target.comesBefore(delta)) {
+            if (!target.comesBefore(writeValue)) {
               throw new StaticError(arrayLast(targetRef.tokens), 'write must go backwards')
             }
             if (!target.isInput && !target.isUpdatableOutput) {
@@ -355,9 +355,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             }
           }
           // write is actually performed in triggering replace operation
-          // target and delta in metadata already evaluated
-          // copy value of delta
-          this.copyValue(this.get('^delta'));
+          // target and writeValue in metadata already evaluated
+          // copy value of writeValue
+          this.copyValue(this.get('^writeValue'));
           break;
 
         case 'include':
@@ -419,7 +419,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         break;
 
       case 'write':
-        yield *this.get('^delta').evaluatedStatements();
+        yield *this.get('^writeValue').evaluatedStatements();
         break;
     }
   }
@@ -445,8 +445,56 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
   }
 
-  /** evaluate replace/choose operation, setting value of this item */
+
+  /** Optional container for a ^delta value set during replaces. Kept out of
+   * metadata so as to not affect value semantics. Not copied.
+   */
+  delta?: DeltaContainer;
+  get deltaField(): Metafield | undefined {
+    return this.delta?.deltaField
+  }
+  /** set or replace delta value */
+  setDelta(from?: Item): Metafield {
+    if (!this.delta) {
+      // allocate delta container
+      this.delta = new DeltaContainer;
+      this.delta.containingItem = this;
+      let deltaField = new Metafield;
+      this.delta.add(deltaField);
+      deltaField.id = MetaID.ids['^delta'];
+    }
+    let deltaField = this.delta.deltaField;
+    if (deltaField.value) {
+      deltaField.detachValue();
+    }
+    if (from) {
+      deltaField.setFrom(from);
+    }
+    return deltaField;
+  }
+
+
+
+  /** evaluate replace/choose operation
+   *
+   * Output updates are handled by explicit update blocks and
+   * implicit reverse execution of code blocks. These are executed in strict
+   * backwards tree order. Updates propagate backwards in the context value
+   * until they all ground out in input fields.
+   *
+   * Updates are executed within the input context value, stored in ^delta
+   * metdata, and tracked in the array pendingDeltas. Updates grounding out in
+   * input fields get written into the copy of the context in value of this
+   * field.
+   */
+
   private replace() {
+
+    // stack of pending deltas, sorted in tree order
+    const pendingDeltas: Metafield[] = [];
+    // array of grounded deltas (on input fields)
+    const groundedDeltas: Metafield[] = [];
+
     // target and payload in metadata already evaluated
     const ref = cast(this.get('^target').value, Reference);
     assert(ref.dependent);
@@ -457,107 +505,59 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       this.rejected = true;
       if (!this.workspace.analyzing) return;
     }
-    assert(ref.target);
+    let target = ref.target;
+    assert(target);
     const context = this.workspace.down(ref.path.ids.slice(0, ref.context));
     // context.eval(); // don't think this is needed
-    // copy previous value of context into result value
-    this.copyValue(context);
 
-    // follow target dependent path within result value
-    let target = this.down(ref.path.ids.slice(ref.context));
-
-    // choose
-    if (this.formulaType === 'choose') {
-      assert(ref instanceof OptionReference);
-      let choice = target.value;
-      assert(choice instanceof Choice);
-      let option = target.get(ref.optionID);
-      // resolve deferred analysis of the option
-      option.resolve();
-
-      choice.setChoice(choice.fields.indexOf(option as Field));
-      // set option value from payload
-      target = option;
-    } else {
-      // replaces need to be within previous value
-      assert(ref.path.length > ref.context);
-    }
-
-    let payload = this.getMaybe('^payload');
-    if (!payload) {
-      // payload optional in choose
-      assert(this.formulaType === 'choose')
-    } else {
-      // replace target value with payload value
-      target.eval();
-      if (!target.value!.changeableFrom(payload.value!)) {
-        throw new StaticError(ref.tokens[0], 'changing type of value')
-      }
+    // Set ^delta on target to changed value
+    const payload = this.getMaybe('^payload');
+    if (payload) {
       this.setConditional(payload.conditional);
       if (payload.rejected) this.rejected = true;
-
-      target.detachValue();
       assert(payload.value);
-      target.copyValue(payload);
+    }
 
-      if (this.formulaType === 'replaceInput') {
-        // initialize call body to recalc input defaults
-        // preserving primary input value
-        // let input = assertDefined(target.value);
-        // target.container.initialize();
-        // if (!target.value) {
-        //   target.setValue(input);
-        // }
-        assert(target === target.container.items[0]);
-        target.container.items.slice(1).forEach(statement =>
-          statement.initialize())
+    if (this.formulaType === 'choose') {
+      // choose
+      assert(ref instanceof OptionReference);
+      // copy change from current value
+      const choicedelta = target.setDelta(target);
+      pendingDeltas.push(choicedelta);
+      let choice = cast(choicedelta.value, Choice);
+      // set choice
+      choice.setChoice(choice.items.findIndex(
+        option => option.id === ref.optionID));
+      let option = choice.choice;
+      // resolve deferred analysis of the option
+      option.resolve();
+      if (payload) {
+        // replace target value with payload value
+        option.eval();
+        if (!option.value!.changeableFrom(payload.value!)) {
+          throw new StaticError(arrayLast(ref.tokens), 'changing type of value')
+        }
+        option.detachValue();
+        option.copyValue(payload);
       }
-    }
-
-    // check that target location is updatable in context
-    let source = ref.target;
-    for (
-      target = this.down(ref.path.ids.slice(ref.context));
-      target !== this;
-      target = target.container.containingItem
-    ) {
-      if (target.isInput) {
-        source = source.container.containingItem
-        continue;
+      if (target === context) {
+        // replace value of entire context
+        this.copyValue(choicedelta);
+        return;
       }
-      if (target.isUpdatableOutput) break;
-      throw new StaticError(
-        ref.tokens[ref.context + target.path.length - this.path.length],
-        'not updatable output')
+    } else {
+      // replace needs to be within context
+      assert(target !== context);
+      assert(payload);
+      // replace target value with payload value
+      if (!target.value!.changeableFrom(payload.value!)) {
+        throw new StaticError(arrayLast(ref.tokens), 'changing type of value')
+      }
+      pendingDeltas.push(target.setDelta(payload));
     }
-    if (target === this) {
-      // target is inputs up to context - done
-      return;
-    }
-    assert(this.formulaType !== 'replaceInput');
 
-    /** Output update. Output updates are handled by explicit update blocks and
-     * implicit reverse execution of code blocks. These are executed in strict
-     * backwards tree order. Updates propagate backwards in the context value
-     * until they all ground out in input fields.
-     *
-     * Updates are executed within the input context value, stored in ^change
-     * metdata, and tracked in the array pendingDeltas. Updates grounding out in
-     * input fields get written into the copy of the context in value of this
-     * field.
-    */
-
-    // move target in result value to ^change in input. The rest of the replace
-    // operation will work inside the input value until it is done
-
-    // stack of pending changes, sorted in tree order
-    const pendingChanges = [source.replaceMeta('^change', target)];
-    target.detachValue();
-    // array of grounded changes (on input fields)
-    const groundedChanges: Metafield[] = [];
-
-    /** function to record a write through a reference in pendingChanges */
-    const writeRef = (ref: Reference, change: Item) => {
+    /** function to record a write through a reference in pendingdeltas */
+    const writeRef = (ref: Reference, value: Item) => {
       let target = ref.target!;
       if (!context.contains(target)) {
         // TODO: defer entire replace if leaves context
@@ -566,76 +566,109 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       if (!context.isWritable(target)) {
         throw new StaticError(arrayLast(ref.tokens), 'unwritable location')
       }
-      writeChange(target.replaceMeta('^change', change));
+      writeDelta(target.setDelta(value));
     }
 
-    /** function to record a write in pendingChanges */
-    const writeChange = (target: Metafield) => {
-      // insert into pending changes sorted by location
-      let i = pendingChanges.length;
+    /** function to record a write in pendingdeltas */
+    const writeDelta = (delta: Metafield, checkOverwrites = true) => {
+      // insert into pending deltas sorted by location
+      let i = pendingDeltas.length;
       while (--i >= 0) {
-        let pending = pendingChanges[i].base;
-        if (pending.comesBefore(target)) break;
-        if (target.containsOrEquals(pending)) {
+        let pending = pendingDeltas[i].base;
+        if (pending.comesBefore(delta)) break;
+        if (pending.contains(delta)) break;
+        if (checkOverwrites && delta.containsOrEquals(pending)) {
           // overwrite
           // TODO: optionally treat as a static error
-          pendingChanges.splice(i, 0);
+          pendingDeltas.splice(i, 0);
         }
         continue
       }
-      pendingChanges.splice(i + 1, 0, target);
+      pendingDeltas.splice(i + 1, 0, delta);
     }
 
-    // propagate changes in reverse tree order
-    while (pendingChanges.length) {
-      let change = pendingChanges.pop()!;
-      let changeBase = change.base;
-      changeBase.eval();
+    // propagate pending deltas in reverse tree order till all grounded
+    while (pendingDeltas.length) {
+      let delta = pendingDeltas.pop()!;
+      let deltaBase = delta.base;
+      deltaBase.eval();
+
+      // lift deltas to containing updatable output
+      let outputBase = context.isWritable(deltaBase);
+      if (!outputBase) {
+        // unwritable location
+        throw new StaticError(deltaBase, 'not updatable location')
+      }
+      if (outputBase !== deltaBase) {
+        // deltas within updatable output are lifted into it's ^delta
+        assert(outputBase.isUpdatableOutput);
+        let outputdelta = outputBase.deltaField;
+        if (!outputdelta) {
+          // initialize containing output delta from prior value
+          outputdelta = outputBase.setDelta(outputBase);
+          // insert into pendingdeltas without overwriting content changes
+          writeDelta(outputdelta, false);
+        } else {
+          // TODO: if outputdelta was explicitly written treat as overwrite
+        }
+        // write into output delta at downward path
+        let target =
+          outputdelta.down(deltaBase.path.ids.slice(outputBase.path.length));
+        assert(target.isInput);
+        target.detachValue();
+        target.setFrom(delta);
+        continue;
+      }
 
       // changes to inputs
-      // FIXME: check containers
-      if (changeBase.isInput) {
-        if (changeBase.container instanceof Code) {
-          let call = changeBase.container.containingItem.container;
+      if (deltaBase.isInput) {
+        if (
+          // changing code input field
+          deltaBase.container instanceof Code
+          // but not in a call
+          && !(this.container instanceof Call)
+        ) {
+          // code input
+          let call = deltaBase.container.containingItem.container;
           if (call instanceof Call &&
-            changeBase.container.items[0] === changeBase
+            deltaBase.container.items[0] === deltaBase
           ) {
-            // primary input of a call - propagate change into call
+            // primary input of a call - propagate delta into call
             let inputReplace = call.statements[1];
             assert(inputReplace.formulaType === 'replaceInput');
             let ref = inputReplace.get('^payload').get('^reference').value;
             assert(ref instanceof Reference);
-            writeRef(ref, change);
+            writeRef(ref, delta);
             continue;
           }
-          throw new StaticError(changeBase, 'unwritable location')
+          throw new StaticError(deltaBase, 'not updatable location')
         } else {
-          // ground out data change
-          groundedChanges.push(change);
+          // ground out data delta
+          groundedDeltas.push(delta);
           continue;
         }
       }
 
-      switch (changeBase.formulaType) {
+      switch (deltaBase.formulaType) {
 
         case 'call':
         case 'code': {
           let code: Code;
-          if (changeBase.formulaType === 'call') {
+          if (deltaBase.formulaType === 'call') {
             // call body is value of last statement of call
-            let call = cast(changeBase.get('^call').value, Call);
+            let call = cast(deltaBase.get('^call').value, Call);
             code = cast(arrayLast(call.statements).value, Do);
             if (!code.result) {
               // during analysis eval short-circuits on possibly recursive funcs
-              throw new StaticError(changeBase, 'called function not updatable')
+              throw new StaticError(deltaBase, 'called function not updatable')
             }
           } else {
-            code = cast(changeBase.get('^code').value, Code);
+            code = cast(deltaBase.get('^code').value, Code);
           }
 
           if (arrayLast(code.statements).dataflow !== 'update') {
-            // no update block - write change onto result of code block
-            writeChange(code.result!.replaceMeta('^change', change));
+            // no update block - write delta onto result of code block
+            writeDelta(code.result!.setDelta(delta));
             continue;
           }
 
@@ -643,11 +676,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           // note types were already checked during analysis of def site
           let update = cast(arrayLast(code.statements).value, Update);
 
-          // set input change of update block
+          // set input delta of update block
           update.initialize();
           let input = update.statements[0];
           assert(input.isInput && !input.value);
-          input.setFrom(change);
+          input.setFrom(delta);
           // evaluate update and queue up writes
           update.eval();
           // Execute all internal write statements
@@ -660,12 +693,12 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
         case 'reference': {
           // write through reference
-          writeRef(cast(changeBase.get('^reference').value, Reference), change);
+          writeRef(cast(deltaBase.get('^reference').value, Reference), delta);
           break;
         }
 
         case 'builtin': {
-          writeChange(updateBuiltin(cast(changeBase, Statement), change));
+          writeDelta(updateBuiltin(cast(deltaBase, Statement), delta));
           break;
         }
 
@@ -675,34 +708,49 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       continue;
     }
 
-    // replace grounded changes in result copied from context
-    this.detachValue();
+    // replace grounded deltas in result copied from context
+    if (this.value) {
+      this.detachValue();
+    }
     this.copyValue(context);
-    for (let grounded of groundedChanges) {
-      // follow path within change context
+    for (let grounded of groundedDeltas) {
+      // follow path within delta context
       let target = this.down(grounded.base.path.ids.slice(ref.context));
       target.detachValue();
       target.copyValue(grounded);
     }
+
+
+    if (this.formulaType === 'replaceInput') {
+      // initialize call body to recalc arg defaults from input value,
+      // preserving primary input value
+      // FIXME: maybe compile this into an explicit initialize oepration?
+      // But don't want to init primary input.
+      cast(this.value, Code).statements.slice(1).forEach(statement =>
+        statement.initialize())
+    }
+
   }
 
   /** whether a contained item is writable in this context. Must be inputs up to
-   * a containing updatable output or this */
-  isWritable(item: Item): boolean {
+   * a containing updatable output or this. Returns the containing updatable
+   * output or the original input */
+  isWritable(item: Item): Item | undefined {
     // scan upwards to this
-    for (; item !== this; item = item.container.containingItem) {
-      if (item instanceof Metafield) {
+    for (let up = item; up !== this; up = up.container.containingItem) {
+      if (up instanceof Metafield) {
         // can't write into metadata
-        return false;
+        return undefined;
       }
-      if (item instanceof Statement) {
+      if (up instanceof Statement) {
         // can write into any code block statement
-        return true
+        return up
       }
-      if (item.isUpdatableOutput) return true;
-      if (!item.isInput) return false;
+      if (up.isUpdatableOutput) return up;
+      if (!up.isInput) return undefined;
     }
-    return true;
+    // Inputs all the way up so can write to original item
+    return item;
   }
 
   /** Iterate through containing items, starting with this and ending with

@@ -443,16 +443,16 @@ export class Parser {
       }
 
       if (this.parseToken('->')) {
-        // default delta to fake 'that' reference
-        let delta = field.setMeta('^delta', undefined);
-        delta.formulaType = 'reference';
+        // default writeValue to fake 'that' reference
+        let writeValue = field.setMeta('^writeValue', undefined);
+        writeValue.formulaType = 'reference';
         let ref = new Reference;
         ref.tokens = [Token.fake('that', this.prevToken)];
-        delta.setMeta('^reference', ref);
+        writeValue.setMeta('^reference', ref);
       } else {
-        // parse optional formula into ^delta
-        let delta = field.setMeta('^delta', undefined);
-        this.requireFormula(delta);
+        // parse optional formula into ^writeValue
+        let writeValue = field.setMeta('^writeValue', undefined);
+        this.requireFormula(writeValue);
         this.requireToken('->');
       }
 
