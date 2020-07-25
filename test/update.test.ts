@@ -43,7 +43,7 @@ test('reverse formula', () => {
   expect(w.dumpAt('c')).toEqual(100);
 });
 
-test('update in replace', () => {
+test('update in revise', () => {
   let w = compile(`
   s = record {
     c: 0;
@@ -55,7 +55,7 @@ test('update in replace', () => {
   expect(w.dumpAt('u')).toEqual({c: 100, f: 212});
 });
 
-test('reverse formula in replace', () => {
+test('reverse formula in revise', () => {
   let w = compile(`
   s = record {
     c: 0;

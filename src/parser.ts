@@ -382,13 +382,13 @@ export class Parser {
         // treat # after structural path as separate operation
         || (ref.dependent && this.matchToken('#'))
       ) {
-        // replace/choose operation
+        // revise/choose operation
         if (!ref.dependent) {
           throw this.setError(`# requires dot-path`, ref.tokens[0]);
         }
 
-        field.formulaType = this.prevToken.type === ':=' ? 'replace' : 'choose';
-        if (field.formulaType === 'replace') {
+        field.formulaType = this.prevToken.type === ':=' ? 'revise' : 'choose';
+        if (field.formulaType === 'revise') {
           field.setMeta('^target', ref);
         } else {
           // choose
@@ -530,11 +530,11 @@ export class Parser {
     prog.formulaType = 'reference';
     prog.setMeta('^reference', ref);
 
-    // second statement of call is input argument replace operation
+    // second statement of call is input argument revise operation
     let input = new Statement;
     input.id = this.space.newFieldID(undefined, this.prevToken);
     call.add(input);
-    input.formulaType = 'replaceInput';
+    input.formulaType = 'reviseInput';
     // target is dependent ref to first input
     let target = new Reference;
     target.tokens = [
@@ -552,7 +552,7 @@ export class Parser {
     if (rightValue) {
       // unparenthesized value argument
       let arg = new Statement;
-      arg.formulaType = 'replace';
+      arg.formulaType = 'revise';
       let target = new Reference;
       target.tokens = [
         Token.fake('that', startToken),
@@ -572,20 +572,20 @@ export class Parser {
       return call;
     }
 
-    // parse arguments into replace operations
+    // parse arguments into revise operations
     while (!this.parseToken(')')) {
       let arg = new Statement;
       let argToken = this.cursorToken;
       this.requireFormula(arg)
-      if (arg.formulaType !== 'replace') {
+      if (arg.formulaType !== 'revise') {
         // anonymous first argument
         if (call.fields.length !== 2) {
           throw this.setError('Only first argument can be anonymous', argToken);
         }
-        // move formula to payload of arg2 replace operation
+        // move formula to payload of arg2 revise operation
         let anon = arg;
         arg = new Statement;
-        arg.formulaType = 'replace';
+        arg.formulaType = 'revise';
         let target = new Reference;
         target.tokens = [
           Token.fake('that', argToken),

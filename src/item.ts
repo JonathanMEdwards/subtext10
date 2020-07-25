@@ -114,13 +114,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       || (isString(id) && id.startsWith('^'))
     ) {
       // metadata access
+      if (id === '^delta' || id === MetaID.ids['^delta']) {
+        return this.deltaField;
+      }
       let metafield = this.metadata?.getMaybe(id);
       if (metafield) return metafield;
       if (id === '^initial' || id === MetaID.ids['^initial']) {
+        // FIXME
         // synthesize ^initial metadata to access initial value of an input
         // copy base item into ^initial
-        // currently only used on options. Could just compile it into their
-        // definitions
+        // currently only used on options
         assert(this.isInput);
         this.resolve();
         let copy = this.copy(this.path, this.path.down(MetaID.ids['^initial']));
@@ -187,16 +190,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    * loop: value is result of a Loop block in ^loop
    *
-   * replace: dependent reference in ^target, formula in ^payload
+   * revise: dependent reference in ^target, formula in ^payload
    *
-   * replaceInput: special replace used for input of a call
+   * reviseInput: special revise used for input of a call
    *
    * write: formula in ^writeValue, structural reference in ^target
    *
    * choose: dependent optionReference in ^target, optional formula in ^payload
    *
    * call: Call block in ^call, starting with reference to function followed by
-   * replaces on the arguments
+   * revises on the arguments
    *
    * include: currently includes only builtins
    *
@@ -204,7 +207,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    *  */
   formulaType: (
-    'none' | 'literal' | 'reference' | 'code' | 'replace' | 'replaceInput'
+    'none' | 'literal' | 'reference' | 'code' | 'revise' | 'reviseInput'
     | 'write' | 'choose' | 'call' | 'include' | 'builtin' | 'loop'
   ) = 'none';
 
@@ -323,10 +326,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           this.result(cast(this.get('^call').value, Call));
           break;
 
-        case 'replace':
-        case 'replaceInput':
+        case 'revise':
+        case 'reviseInput':
         case 'choose':
-          this.replace();
+          this.revise();
           break;
 
         case 'write':
@@ -351,10 +354,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             if (!target.isInput && !target.isUpdatableOutput) {
               throw new StaticError(arrayLast(targetRef.tokens),
                 'unwritable location');
-              // note contextual writability of target is checked in replace
+              // note contextual writability of target is checked in revise
             }
           }
-          // write is actually performed in triggering replace operation
+          // write is actually performed in triggering revise operation
           // target and writeValue in metadata already evaluated
           // copy value of writeValue
           this.copyValue(this.get('^writeValue'));
@@ -409,8 +412,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         yield *cast(arrayLast(call.statements).value, Do).evaluatedStatements();
         break;
 
-      case 'replace':
-      case 'replaceInput':
+      case 'revise':
+      case 'reviseInput':
       case 'choose':
         let payload = this.getMaybe('^payload');
         if (payload) {
@@ -475,7 +478,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
 
 
-  /** evaluate replace/choose operation
+  /** evaluate revise/choose operation
    *
    * Output updates are handled by explicit update blocks and
    * implicit reverse execution of code blocks. These are executed in strict
@@ -488,7 +491,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    * field.
    */
 
-  private replace() {
+  private revise() {
 
     // stack of pending deltas, sorted in tree order
     const pendingDeltas: Metafield[] = [];
@@ -634,9 +637,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             deltaBase.container.items[0] === deltaBase
           ) {
             // primary input of a call - propagate delta into call
-            let inputReplace = call.statements[1];
-            assert(inputReplace.formulaType === 'replaceInput');
-            let ref = inputReplace.get('^payload').get('^reference').value;
+            let inputRevise = call.statements[1];
+            assert(inputRevise.formulaType === 'reviseInput');
+            let ref = inputRevise.get('^payload').get('^reference').value;
             assert(ref instanceof Reference);
             writeRef(ref, delta);
             continue;
@@ -721,7 +724,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
 
 
-    if (this.formulaType === 'replaceInput') {
+    if (this.formulaType === 'reviseInput') {
       // initialize call body to recalc arg defaults from input value,
       // preserving primary input value
       // FIXME: maybe compile this into an explicit initialize oepration?
@@ -976,7 +979,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return to;
   }
 
-  /** Type-checking for replace operations. Can this item be changed from
+  /** Type-checking for revise operations. Can this item be changed from
    * another. Recurses within a path context, which defaults to item paths */
   changeableFrom(from: Item, fromPath?: Path, thisPath?: Path): boolean {
     this.resolve();
