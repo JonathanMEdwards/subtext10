@@ -1,4 +1,4 @@
-import { Block, Field, assert, StaticError, Guard, Path, cast, Reference, Token, assertDefined, another, arrayLast, Crash, trap, arrayReverse, Value, Record, Item, Metafield, Update, Parser } from "./exports";
+import { Block, Field, assert, StaticError, Guard, Path, cast, Reference, Token, assertDefined, another, arrayLast, Crash, trap, arrayReverse, Value, Record, Item } from "./exports";
 
 /** A Code block is evaluated to produce a result value. The fields of the block
  * are called statements */
@@ -27,9 +27,9 @@ export class Code extends Block<Statement> {
   }
 
   /** update block at end else undefined */
-  get updateBlock(): Update | undefined {
+  get updateBlock(): OnUpdate | undefined {
     let block = arrayLast(this.statements).value;
-    return block instanceof Update ? block : undefined
+    return block instanceof OnUpdate ? block : undefined
   }
 
   eval() {
@@ -181,7 +181,7 @@ export class Code extends Block<Statement> {
 export class Statement extends Field {
 
   /** dataflow qualifier that passes previous value to next statement */
-  dataflow?: 'let' | 'check' | 'export' | 'update';
+  dataflow?: 'let' | 'check' | 'export' | 'on-update';
 
   /** during analysis, whether field is used */
   used?: boolean;
@@ -311,4 +311,34 @@ export class Call extends Code {
 
   // suppress exporting
   evalExports() { }
+}
+
+/** update reaction blocks */
+export class OnUpdate extends Code {
+
+  // note only called from containing eval during analysis
+  eval() {
+
+    super.eval();
+
+    // analyze update
+    if (!this.workspace.analyzing) return;
+    let container = this.containingItem.container;
+    if (
+      !(container instanceof Code)
+      || arrayLast(container.statements).value !== this
+    ) {
+      throw new StaticError(this.containingItem,
+        'update must be last statement of code block')
+    }
+    if (this.conditional) {
+      throw new StaticError(this.containingItem,
+        'update cannot be conditional')
+    }
+    // generated input doesn't need to be used
+    let input = this.statements[0];
+    input.used = true;
+    // TODO type check user-defined input
+  }
+
 }

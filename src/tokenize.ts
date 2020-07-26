@@ -5,7 +5,7 @@ import { arrayLast } from "./exports";
 
 export type TokenType = (
   ':' | '=' | ':=' | '#' | '.' | ',' | ';' | '{' | '}' | '(' | ')'
-  | '=|>' | 'update' | 'write' | '->' | 'updatable'
+  | '=|>' | 'on-update' | 'write' | '->' | 'updatable'
   | '[' | ']' | '[]' | 'string' | 'number' | '_number_'
   | 'name' | 'end' | '\n'
   | 'call' | 'arg1' | 'arg2' | 'input'
@@ -256,7 +256,7 @@ export function tokenize(source: string): Token[] {
         case 'for-none?':
         case 'query':
         case 'accumulate':
-        case 'update':
+        case 'on-update':
         case 'updatable':
         case 'write':
 

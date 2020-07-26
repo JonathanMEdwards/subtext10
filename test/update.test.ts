@@ -30,7 +30,7 @@ test('update type check', () => {
 });
 
 test('updatable output', () => {
-  let w = compile("c: 0, f =|> c * 1.8 + 32 update{write - 32 / 1.8 -> c}");
+  let w = compile("c: 0, f =|> c * 1.8 + 32 on-update{write - 32 / 1.8 -> c}");
   expect(w.dumpAt('f')).toEqual(32);
   w.writeAt('f', 212);
   expect(w.dumpAt('c')).toEqual(100);
@@ -47,7 +47,7 @@ test('update in revise', () => {
   let w = compile(`
   s = record {
     c: 0;
-    f =|> c * 1.8 + 32 update{write - 32 / 1.8 -> c}
+    f =|> c * 1.8 + 32 on-update{write - 32 / 1.8 -> c}
   }
   t = .f := 212
   u = s with{.f := 212}`);
@@ -69,19 +69,19 @@ test('reverse formula in revise', () => {
 });
 
 test('write type check', () => {
-  expectCompiling("c: 0, f =|> c update{write 'foo' -> c}")
+  expectCompiling("c: 0, f =|> c on-update{write 'foo' -> c}")
     .toThrow('write changing type');
 });
 
 test('write order check', () => {
-  expectCompiling("c: 0, f =|> c update{write -> g}, g: 0")
+  expectCompiling("c: 0, f =|> c on-update{write -> g}, g: 0")
     .toThrow('write must go backwards');
 });
 
 test('conditional update', () => {
   let w = compile(`
   c: 0
-  f =|> c * 1.8 + 32 update{
+  f =|> c * 1.8 + 32 on-update{
     try {
       check 1 =? 2
       write 50 -> c
@@ -97,7 +97,7 @@ test('conditional update', () => {
 test('conditional update 2', () => {
   let w = compile(`
   c: 0
-  f =|> c * 1.8 + 32 update{
+  f =|> c * 1.8 + 32 on-update{
     try {
       check 1 not=? 2
       write 50 -> c

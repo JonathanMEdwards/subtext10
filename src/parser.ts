@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character, OptionReference, Update, Updatable, Version, Container, Item } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character, OptionReference, OnUpdate, Updatable, Version, Container, Item } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -334,7 +334,7 @@ export class Parser {
       return true;
     }
 
-    if (this.parseToken('update')) {
+    if (this.parseToken('on-update')) {
       // update block is literal value skipped in dataflow
       field.formulaType = 'none';
       // set dataflow attribute as 'update' to skip value
@@ -343,12 +343,12 @@ export class Parser {
           throw this.setError(`update block cannot be ` + field.dataflow,
             this.prevToken);
         }
-        field.dataflow = 'update';
+        field.dataflow = 'on-update';
       } else {
         throw this.setError(`update block must be in code block`,
           this.prevToken);
       }
-      let update = this.requireBlock(new Update);
+      let update = this.requireBlock(new OnUpdate);
       field.setValue(update);
       // inject change input field at beginning of block
       this.injectInput(update, 'change: that');

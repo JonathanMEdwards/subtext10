@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop, OptionReference, Update, updateBuiltin, Do, DeltaContainer} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -336,7 +336,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           if (this.workspace.analyzing) {
             // must be inside an update block
             for (let up of this.upwards()) {
-              if (up.value instanceof Update) break;
+              if (up.value instanceof OnUpdate) break;
               if (up instanceof Workspace) {
                 throw new StaticError(this, 'write must be in update block');
               }
@@ -385,7 +385,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // evalIfNeeded was another workaround
     if (this.value
       && !(this.container instanceof Call)
-      && !(this.value instanceof Update && !this.workspace.analyzing)) {
+      && !(this.value instanceof OnUpdate && !this.workspace.analyzing)) {
       this.value.eval();
     }
 
@@ -669,7 +669,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             code = cast(deltaBase.get('^code').value, Code);
           }
 
-          if (arrayLast(code.statements).dataflow !== 'update') {
+          if (arrayLast(code.statements).dataflow !== 'on-update') {
             // no update block - write delta onto result of code block
             writeDelta(code.result!.setDelta(delta));
             continue;
@@ -677,7 +677,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
           // execute update block
           // note types were already checked during analysis of def site
-          let update = cast(arrayLast(code.statements).value, Update);
+          let update = cast(arrayLast(code.statements).value, OnUpdate);
 
           // set input delta of update block
           update.initialize();
