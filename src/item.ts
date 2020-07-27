@@ -194,16 +194,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    * loop: value is result of a Loop block in ^loop
    *
-   * revise: dependent reference in ^target, formula in ^payload
+   * update: dependent reference in ^target, formula in ^payload
    *
-   * reviseInput: special revise used for input of a call
+   * updateInput: special update used for input of a call
    *
    * write: formula in ^writeValue, structural reference in ^target
    *
    * choose: dependent optionReference in ^target, optional formula in ^payload
    *
    * call: Call block in ^call, starting with reference to function followed by
-   * revises on the arguments
+   * updates on the arguments
    *
    * include: currently includes only builtins
    *
@@ -211,7 +211,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    *  */
   formulaType: (
-    'none' | 'literal' | 'reference' | 'code' | 'revise' | 'reviseInput'
+    'none' | 'literal' | 'reference' | 'code' | 'update' | 'updateInput'
     | 'write' | 'choose' | 'call' | 'include' | 'builtin' | 'loop'
   ) = 'none';
 
@@ -330,20 +330,20 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           this.result(cast(this.get('^call').value, Call));
           break;
 
-        case 'revise':
-        case 'reviseInput':
+        case 'update':
+        case 'updateInput':
         case 'choose':
-          this.revise();
+          this.update();
           break;
 
         case 'write':
           assert(this instanceof Statement);
           if (this.workspace.analyzing) {
-            // must be inside an update block
+            // must be inside an on-update block
             for (let up of this.upwards()) {
               if (up.value instanceof OnUpdate) break;
               if (up instanceof Workspace) {
-                throw new StaticError(this, 'write must be in update block');
+                throw new StaticError(this, 'write must be in on-update block');
               }
             }
             // check target and type of writes
@@ -359,10 +359,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             if (!target.isInput && !target.isUpdatableOutput) {
               throw new StaticError(arrayLast(targetRef.tokens),
                 'unwritable location');
-              // note contextual writability of target is checked in revise
+              // note contextual writability of target is checked in update
             }
           }
-          // write is actually performed in triggering revise operation
+          // write is actually performed in triggering update operation
           // target and writeValue in metadata already evaluated
           // copy value of writeValue
           this.copyValue(this.get('^writeValue'));
@@ -384,7 +384,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
     // evaluate value contents deeply
     // Don't do this on the function bodies in a Call
-    // or update sections post analysis
+    // or on-update blocks post analysis
     // FIXME: this looks like a huge mistake
     // Should have separated shallow and deep evaluation
     // maybe causes some of the needs for deferred evaluation
@@ -418,8 +418,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         yield *cast(arrayLast(call.statements).value, Do).evaluatedStatements();
         break;
 
-      case 'revise':
-      case 'reviseInput':
+      case 'update':
+      case 'updateInput':
       case 'choose':
         let payload = this.getMaybe('^payload');
         if (payload) {
@@ -541,9 +541,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
 
 
-  /** evaluate revise/choose operation
+  /** evaluate update/choose operation
    *
-   * Output updates are handled by explicit update blocks and
+   * Output updates are handled by explicit on-update blocks and
    * implicit reverse execution of code blocks. These are executed in strict
    * backwards tree order. Updates propagate backwards in the context value
    * until they all ground out in input fields.
@@ -554,7 +554,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    * field.
    */
 
-  private revise() {
+  private update() {
 
     // stack of pending deltas, sorted in tree order
     const pendingDeltas: Metafield[] = [];
@@ -710,9 +710,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             deltaBase.container.items[0] === deltaBase
           ) {
             // primary input of a call - propagate delta into call
-            let inputRevise = call.statements[1];
-            assert(inputRevise.formulaType === 'reviseInput');
-            let ref = inputRevise.get('^payload').get('^reference').value;
+            let inputUpdate = call.statements[1];
+            assert(inputUpdate.formulaType === 'updateInput');
+            let ref = inputUpdate.get('^payload').get('^reference').value;
             assert(ref instanceof Reference);
             writeRef(ref, delta);
             continue;
@@ -743,24 +743,24 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           }
 
           if (arrayLast(code.statements).dataflow !== 'on-update') {
-            // no update block - write delta onto result of code block
+            // no on-update block - write delta onto result of code block
             writeDelta(code.result!.setDelta(delta));
             continue;
           }
 
-          // execute update block
+          // execute on-update block
           // note types were already checked during analysis of def site
-          let update = cast(arrayLast(code.statements).value, OnUpdate);
+          let onUpdate = cast(arrayLast(code.statements).value, OnUpdate);
 
-          // set input delta of update block
-          update.initialize();
-          let input = update.statements[0];
+          // set input delta of on-update block
+          onUpdate.initialize();
+          let input = onUpdate.statements[0];
           assert(input.isInput && !input.value);
           input.setFrom(delta);
-          // evaluate update and queue up writes
-          update.eval();
+          // evaluate on-update and queue up writes
+          onUpdate.eval();
           // Execute all internal write statements
-          for (let write of update.evaluatedStatements()) {
+          for (let write of onUpdate.evaluatedStatements()) {
             if (write.formulaType !== 'write') continue;
             writeRef(cast(write.get('^target').value, Reference), write);
           }
@@ -797,7 +797,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
 
 
-    if (this.formulaType === 'reviseInput') {
+    if (this.formulaType === 'updateInput') {
       // initialize call body to recalc arg defaults from input value,
       // preserving primary input value
       // FIXME: maybe compile this into an explicit initialize oepration?
@@ -1007,7 +1007,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return to;
   }
 
-  /** Type-checking for revise operations. Can this item be changed from
+  /** Type-checking for update operations. Can this item be changed from
    * another. Recurses within a path context, which defaults to item paths */
   changeableFrom(from: Item, fromPath?: Path, thisPath?: Path): boolean {
     this.resolve();

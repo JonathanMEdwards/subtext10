@@ -21,13 +21,13 @@ export class Code extends Block<Statement> {
   /** whether evaluation is conditional */
   conditional = false;
 
-  /** Block can be updated in a call */
+  /** Block can be updated from a call */
   get callIsUpdatable(): boolean {
-    return this instanceof Updatable || !!this.updateBlock;
+    return this instanceof Updatable || !!this.onUpdateBlock;
   }
 
-  /** update block at end else undefined */
-  get updateBlock(): OnUpdate | undefined {
+  /** on-update block at end else undefined */
+  get onUpdateBlock(): OnUpdate | undefined {
     let block = arrayLast(this.statements).value;
     return block instanceof OnUpdate ? block : undefined
   }
@@ -50,7 +50,6 @@ export class Code extends Block<Statement> {
     }
 
     // evaluate statements until rejection
-    // Update section is left unevaluated to be possible used in an update
     for (let statement of this.statements) {
       statement.eval();
       if (statement.conditional) {
@@ -227,7 +226,7 @@ export class With extends Code {
 }
 
 /** A Call is a special Do block used to call a function. It contains a
- * reference to the function body followed by revises on the input arguments.
+ * reference to the function body followed by updates on the input arguments.
  * The final value is the function body modified with all supplied arguments. */
 export class Call extends Code {
 
@@ -329,11 +328,11 @@ export class OnUpdate extends Code {
       || arrayLast(container.statements).value !== this
     ) {
       throw new StaticError(this.containingItem,
-        'update must be last statement of code block')
+        'on-update must be last statement of code block')
     }
     if (this.conditional) {
       throw new StaticError(this.containingItem,
-        'update cannot be conditional')
+        'on-update cannot be conditional')
     }
     // generated input doesn't need to be used
     let input = this.statements[0];

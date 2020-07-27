@@ -217,7 +217,7 @@ The value of the last item, 3, becomes the result of the call.
 > There is another abbreviation for defining functions. For example,
 > ```
 > increment2 = 0 + 1
->
+> 
 > ```
 > can be called like the prior example. Note this is equivalent to:
 > ```
@@ -244,40 +244,40 @@ the value of `plus` is just 1, the result of executing the function, not a speci
 
 > In fact functions really are “first-class” values, but they are only used in the UI and planned meta-programming capabilities.
 
-### Revising blocks
+### Updating blocks
 So far all of the examples have used arithmetic. But it is very common to work with blocks, particularly records,  as they are the rows of tables. Take the record:
 ```
 x: record {
   name: ''
-  number: 0
+  telephone: 0
 }
 ```
-This block contains two input items: `name`, which is an initially empty text, and `number`, which is initially the number `0`.
+This block contains two input items: `name`, which is an initially empty text, and `telephone`, which is initially the number `0`.
 
-The essential operations on a block are to read and revise individual items. We read the items using paths, like `x.name` and `x.number`. To revise an item we use a _revision operation_ with the special operator `:=`
+The essential operations on a block are to read and update individual items. We read the items using paths, like `x.name` and `x.number`. To update an item we use the symbol `:=`, called an_update_.
 ```
 x with{.name := 'Joe'}
 ```
-This is pronounced “x with name as Joe”. The result of this operation is a record equal to the value of `x` except with the item `name` changed to `'Joe'` (keeping the prior value of `number`). We used a `with` block to contain the revision operation, which is like a `do` block except that it feeds the previous value into an array of operations, rather than starting with a value. The equivalent `do` block would be:
+This is pronounced “x with name updated to Joe”. The result is a record equal to the value of `x` except with the item `name` having it’s value updated to `'Joe'` (keeping the prior value of `telephone`). We used a `with` block to contain the update operation, which is like a `do` block except that it feeds the previous value into a list of operations, rather than starting with a value. The equivalent `do` block would be:
 ```
 do{x; .name := 'Joe'}
 ```
 
 > It would be possible to allow the syntax `x.name := 'Joe`. But that is dangerous. The lexical binding of the first name in the path establishes the context of the modification. Prefixing a name to resolve lexical shadowing would thus change the semantics.
 
-We can chain multiple revisions together:
+We can chain multiple updates together:
 ```
-x with{.name := 'Joe'; .number := 2}
+x with{.name := 'Joe'; .telephone := 2}
 ```
-Note how `.number :=` applies to the result of the previous revision.
+Note how `.telephone :=` applies to the result of the previous update.
 
-The `:=` operation passes the current value of the left hand side as an input to the expression on the right side. Thus for example `y = x with{.number := + 1}` will increment the value of the `number` field.
+The `:=` operation passes the current value of the left hand side as an input to the expression on the right side. Thus for example `y = x with{.telephone := + 1}` will increment the value of the `telephone` field.
 
-Modifications can drill into nested records by using a dotted path to the left of the `:=`
+Updates can drill into nested records by using a dotted path to the left of the `:=`
 ```
 x: record {
   name: ''
-  number: 0
+  telephone: 0
   address: record {
     street: ''
     city: ''
@@ -294,7 +294,7 @@ y = x with {
     .city := 'Springfield'}}
 ```
 
-Revision operations can only be done on input items: those defined with `:`, not outputs defined with '='. *But see `=|>`*
+Updates can only be done on input items: those defined with `:`, not outputs defined with '='. *But see `=|>`*
 
 Recall that `:=` is also used when supplying the third or later inputs when calling a function. This is not a coincidence. For example:
 ```
@@ -306,7 +306,7 @@ ternary-function = do {
 }
 x = 1 ternary-function(2, .input3 := 3)
 ```
-The syntax `.input3 := 3` is actually a revision operation on the `do` block of `ternary-function`. It changes the value of the `input3` input item to 3. The same thing happens with the second input, which is interpreted to mean `.input2 := 2`.
+The syntax `.input3 := 3` is actually an update on the `do` block of `ternary-function`. It changes the value of the `input3` input item to 3. The same thing happens with the second input, which is interpreted to mean `.input2 := 2`.
 
 ### Local variables
 
@@ -544,7 +544,7 @@ This pronounced “a-literal equals expr choosing literal one”. The `#` expect
 a-literal = expr #literal
 ```
 
-The choice operation `#` is similar to the revise operation `:=`, except that it doesn’t require a dependent path on the left (one starting with `.`). However `#` can also be used with a dependent path, which is useful when chaining nested choices:
+The choice operation `#` is similar to the update operation `:=`, except that it doesn’t require a dependent path on the left (one starting with `.`). However `#` can also be used with a dependent path, which is useful when chaining nested choices:
 ```Txt
 a-plus = expr #plus with{.left #literal 2; .right #literal 2}
 ```
@@ -599,7 +599,7 @@ The `&` function (pronounced “and”) is used to add items to an array. For ex
 n = numbers & 1 & 2 & 3
 c = customers &(with{.name := 'Joe', .address := 'Pleasantown, USA'})
 ```
-The `&` function takes an array as it’s left input and an item value as its right input, resulting in an array equal to the input plus a new item with that value. The default value of the item is the array template. In a table it is often convenient to use a `with` block as above to revise some of the columns and let the others default to their template values.
+The `&` function takes an array as it’s left input and an item value as its right input, resulting in an array equal to the input plus a new item with that value. The default value of the item is the array template. In a table it is often convenient to use a `with` block as above to update some of the columns and let the others default to their template values.
 
 The `followed-by` function concatenates two arrays: `array1 followed-by array2` is a copy of `array1` with all the items from `array2` added to its end. The two array must have the same type template.
 
@@ -668,7 +668,7 @@ test {
   check v[1].amount =? 10
 }
 ```
-A column  can only be revised with an array of the same length as the table, otherwise it will crash. In a tracked tabled (see below) no insertions, deletion, or moves can have happened in the column.
+A column  can only be updated with an array of the same length as the table, otherwise it will crash. In a tracked tabled (see below) no insertions, deletion, or moves can have happened in the column.
 
 When a table column is conditional, meaning the corresponding block item is a conditional output, then the column will skip all items where the item rejected.
 
@@ -727,13 +727,13 @@ A `for-all` block will evaluate a `do` block on each item of an array in order, 
 test {
   l = array{0} & 1 & 2 & 3
 
-  // revise each item with result of block on it
+  // update each item with result of block on it
   check l for-all{+ 1} =? (array{0} & 2 & 3 & 4)
 
   // filter out rejected items
   check l query{check not=? 2} =? (array{0} & & 3)
 
-  // filter and revise together
+  // filter and update together
   check l query{check not=? 2; + 1} =? (array{0} & 1 & 3)
 
   // check every item satisfies a condition
@@ -881,7 +881,7 @@ orders for-all{
   order-lines query{.order-id =? order.id}
 }
 ```
-This formula produces a table that revises each row of the `orders` table with a table of the corresponding `order-lines` rows. But that discards information from the orders table. So instead we can add a field to each order containing the order-lines:
+This formula produces a table that updates each row of the `orders` table with a table of the corresponding `order-lines` rows. But that discards information from the orders table. So instead we can add a field to each order containing the order-lines:
 ```
 orders for-all{
   order: []
@@ -913,7 +913,7 @@ orders for-all{
 ungroup()
 ```
 
-The `ungroup()` function takes a table as input, and looks for the first field that is a nested table. It then revises that field with all the fields of its contained table. So in this case it produces the table:
+The `ungroup()` function takes a table as input, and looks for the first field that is a nested table. It then updates that field with all the fields of its contained table. So in this case it produces the table:
 ```
 table{
   id: ###
@@ -1074,7 +1074,7 @@ The recursive call `continue?()` has a question mark because the repeat block ca
 > Maybe the `continue` call should default secondary inputs to their value in the current iteration, not the original definition. That would more closely emulate mutable loop variables, and allow uses like `continue(count := + 1)`.
 
 > Maybe `continue` should do an early exit to guarantee tail position and simplify conditional logic.
->
+> 
 > When repeats are nested it may be useful to have continue specify a name of the block as in `continue foo-loop()`.
 
 > Perhaps a `visit` block that can be multiply-recursive, and collects the exports in order of execution, concatenating them as in a “flat map”. Combined with skipping of conditional exports, this allows arbitrary search algorithms to be easily written.
@@ -1411,7 +1411,7 @@ Block := '{' Body '}'
 Op :=
 	| Path Arguments				// function call
 	| 'continue' Arguments			// tail call
-	| RelPath ':=' Formula			// revise
+	| RelPath ':=' Formula			// update
 	| RelPath '#' Name Formula?		// choose
 	| 'write' Formula? '->' Path	// write
 	| RelPath						// navigate
@@ -1435,7 +1435,7 @@ LastClause := 'else' 'reject'
 Control :=
 	| 'do'
 	| 'with'
-	| 'update'
+	| 'on-update'
 	| 'updatable'
 	...fill in from Parse.matchCode()
 

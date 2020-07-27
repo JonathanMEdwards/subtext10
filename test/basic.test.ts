@@ -96,7 +96,7 @@ test('statement skipping', () => {
     .toThrow('unused value');
 })
 
-test('revise', () => {
+test('update', () => {
   expectDump("a = record{x: 0, y : 0}, b = .x := 1")
     .toEqual({ a: {x: 0, y: 0}, b: {x: 1, y: 0}});
   expectDump("a = record{x: 0, y : 0}, b = a with{.x := 1}")

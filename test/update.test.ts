@@ -43,7 +43,7 @@ test('reverse formula', () => {
   expect(w.dumpAt('c')).toEqual(100);
 });
 
-test('update in revise', () => {
+test('update propagation', () => {
   let w = compile(`
   s = record {
     c: 0;
@@ -55,7 +55,7 @@ test('update in revise', () => {
   expect(w.dumpAt('u')).toEqual({c: 100, f: 212});
 });
 
-test('reverse formula in revise', () => {
+test('reverse formula in update', () => {
   let w = compile(`
   s = record {
     c: 0;
@@ -173,7 +173,7 @@ test('moot update', () => {
   expect(w.dumpAt('c')).toEqual(1);
 });
 
-test('update propagation', () => {
+test('update propagation order', () => {
   let w = compile(`
   c: 0
   f =|> record{x: 0, y: 0} on-update{write c + 1 -> c}

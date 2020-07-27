@@ -89,7 +89,7 @@ export function arrayRemove<T>(array: T[], value: T) {
   array.splice(i, 1);
 }
 
-/** revise first occurence of a value in an array */
+/** update first occurence of a value in an array */
 export function arrayReplace<T>(array: T[], value: T, replacement: T) {
   let i = array.indexOf(value);
   assert(i >= 0);
