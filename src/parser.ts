@@ -804,6 +804,7 @@ export class Parser {
 
   /** Parse a literal value */
   parseLiteral(): Value | undefined {
+    // numeric value
     if (this.matchToken('number')) {
       let num = new _Number;
       num.token = this.prevToken;
@@ -812,7 +813,8 @@ export class Parser {
       return num;
     }
 
-    if (this.matchToken('_number_')) {
+    // missing number
+    if (this.matchToken('_number')) {
       let num = new _Number;
       num.token = this.prevToken;
       num.value = NaN;

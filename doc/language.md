@@ -71,11 +71,11 @@ Although Subtext is statically typed in the above sense, there is no mention of 
 ## Base values
 Subtext provides several kinds of values out of which a workspace is built:
 
-- _number_: double float using JavaScript syntax, and the special value `_number_` not equal to any other number (except itself)
+- _Number_: double float using JavaScript syntax, and the special value `number` not equal to any other number (except itself)
 - TODO: infinite precision rationals
-- _text_: JavaScript string literal using single quotes: `'hello'`
-- _character_: a unicode character, using a literal of the form `char'a'`
-- Booleans: either `true` or `false`
+- _Text_: JavaScript string literal using single quotes: `'hello'`
+- _Character_: a unicode character, using a literal of the form `character'a'`
+- _Boolean_: either `true` or `false`
 - `nil`, the unit value, useful in enumerations (see _Choices_)
 - `anything`, the top value used to define generic functions (see _Types_)
 - TODO: fancy text with fonts and formatting
@@ -217,7 +217,7 @@ The value of the last item, 3, becomes the result of the call.
 > There is another abbreviation for defining functions. For example,
 > ```
 > increment2 = 0 + 1
-> 
+>
 > ```
 > can be called like the prior example. Note this is equivalent to:
 > ```
@@ -263,7 +263,7 @@ This is pronounced “x with name as Joe”. The result of this operation is a r
 do{x; .name := 'Joe'}
 ```
 
-> It would be possible to allow the syntax `x.name := 'Joe`. But that is dangerous. The lexical binding of the first name in the path establishes the context of the modification. Prefixing a name to resolve lexical shadowing would thus change the semantics. 
+> It would be possible to allow the syntax `x.name := 'Joe`. But that is dangerous. The lexical binding of the first name in the path establishes the context of the modification. Prefixing a name to resolve lexical shadowing would thus change the semantics.
 
 We can chain multiple revisions together:
 ```
@@ -592,7 +592,7 @@ customers: table {
   address: ''
 }
 ```
-The array `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: array {record {...}}`. The table contains columns `name` and `address` defaulting to the empty text. The template of an array is access by using empty square brackets, as in `numbers[]`. 
+The array `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: array {record {...}}`. The table contains columns `name` and `address` defaulting to the empty text. The template of an array is access by using empty square brackets, as in `numbers[]`.
 
 The `&` function (pronounced “and”) is used to add items to an array. For example:
 ```
@@ -762,7 +762,7 @@ An `accumulate` block must define two input items. The block will be executed re
 
 
 # Features not yet implemented
- 
+
 
 ## Relational data and queries
 
@@ -770,11 +770,11 @@ Subtext lets you work with relational data without learning SQL or understanding
 
 ```
 orders: table {
-  id: _number_
+  id: ###
   customer: ''
 }
 order-lines: table {
-  order-id: _number_
+  order-id: ###
   product: ''
   quantity: 1
 }
@@ -808,7 +808,7 @@ To find all the `order-lines` in an order, we want to follow the link “backwar
 
 ```
 orders: table {
-  id: _number_
+  id: ###
   customer: ''
   order-lines = from order-lines.order
 }
@@ -829,7 +829,7 @@ The preceding example is typical in relational databases, but is a bit silly in 
 
 ```
 orders: table {
-  id: _number_
+  id: ###
   customer: ''
   lines: table {
     product: ''
@@ -858,11 +858,11 @@ Links eliminate many simple queries, but there can still be a need for queries i
 
 ```
 orders: table {
-  id: _number_
+  id: ###
   customer: ''
 }
 order-lines: table {
-  order-id: _number_
+  order-id: ###
   product: ''
   quantity: 1
 }
@@ -893,10 +893,10 @@ orders for-all{
 The `extend` block expects a record as its input, and adds all the fields defined inside its block to the end of that record. In this case we get a table that looks like this:
 ```
 table{
-  id: _number_
+  id: ###
   customer: ''
   lines: table{
-    order-id: _number_
+    order-id: ###
     product: ''
     quantity: 1
   }
@@ -916,9 +916,9 @@ ungroup()
 The `ungroup()` function takes a table as input, and looks for the first field that is a nested table. It then revises that field with all the fields of its contained table. So in this case it produces the table:
 ```
 table{
-  id: _number_
+  id: ###
   customer: ''
-  order-id: _number_
+  order-id: ###
   product: ''
   quantity: 1
 }
@@ -1074,7 +1074,7 @@ The recursive call `continue?()` has a question mark because the repeat block ca
 > Maybe the `continue` call should default secondary inputs to their value in the current iteration, not the original definition. That would more closely emulate mutable loop variables, and allow uses like `continue(count := + 1)`.
 
 > Maybe `continue` should do an early exit to guarantee tail position and simplify conditional logic.
-> 
+>
 > When repeats are nested it may be useful to have continue specify a name of the block as in `continue foo-loop()`.
 
 > Perhaps a `visit` block that can be multiply-recursive, and collects the exports in order of execution, concatenating them as in a “flat map”. Combined with skipping of conditional exports, this allows arbitrary search algorithms to be easily written.
@@ -1131,7 +1131,7 @@ _Null values_ are a perennial controversy in PL and DB design. The idea is to ad
 
 We propose a simple solution for missing values that visualizes naturally in the UI:
 
-1. There is a special number called `_number_` that corresponds to an empty numeric item in the UI. Numeric functions treat `_number_` as a special case, as Excel does with empty cells. Unlike IEEE NaN, `_number_` is equal to itself.
+1. There is a special number called `number` that corresponds to an empty numeric item in the UI. Numeric functions treat `number` as a special case, as Excel does with empty cells. Unlike IEEE NaN, `number` is equal to itself.
 2. There are predefined missing values for each media type that serve as placeholders.
 3. The missing value of a block has all its input items missing.
 4. The missing value of a text or array or table is empty.
@@ -1154,7 +1154,7 @@ A `maybe` block is often useful in cases where we would like to change an input 
 
 ## Types
 
-Subtext has no syntax for describing types: it only talks about values. Function inputs are defined with a default value, so no type needs be specified. For example in the definition `foo: _number_`, `_number_` is not the name of a type — it is just the name of the special missing number. Likewise error messages never talk about types — instead they point to a mismatch between values at two code locations, additionally referencing the code locations where they were defined.
+Subtext has no syntax for describing types: it only talks about values. Function inputs are defined with a default value, so no type needs be specified. For example in the definition `foo: number`, `number` is not the name of a type — it is just the special missing number value. Likewise error messages never talk about types — instead they point to a mismatch between values at two code locations, additionally referencing the code locations where they were defined.
 
 We believe that type systems are an essential formalism for language theoreticians and designers, but that many language users would prefer to obtain their benefits without having to know about them and write about them.
 
@@ -1193,7 +1193,7 @@ Rejections are like conventional exceptions: they “bubble-up” through blocks
 
 Every document has a _history-block_, which is a special kind of do-block. The initial value of the history-block is the initial value of the document itself when it was first created. Every time a user does something to the document (or a function is triggered by an incoming network request), a formula is appended to the history that computes a new version of the document. The current state of the document is the last value in the history document. If a history formula rejects it means that the requested change is not possible, and the previous document value is passed along unchanged. Input actions are essentially executed in a transaction that discards the changes on rejection. User-written blocks can duplicate this behavior with the `guard{}` block, which passes on the value of the block if it succeeds, otherwise passing on the prior value. The history block catches rejects by implicitly wrapping every action in a `guard`.
 
-There is one other way that rejects can bubble up without being caught. That is when a formula in a record is recomputed as a result of a change to other fields it references. How this is treated depends on whether the formula is inside a record or document block. 
+There is one other way that rejects can bubble up without being caught. That is when a formula in a record is recomputed as a result of a change to other fields it references. How this is treated depends on whether the formula is inside a record or document block.
 
 Document blocks are special records used at top of every document, including documents that are meant to be included in other documents as modules or libraries. Rejected formulas at the top level of a document are permitted and not considered to be an error. For example you might define a conditional function in a library - whether its default execution is a rejection does not matter. Likewise we often use top level formulas in a document as a sort of REPL to explore values, and rejection is a normal occurrence.
 
@@ -1319,8 +1319,8 @@ database: record {
     name: ''
     address: ''
   }
-  special-customers: some in customers 
-} 
+  special-customers: some in customers
+}
 database do {
   .customers := & with{.name := 'joe'} & with{.name := 'jane'}
 
@@ -1401,7 +1401,7 @@ BaseValue :=
 	| string				// single-quoted JS string literal
 	| 'character' string	// character literal
 	| number				// JS number literal
-	| '_number_'			// Special missing number
+	| '###'			// Special missing number
 	| 'true' | 'false'		// Booleans
 	| 'nil'					// unit value
 	| 'anything'			// generic value

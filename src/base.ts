@@ -15,7 +15,7 @@ export class Base extends Value {
 
 /**
  * A JS number.
- * NaN is the missing number _number_ which is equal to itself.
+ * NaN is the missing number `number` which is equal to itself.
  */
 export class _Number extends Base {
   value: number = NaN;
