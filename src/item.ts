@@ -173,6 +173,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return meta;
   }
 
+
+/* ------------------------------- evaluation ------------------------------- */
+
+
   /**
    * How value is computed. The formula is stored in various metadata fields
    * depending on this tag.
@@ -333,6 +337,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           break;
 
         case 'write':
+          assert(this instanceof Statement);
           if (this.workspace.analyzing) {
             // must be inside an update block
             for (let up of this.upwards()) {
@@ -361,6 +366,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           // target and writeValue in metadata already evaluated
           // copy value of writeValue
           this.copyValue(this.get('^writeValue'));
+          this.used = true;
           break;
 
         case 'include':
@@ -446,6 +452,63 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         exportField.detachValue();
       }
     }
+  }
+
+  /** whether this item uses the value of the previous item */
+  usesPrevious = false;
+
+  /** The previous item in evaluation order. Used by dependent references. */
+  previous(): Item | undefined {
+    // should only be used during analysis to bind references
+    assert(this.workspace.analyzing);
+    this.usesPrevious = true;
+    let container = this.container;
+    let itemIndex = container.items.indexOf(this);
+    assert(itemIndex >= 0);
+    if (
+      !itemIndex
+      || container instanceof Metadata
+      || container instanceof Try
+    ) {
+      // At beginning of container, or in metadata/try
+      // Use previous in grand-container. Scan stops in Version
+      return container.containingItem.previous();
+    }
+    // previous item in container, skipping certain statements
+    while (itemIndex) {
+      let prev = container.items[--itemIndex]
+      if (prev instanceof Statement && prev.dataflow) continue;
+      // also skip includes
+      if (prev.formulaType === 'include') continue;
+      return prev;
+    }
+    // skip to container
+    return container.containingItem.previous();
+  }
+
+
+/* --------------------------------- update --------------------------------- */
+
+
+  /** whether a contained item is writable in this context. Must be inputs up to
+   * a containing updatable output or this. Returns the containing updatable
+   * output or the original input */
+  isWritable(item: Item): Item | undefined {
+    // scan upwards to this
+    for (let up = item; up !== this; up = up.container.containingItem) {
+      if (up instanceof Metafield) {
+        // can't write into metadata
+        return undefined;
+      }
+      if (up instanceof Statement) {
+        // can write into any code block statement
+        return up
+      }
+      if (up.isUpdatableOutput) return up;
+      if (!up.isInput) return undefined;
+    }
+    // Inputs all the way up so can write to original item
+    return item;
   }
 
 
@@ -563,7 +626,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     const writeRef = (ref: Reference, value: Item) => {
       let target = ref.target!;
       if (!context.contains(target)) {
-        // TODO: defer entire replace if leaves context
+        // TODO: defer changes that leave context
         trap();
       }
       if (!context.isWritable(target)) {
@@ -590,11 +653,21 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       pendingDeltas.splice(i + 1, 0, delta);
     }
 
+    //
+    // update main loop
     // propagate pending deltas in reverse tree order till all grounded
+    //
+
     while (pendingDeltas.length) {
       let delta = pendingDeltas.pop()!;
       let deltaBase = delta.base;
       deltaBase.eval();
+
+      // discard deltas equal to prior value
+      if (deltaBase.value!.equals(delta.value!)) {
+        continue;
+      }
+
 
       // lift deltas to containing updatable output
       let outputBase = context.isWritable(deltaBase);
@@ -735,26 +808,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
   }
 
-  /** whether a contained item is writable in this context. Must be inputs up to
-   * a containing updatable output or this. Returns the containing updatable
-   * output or the original input */
-  isWritable(item: Item): Item | undefined {
-    // scan upwards to this
-    for (let up = item; up !== this; up = up.container.containingItem) {
-      if (up instanceof Metafield) {
-        // can't write into metadata
-        return undefined;
-      }
-      if (up instanceof Statement) {
-        // can write into any code block statement
-        return up
-      }
-      if (up.isUpdatableOutput) return up;
-      if (!up.isInput) return undefined;
-    }
-    // Inputs all the way up so can write to original item
-    return item;
-  }
+
+/* -------------------------------------------------------------------------- */
+
 
   /** Iterate through containing items, starting with this and ending with
    * Workspace */
@@ -793,38 +849,6 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // one item contains other
     // If this item is metadata of other it comes before
     return thisItems[otherItems.length] instanceof Metafield;
-  }
-
-  /** whether this item uses the value of the previous item */
-  usesPrevious = false;
-
-  /** The previous item in evaluation order. Used by dependent references. */
-  previous(): Item | undefined {
-    // should only be used during analysis to bind references
-    assert(this.workspace.analyzing);
-    this.usesPrevious = true;
-    let container = this.container;
-    let itemIndex = container.items.indexOf(this);
-    assert(itemIndex >= 0);
-    if (
-      !itemIndex
-      || container instanceof Metadata
-      || container instanceof Try
-    ) {
-      // At beginning of container, or in metadata/try
-      // Use previous in grand-container. Scan stops in Version
-      return container.containingItem.previous();
-    }
-    // previous item in container, skipping certain statements
-    while (itemIndex) {
-      let prev = container.items[--itemIndex]
-      if (prev instanceof Statement && prev.dataflow) continue;
-      // also skip includes
-      if (prev.formulaType === 'include') continue;
-      return prev;
-    }
-    // skip to container
-    return container.containingItem.previous();
   }
 
   /** initialize all values */

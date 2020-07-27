@@ -153,3 +153,41 @@ test('update aggregation', () => {
   w.writeAt('t.c', 100);
   expect(w.dumpAt('s')).toEqual({c: 100, d: 0});
 })
+
+test('update aggregation 2', () => {
+  let w = compile(`
+  s: record {
+    c: 0
+    d =|> c
+  }
+  t =|> s`);
+  w.writeAt('t.d', 100);
+  expect(w.dumpAt('s')).toEqual({c: 100, d: 100});
+})
+
+test('moot update', () => {
+  let w = compile("c: 0, f =|> 0 on-update{write c + 1 -> c}");
+  w.writeAt('f', 1);
+  expect(w.dumpAt('c')).toEqual(1);
+  w.writeAt('f', 0);
+  expect(w.dumpAt('c')).toEqual(1);
+});
+
+test('update propagation', () => {
+  let w = compile(`
+  c: 0
+  f =|> record{x: 0, y: 0} on-update{write c + 1 -> c}
+  g =|> 0 on-update{write 1 -> f.x; write 1 -> f.y}
+  `);
+  w.writeAt('g', 1);
+  expect(w.dumpAt('c')).toEqual(1);
+});
+
+test('update overwrite', () => {
+  let w = compile(`
+  c: 0
+  g =|> 0 on-update{write 1 -> c; write 2 -> c}
+  `);
+  w.writeAt('g', 1);
+  expect(w.dumpAt('c')).toEqual(2);
+});
