@@ -1,4 +1,4 @@
-import { Item, cast, Do, assert, _Number, Character, Text, Dictionary, Value, Statement, arrayLast, Base, assertDefined, Nil, _Array, StaticError, Metafield } from "./exports"
+import { Item, cast, Do, assert, _Number, Character, Text, Dictionary, Value, Statement, arrayLast, Base, assertDefined, Nil, _Array, StaticError, Metafield, _Boolean } from "./exports"
 
 // extract input values. Converts a _Number to number
 function inputs(statement: Statement): builtinValue[] {
@@ -10,7 +10,7 @@ function inputs(statement: Statement): builtinValue[] {
         statement.used = true;
         let input = assertDefined(statement.value);
         // convert _Number to number
-        if (input instanceof _Number) {
+        if (input instanceof _Number || input instanceof _Boolean) {
           return input.value;
         }
         return input;
@@ -47,7 +47,11 @@ export function updateBuiltin(statement: Statement, change: Item): Metafield {
   // append changed result to input values
   let values = inputs(statement);
   let delta = assertDefined(change.value);
-  values.push(delta instanceof _Number ? delta.value : delta);
+  values.push(
+    delta instanceof _Number || delta instanceof _Boolean
+      ? delta.value
+      : delta
+  );
 
   // call update function
   update(write, ...values);
@@ -56,8 +60,8 @@ export function updateBuiltin(statement: Statement, change: Item): Metafield {
   return write;
 }
 
-/** builtins operate with JS number or Value */
-export type builtinValue = number | Value;
+/** builtins operate with JS number, boolean, or Value */
+export type builtinValue = number | boolean | Value;
 
 /** dispatch table for builtins */
 export const builtins: Dictionary<(statement: Statement, ...args: any[]) => void>

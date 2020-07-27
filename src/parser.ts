@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character, OptionReference, OnUpdate, Updatable, Version, Container, Item } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character, OptionReference, OnUpdate, Updatable, Version, Container, Item, _Boolean } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -816,6 +816,13 @@ export class Parser {
       let num = new _Number;
       num.token = this.prevToken;
       num.value = NaN;
+      return num;
+    }
+
+    if (this.matchToken('true') || this.matchToken('false')) {
+      let num = new _Boolean;
+      num.token = this.prevToken;
+      num.value = this.prevToken.type === 'true';
       return num;
     }
 

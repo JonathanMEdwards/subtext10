@@ -75,6 +75,7 @@ Subtext provides several kinds of values out of which a workspace is built:
 - TODO: infinite precision rationals
 - _text_: JavaScript string literal using single quotes: `'hello'`
 - _character_: a unicode character, using a literal of the form `char'a'`
+- Booleans: either `true` or `false`
 - `nil`, the unit value, useful in enumerations (see _Choices_)
 - `anything`, the top value used to define generic functions (see _Types_)
 - TODO: fancy text with fonts and formatting
@@ -1126,7 +1127,7 @@ The `replace-selection` replaces the selected part of the left-hand input with t
 
 ## Missing values
 
-_Nulls_ are a perennial controversy in PL and DB design. The idea is to add a special value Null to all types of values in order to represent a “missing” or “unknown” value. Unfortunately Null adds complexity and more ways for code to break, or more language features to avoid breaking. FP languages avoid Null values by using Option wrappers (like Subtext choices), but at the cost of continually wrapping and unwrapping values.  NULL in SQL is a widely acknowledged disaster. We want to avoid this whole mess if possible.
+_Null values_ are a perennial controversy in PL and DB design. The idea is to add a special value Null to all types of values in order to represent a “missing” or “unknown” value. Unfortunately Null adds complexity and more ways for code to break, or more language features to avoid breaking. FP languages avoid Null values by using Option wrappers (like Subtext choices), but at the cost of continually wrapping and unwrapping values.  NULL in SQL is a widely acknowledged disaster. We want to avoid this whole mess if possible.
 
 We propose a simple solution for missing values that visualizes naturally in the UI:
 
@@ -1135,7 +1136,8 @@ We propose a simple solution for missing values that visualizes naturally in the
 3. The missing value of a block has all its input items missing.
 4. The missing value of a text or array or table is empty.
 5. The missing value of a character is the space character.
-6. There is no predefined missing value for choices. However as their first option is the default, it can be defined to be something like `NA?: nil` to serve as a missing value if desired. Also see `maybe` blocks below.
+6. The missing value of a boolean is `false`
+7. There is no predefined missing value for choices. However as their first option is the default, it can be defined to be something like `NA?: nil` to serve as a missing value if desired. Also see `maybe` blocks below.
 
 The `required` constraint (see _Constraints_) checks that an input item does not contain one of the above missing values.
 
@@ -1400,6 +1402,7 @@ BaseValue :=
 	| 'character' string	// character literal
 	| number				// JS number literal
 	| '_number_'			// Special missing number
+	| 'true' | 'false'		// Booleans
 	| 'nil'					// unit value
 	| 'anything'			// generic value
 

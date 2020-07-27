@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer, _Boolean} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -901,12 +901,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
   }
 
-  /** set value, allowing a JS number or string. Copies Value if attached.
+  /** set value, allowing JS base values. Copies Value if attached.
    * Asserts argument defined */
-  setFrom(from?: number | string | Value | Item) {
+  setFrom(from?: number | boolean | string | Value | Item) {
     assert(from !== undefined);
     if (typeof from === 'number') {
       let value = new _Number;
+      value.value = from
+      this.setValue(value);
+    } else if (typeof from === 'boolean') {
+      let value = new _Boolean;
       value.value = from
       this.setValue(value);
     } else if (typeof from === 'string') {

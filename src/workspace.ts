@@ -48,7 +48,7 @@ export class Workspace extends Item<never, History> {
    * name of an option. If the path refers to a non-Choice, the value can be a
    * Value or number or string
    */
-  writeAt(path: string, value: number | string | Value | FieldID) {
+  writeAt(path: string, value: number | boolean | string | Value | FieldID) {
     let target = this.currentVersion.down(path);
     if (!this.currentVersion.isWritable(target)) {
       throw 'unwritable location';

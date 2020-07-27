@@ -38,11 +38,9 @@ export class _Number extends Base {
   dump() { return this.value };
 }
 
+/** a JS character */
 export class Character extends Base {
-  /**
-   * a single-character string.
-   * could be a charCode instead
-   */
+  /** value is a single-character string. could be a charCode instead */
   value: string = ' ';
 
   copy(srcPath: Path, dstPath: Path): this {
@@ -56,6 +54,24 @@ export class Character extends Base {
   }
 
   // dump as string
+  dump() { return this.value };
+}
+
+/** Boolean value */
+export class _Boolean extends Base {
+  value: boolean = false;
+
+  copy(srcPath: Path, dstPath: Path): this {
+    let to = super.copy(srcPath, dstPath);
+    to.value = this.value;
+    return to;
+  }
+
+  equals(other: any) {
+    return other instanceof _Boolean && this.value === other.value;
+  }
+
+  // dump as boolean
   dump() { return this.value };
 }
 
