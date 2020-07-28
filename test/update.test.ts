@@ -166,7 +166,7 @@ test('update aggregation 2', () => {
 })
 
 test('moot update', () => {
-  let w = compile("c: 0, f =|> false on-update{write c + 1 -> c}");
+  let w = compile("c: 0, f =|> false on-update{write c <- + 1}");
   w.writeAt('f', true);
   expect(w.dumpAt('c')).toEqual(1);
   w.writeAt('f', false);
@@ -176,7 +176,7 @@ test('moot update', () => {
 test('update propagation order', () => {
   let w = compile(`
   c: 0
-  f =|> record{x: 0, y: 0} on-update{write c + 1 -> c}
+  f =|> record{x: 0, y: 0} on-update{write c <- + 1}
   g =|> false on-update{write 1 -> f.x; write 1 -> f.y}
   `);
   w.writeAt('g', true);

@@ -442,29 +442,48 @@ export class Parser {
           this.prevToken);
       }
 
+      /** set ^target from a reference */
+      const setTarget = (ref?: Reference) => {
+        // store reference in ^target
+        if (!ref) {
+          throw this.setError('expecting a reference to write');
+        }
+        if (ref!.dependent) {
+          throw this.setError('write requires a structural reference');
+        }
+        field.setMeta('^target', ref);
+      }
+      
       if (this.parseToken('->')) {
         // default writeValue to fake 'that' reference
         let writeValue = field.setMeta('^writeValue', undefined);
         writeValue.formulaType = 'reference';
-        let ref = new Reference;
-        ref.tokens = [Token.fake('that', this.prevToken)];
-        writeValue.setMeta('^reference', ref);
-      } else {
-        // parse optional formula into ^writeValue
-        let writeValue = field.setMeta('^writeValue', undefined);
-        this.requireFormula(writeValue);
-        this.requireToken('->');
+        let thatRef = new Reference;
+        thatRef.tokens = [Token.fake('that', this.prevToken)];
+        writeValue.setMeta('^reference', thatRef);
+        setTarget(this.parseReference());
+        return true;
       }
 
-      // parse reference into ^target
-      let ref = this.parseReference();
-      if (!ref) {
-        throw this.setError('expecting a reference to write');
+      // parse ref <- form
+      let save = this.cursor;
+      let targetRef = this.parseReference();
+      if (targetRef && this.parseToken('<-')) {
+        // muset set ^target before ^payload to eval earlier
+        setTarget(targetRef);
+        // Parse reference into ^payload so picks up target as input
+        let payload = field.setMeta('^payload', undefined)
+        this.requireFormula(payload);
+        return true;
       }
-      if (ref.dependent) {
-        throw this.setError('write requires a structural reference');
-      }
-      field.setMeta('^target', ref);
+
+      // parse formula -> ref form
+      this.cursor = save;
+      // parse formula into ^writeValue
+      let writeValue = field.setMeta('^writeValue', undefined);
+      this.requireFormula(writeValue);
+      this.requireToken('->');
+      setTarget(this.parseReference());
       return true;
     }
 

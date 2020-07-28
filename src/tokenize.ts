@@ -5,7 +5,7 @@ import { arrayLast } from "./exports";
 
 export type TokenType = (
   ':' | '=' | ':=' | '#' | '.' | ',' | ';' | '{' | '}' | '(' | ')'
-  | '=|>' | 'on-update' | 'write' | '->' | 'updatable'
+  | '=|>' | 'on-update' | 'write' | '->' | '<-' | 'updatable'
   | '[' | ']' | '[]' | 'string' | 'number' | '_number' | 'true' | 'false'
   | 'name' | 'end' | '\n'
   | 'call' | 'arg1' | 'arg2' | 'input'
@@ -189,6 +189,7 @@ export function tokenize(source: string): Token[] {
     if (match('=|>')) return '=|>';
     if (match('=')) return '=';
     if (match('->')) return '->';
+    if (match('<-')) return '<-';
     if (match('{')) return '{';
     if (match('}')) return '}';
     if (match('(')) return '(';

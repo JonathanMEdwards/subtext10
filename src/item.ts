@@ -198,7 +198,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    * updateInput: special update used for input of a call
    *
-   * write: formula in ^writeValue, structural reference in ^target
+   * write: formula in ^writeValue or ^payload, structural reference in ^target
    *
    * choose: dependent optionReference in ^target, optional formula in ^payload
    *
@@ -338,6 +338,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
         case 'write':
           assert(this instanceof Statement);
+          const writeValue =
+            this.getMaybe('^writeValue') || this.get('^payload');
           if (this.workspace.analyzing) {
             // must be inside an on-update block
             for (let up of this.upwards()) {
@@ -349,7 +351,6 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             // check target and type of writes
             let targetRef = cast(this.get('^target').value, Reference);
             let target = targetRef.target!;
-            const writeValue = this.get('^writeValue');
             if (!target.value!.changeableFrom(writeValue.value!)) {
               throw new StaticError(this, 'write changing type')
             }
@@ -365,7 +366,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           // write is actually performed in triggering update operation
           // target and writeValue in metadata already evaluated
           // copy value of writeValue
-          this.copyValue(this.get('^writeValue'));
+          this.copyValue(writeValue);
           this.used = true;
           break;
 
@@ -428,7 +429,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         break;
 
       case 'write':
-        yield *this.get('^writeValue').evaluatedStatements();
+        const writeValue = this.getMaybe('^writeValue') || this.get('^payload');
+        yield *writeValue.evaluatedStatements();
         break;
     }
   }
@@ -672,7 +674,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         throw new StaticError(deltaBase, 'not updatable location')
       }
       if (outputBase !== deltaBase) {
-        // deltas within updatable output are lifted into it's ^delta
+        // deltas within updatable output are lifted into its ^delta
         assert(outputBase.isUpdatableOutput);
         let outputdelta = outputBase.deltaField;
         if (!outputdelta) {

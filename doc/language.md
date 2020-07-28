@@ -1414,6 +1414,7 @@ Op :=
 	| RelPath ':=' Formula			// update
 	| RelPath '#' Name Formula?		// choose
 	| 'write' Formula? '->' Path	// write
+	| 'write' Path '<-' Formula		// updating write
 	| RelPath						// navigate
 	| Conditional
 	| Control Block
