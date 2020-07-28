@@ -496,15 +496,12 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   isWritable(item: Item): Item | undefined {
     // scan upwards to this
     for (let up = item; up !== this; up = up.container.containingItem) {
-      if (up instanceof Metafield) {
-        // can't write into metadata
-        return undefined;
-      }
-      if (up instanceof Statement) {
-        // can write into any code block statement
-        return up
-      }
+      // updatableOutputs are writable
       if (up.isUpdatableOutput) return up;
+      // can write into any code block statement
+      if (up instanceof Statement) return up;
+      // can write into := payload FIXME maybe require `:=|>` to be writable
+      if (up.id === MetaID.ids['^payload']) return up;
       if (!up.isInput) return undefined;
     }
     // Inputs all the way up so can write to original item
@@ -664,10 +661,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       deltaBase.eval();
 
       // discard deltas equal to prior value
-      if (deltaBase.value!.equals(delta.value!)) {
+      if (!this.workspace.analyzing && deltaBase.value!.equals(delta.value!)) {
         continue;
       }
-
 
       // lift deltas to containing updatable output
       let outputBase = context.isWritable(deltaBase);
@@ -778,6 +774,35 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           break;
         }
 
+        case 'update': {
+          // reverse execution of update: write change in target into payload,
+          // then other changes back into context ref
+          // FIXME: finer-grained static analysis of updates to ignore
+          // impossible payload and context updates
+          const targetRef = cast(deltaBase.get('^target').value, Reference);
+          assert(!targetRef.rejected || this.workspace.analyzing);
+          // path to target within context
+          const targetPath = targetRef.path.ids.slice(targetRef.context);
+          const deltaTarget = delta.down(targetPath);
+          if (!deltaTarget.value!.equals(deltaBase.down(targetPath).value!)) {
+            // target value changed
+            writeDelta(deltaBase.get('^payload').setDelta(deltaTarget));
+            // mask target value change
+            // check if any other change
+          }
+          // pass through remaining changes to context
+          const updateContext = this.workspace.down(
+            targetRef.path.ids.slice(0, targetRef.context));
+          assert(context.isWritable(updateContext) === updateContext);
+          const contextDelta = updateContext.setDelta(delta);
+          writeDelta(contextDelta);
+          // restore target region to prior value
+          const contextTarget = contextDelta.down(targetPath);
+          contextTarget.detachValue();
+          contextTarget.copyValue(updateContext.down(targetPath));
+          break;
+        }
+
         default:
           trap();
       }
@@ -855,6 +880,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   initialize() {
     this.resolve();
     if (this.metadata) this.metadata.initialize();
+    if (this.delta) {
+      this.delta.containingItem = undefined as any;
+      this.delta = undefined;
+    }
     this.evaluated = false;
     assert(this.formulaType);
     this.rejected = false;

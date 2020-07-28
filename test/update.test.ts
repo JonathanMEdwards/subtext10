@@ -191,3 +191,16 @@ test('update overwrite', () => {
   w.writeAt('g', true);
   expect(w.dumpAt('c')).toEqual(2);
 });
+
+test('reverse update', () => {
+  let w = compile(`
+  u = record {
+    a: 0
+    b: record{x: 0, y: 0}
+    c =|> b with{.x := a}
+  }
+  v = u with{.c.x := 1}
+  `);
+  expect(w.dumpAt('v.a')).toEqual(1);
+  expect(w.dumpAt('v.b')).toEqual({x: 0, y: 0});
+});
