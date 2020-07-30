@@ -78,15 +78,15 @@ export class Workspace extends Item<never, History> {
       ws.exportAnalysisQueue.shift()!();
     }
 
-    // analyze exposed updatable outputs
+    // analyze updates of visible interfaces
     const analyzeUpdates = (container: Container<Item>) => {
       for (let item of container.items) {
         // (seems unneeded now) Skip unevaluated items to avoid recursive choice
         // if (!item.value || item.deferral) continue;
-        if (item.isUpdatableOutput) {
-          // analyze updatable output
-          version.propagateUpdates(item.setDelta(item));
-        } else if (item.isInput && item.value instanceof Container) {
+        if (item.io === 'interface') {
+          // analyze interface update
+          version.feedback(item.setDelta(item));
+        } else if (item.io === 'input' && item.value instanceof Container) {
           // drill into input containers
           analyzeUpdates(item.value);
         }

@@ -173,17 +173,27 @@ export class Parser {
     const cursor = this.cursor;
     if (this.parseToken('name') && this.parseToken(':', '=', '=|>')) {
       // named field
-      field.isInput = (this.prevToken.type === ':');
-      // updatable output
-      field.isUpdatableOutput = (this.prevToken.type === '=|>');
-      if (field.isUpdatableOutput && block instanceof Code) {
-        throw this.setError('Updatable output not allowed in code',
-          this.prevToken);
+      switch (this.prevToken.type) {
+        case ':':
+          field.io = 'input';
+          break;
+        case '=':
+          field.io = 'output';
+          break;
+        case '=|>':
+          if (block instanceof Code) {
+            throw this.setError('Interface field not allowed in code',
+              this.prevToken);
+          }
+          field.io = 'interface';
+          break;
+        default:
+          trap()
       }
       // define field ID
       this.fieldID(field, this.tokens[this.cursor - 2]);
       if (block instanceof Choice) {
-        if (!field.isInput) {
+        if (field.io !== 'input') {
           throw this.setError('Option must be an input (:)', this.prevToken);
         }
         field.conditional = true;
@@ -191,7 +201,7 @@ export class Parser {
     } else {
       // anonymous output formula
       this.cursor = cursor
-      field.isInput = false;
+      field.io = 'output';
       if (block instanceof Choice) {
         throw this.setError('Option must be an input (:)', this.prevToken);
       }
@@ -302,7 +312,7 @@ export class Parser {
     // literal value
     let literal = this.parseLiteral();
     if (literal) {
-      if (field.isInput && literal instanceof Base) {
+      if (field.io === 'input' && literal instanceof Base) {
         // literal input is stored as formula to allow reset
         field.formulaType = 'literal';
         field.setMeta('^literal', literal);
@@ -453,7 +463,7 @@ export class Parser {
         }
         field.setMeta('^target', ref);
       }
-      
+
       if (this.parseToken('->')) {
         // default writeValue to fake 'that' reference
         let writeValue = field.setMeta('^writeValue', undefined);
@@ -669,7 +679,7 @@ export class Parser {
 
     // inject input field into block if needed
     let inputField = block.items[0];
-    if (inputField.isInput) {
+    if (inputField.io === 'input') {
       let ref = inputField.getMaybe('^reference')?.value;
       if (
         ref instanceof Reference
@@ -684,7 +694,7 @@ export class Parser {
       // inject input field
       this.injectInput(block, 'item: []');
     }
-    if (loop.loopType === 'accumulate' && !block.items[1]?.isInput) {
+    if (loop.loopType === 'accumulate' && block.items[1]?.io !== 'input') {
       throw this.setError('accumulate requires two inputs', block.token);
     }
     return loop;

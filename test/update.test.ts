@@ -29,7 +29,7 @@ test('update type check', () => {
   expect(() => { w.updateAt('a', 'foo') }).toThrow('changing type of value')
 });
 
-test('updatable output', () => {
+test('interface', () => {
   let w = compile("c: 0, f =|> c * 1.8 + 32 on-update{write - 32 / 1.8 -> c}");
   expect(w.dumpAt('f')).toEqual(32);
   w.updateAt('f', 212);
@@ -86,6 +86,25 @@ test('write type check', () => {
 test('write order check', () => {
   expectCompiling("c: 0, f =|> c on-update{write -> g}, g: 0")
     .toThrow('write must go backwards');
+});
+
+test('write context check', () => {
+  expectCompiling(`
+  a: 0
+  s = record {
+    c: 0
+    f =|> c on-update{write -> a}
+  }
+  t = s with{.f := 1}
+  `).toThrow('write outside context of update');
+  expectCompiling(`
+  a: 0
+  s = record {
+    c: 0
+    f =|> a
+  }
+  t = s with{.f := 1}
+  `).toThrow('write outside context of update');
 });
 
 test('conditional on-update', () => {

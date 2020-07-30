@@ -60,7 +60,8 @@ The artifact that Subtext mediates is called a _workspace_. It is somewhat like 
 The tree structure of Subtext workspaces strikes a balance: they are more flexible and dynamic than the grid of a spreadsheet, yet simpler and more visualizable than the graph-structured data of imperative programming languages. They are somewhat like the tree-structured values of functional programming languages, except that:
 
 - Items (called _inputs_) can be changed by the user and functions.
-- Items (called _outputs_) can be automatically derived from the state of other portions of the workspace as they change.
+- Items (called _outputs_) are calculated by formulas from the state of other items in the workspace. They are automatically recalculated as those items change, but they cannot be directly changed themselves.
+- Items (called _interfaces_) are calculated like outputs but can also be changed like inputs, with the changes feeding back to other items.
 - The same structures are used to represent data and functions (as in LISP), but they also represent the execution of functions for inspection by the developer.
 - There are cross-references within the tree. Cross-references can be dynamic only to the extent of selecting different items within a specific array — other than that, cross-references are static.
 
@@ -106,7 +107,7 @@ b: record {x: 0; y: record {i: 0; j: 1; k: 2}}
 The UI lets you flip between line and outline presentations.
 
 ### Inputs and outputs
-Every item is either an input or output. For example,
+Every item is either an _input_ or _output_ (or an _interface_, to be discussed later in Feedback). For example,
 ```
 record {
   x: 0
@@ -119,7 +120,7 @@ This is like a spreadsheet: cells containing a formula are outputs, and cells co
 
 Note that the terms input and output mean different things in computational notebooks like Jupyter, where an input is a formula and the paired output is its value. Notebooks do not let the user directly edit a value as can be done with non-formula cells in a spreadsheet and input items in Subtext.
 
-Subtext specifies how to pronounce its syntax. The above example syntax is pronounced “record of, x as 0, y equals x plus 1”. A `{` is pronounced “of”, `:` is pronounced “as”, and `=` is pronounced “equals”. Note that, unlike many programming languages, `=` means the same thing as in mathematics — the left and right sides have the same value. The ':' means the left hand side originally had the same value as the right-hand side.
+Subtext specifies how to pronounce its syntax. The above example syntax is pronounced “record of x as 0, y equal to x plus 1”. A `{` is pronounced “of”, `:` is pronounced “as”, and `=` is pronounced “equal to” or “equals”. Note that, unlike many programming languages, `=` means the same thing as in mathematics — the left and right sides have the same value. The ':' means the left hand side originally had the same value as the right-hand side.
 
 > The distinction between `:` and `=` may be too subtle, but we haven’t come up with a better alternative.
 
@@ -254,7 +255,7 @@ x: record {
 ```
 This block contains two input items: `name`, which is an initially empty text, and `telephone`, which is initially the number `0`.
 
-The essential operations on a block are to read and update individual items. We read the items using paths, like `x.name` and `x.number`. To update an item we use the symbol `:=`, called an_update_.
+The essential operations on a block are to read and update individual items. We read the items using paths, like `x.name` and `x.number`. To update an item we use the symbol `:=`, called an\_update\_.
 ```
 x with{.name := 'Joe'}
 ```
@@ -294,7 +295,7 @@ y = x with {
     .city := 'Springfield'}}
 ```
 
-Updates can only be done on input items: those defined with `:`, not outputs defined with '='. *But see `=|>`*
+Updates cannot be done on output items (those defined with `=`), only inputs (defined with `:`) and interfaces (defined with `=|>` — see Feedback).  
 
 Recall that `:=` is also used when supplying the third or later inputs when calling a function. This is not a coincidence. For example:
 ```
@@ -1376,7 +1377,7 @@ Body :=
 Item :=
 	| GuardedName ':' Formula					// input
 	| Dataflow? (GuardedName '=')? Formula		// output
-	| GuardedName '=|>' Formula					// updatable output
+	| GuardedName '=|>' Formula					// interface
 
 GuardedName := Name ('?' | '!')?
 Name := Word | Operator

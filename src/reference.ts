@@ -279,7 +279,7 @@ export class Reference extends Base {
             ? target.value.fields[type === 'arg1' ? 0 : 1]
             : undefined
         )
-        if (!target || !target.isInput) {
+        if (target?.io !== 'input') {
           throw new StaticError(token, 'function input not defined')
         }
       } else {
@@ -312,7 +312,7 @@ export class Reference extends Base {
 
         // check conditional access
         let conditional = !!target.conditional;
-        if (target.container instanceof Code && !target.isInput) {
+        if (target.container instanceof Code && target.io !== 'input') {
           // FIXME: only allow backward references within code
           // FIXME: outside references to outputs are conditionalized on block
           assert(target.container.containingItem.contains(from));
@@ -437,7 +437,7 @@ export class Reference extends Base {
 
   /** References are the same type if they reference the same location
    * contextually */
-  changeableFrom(from: Value, fromPath?: Path, thisPath?: Path): boolean {
+  updatableFrom(from: Value, fromPath?: Path, thisPath?: Path): boolean {
     if (!fromPath) fromPath = from.containingItem.path;
     if (!thisPath) thisPath = this.containingItem.path;
     return (
@@ -503,11 +503,11 @@ export class OptionReference extends Reference {
     return to;
   }
 
-  changeableFrom(from: Value, fromPath?: Path, thisPath?: Path): boolean {
+  updatableFrom(from: Value, fromPath?: Path, thisPath?: Path): boolean {
     return (
       from instanceof OptionReference
       && this.optionID === from.optionID
-      && super.changeableFrom(from, fromPath, thisPath)
+      && super.updatableFrom(from, fromPath, thisPath)
     );
   }
 

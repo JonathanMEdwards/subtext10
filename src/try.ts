@@ -46,7 +46,7 @@ export class Try extends Code {
             this.result = first;
           } else if (
             // check type compatible with first clause
-            !first.value!.changeableFrom(clause.value!)
+            !first.value!.updatableFrom(clause.value!)
           ) {
             throw new StaticError(clause, 'clauses must have same type result')
           } else if (this.getMaybe('^export') && !clause.getMaybe('^export')) {
@@ -82,7 +82,7 @@ export class Try extends Code {
           }
           option.id = clause.id;
           choice.add(option);
-          option.isInput = true;
+          option.io = 'input';
           option.conditional = true;
           // defer defining option value till clauses analyzed
           this.export!.workspace.analysisQueue.push(option);

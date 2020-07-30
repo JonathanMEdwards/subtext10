@@ -5,7 +5,7 @@ function inputs(statement: Statement): builtinValue[] {
   let block = cast(statement.container, Do);
   let inputs: builtinValue[] = (
     block.statements
-      .filter(statement => statement.isInput)
+      .filter(statement => statement.io === 'input')
       .map(statement => {
         statement.used = true;
         let input = assertDefined(statement.value);
@@ -41,7 +41,7 @@ export function updateBuiltin(statement: Statement, change: Item): Metafield {
 
   // write to ^delta of first input parameter
   let input = statement.container.items[0];
-  assert(input.isInput);
+  assert(input.io === 'input');
   let write = input.setDelta(undefined);
 
   // append changed result to input values

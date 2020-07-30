@@ -53,7 +53,7 @@ export class Code extends Block<Statement> {
     for (let statement of this.statements) {
       statement.eval();
       if (statement.conditional) {
-        if (statement.isInput) {
+        if (statement.io === 'input') {
           throw new StaticError(statement, 'input fields cannot be conditional')
         }
         this.conditional = true;
@@ -105,7 +105,7 @@ export class Code extends Block<Statement> {
         const field = new Field;
         record.add(field);
         field.id = ex.id;
-        field.isInput = true;
+        field.io = 'input';
         this.fieldImport(field, ex);
       })
     }
@@ -141,7 +141,7 @@ export class Code extends Block<Statement> {
         this.workspace.exportAnalysisQueue.push(() => {
           let ref = cast(exportType.value, Reference);
           let target = assertDefined(ref.target);
-          if (!target.value!.changeableFrom(ex.value!)
+          if (!target.value!.updatableFrom(ex.value!)
           ) {
             throw new StaticError(ref.tokens[0], 'changing type of value')
           }
@@ -282,7 +282,7 @@ export class Call extends Code {
       this.rejected = body.rejected;
       // detect conditional arguments
       this.statements.slice(2).forEach(arg => {
-        if (arg.isInput && arg.conditional) this.conditional = true;
+        if (arg.io === 'input' && arg.conditional) this.conditional = true;
       })
       return;
     }
@@ -292,7 +292,7 @@ export class Call extends Code {
     first.setValue(inputDefs);
     first.evaluated = true;
     def.fields.forEach(field => {
-      if (!field.isInput) return;
+      if (field.io !== 'input') return;
       // copy context is entire definition
       inputDefs.add(field.copy(def.containingItem.path, first.path))
     })

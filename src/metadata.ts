@@ -18,7 +18,7 @@ export class Metadata extends Block<Metafield> {
     field.container = this;
     field.id = id;
     // define as literal output field (a constant)
-    field.isInput = false;
+    field.io = 'output';
     field.formulaType = 'none';
     if (value) {
       field.setValue(value);

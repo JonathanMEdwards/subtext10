@@ -22,7 +22,7 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
     let template = new Entry<V>();
     this.template = template;
     template.container = this;
-    template.isInput = false;
+    template.io = 'output';
     template.formulaType = 'none';
     template.id = 0;
     return template;
@@ -77,7 +77,7 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
       this.items.forEach(entry => {
         let item = entry.get(field.id);
         let copy = new Entry;
-        copy.isInput = false;
+        copy.io = 'output';
         copy.formulaType = 'none';
         copy.id = entry.id;
         columnArray.add(copy);
@@ -120,10 +120,10 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
   }
 
   // type compatibility requires same type templates
-  changeableFrom(from: Value, fromPath?: Path, thisPath?: Path): boolean {
+  updatableFrom(from: Value, fromPath?: Path, thisPath?: Path): boolean {
     return (
       from instanceof _Array
-      && this.template.changeableFrom(from.template, fromPath, thisPath)
+      && this.template.updatableFrom(from.template, fromPath, thisPath)
     )
   }
 
@@ -209,7 +209,7 @@ export class Text extends _Array<Character> {
         let entry = new Entry<Character>();
         entry.container = this;
         entry.id = i + 1;
-        entry.isInput = false;
+        entry.io = 'output';
         entry.formulaType = 'none';
         let value = new Character;
         value.value = char;
@@ -257,7 +257,7 @@ builtins['&'] = (s: Statement, array: _Array, value: builtinValue) => {
   let entry = new Entry;
   // add to end
   copy.add(entry);
-  entry.isInput = true;
+  entry.io = 'input';
   entry.formulaType = 'none';
   if (array.tracked) {
     // assign new serial number
@@ -366,7 +366,7 @@ export class Loop extends _Array<Do> {
       // TODO: type check accumulator and result
       let accum = templateBlock.items[1];
       let result = templateBlock.result!;
-      if (!accum.value!.changeableFrom(result.value!)) {
+      if (!accum.value!.updatableFrom(result.value!)) {
         throw new StaticError(accum.value!.token, 'result must be same type as accumulator')
       }
     }
@@ -376,13 +376,13 @@ export class Loop extends _Array<Do> {
       let iteration = new Entry<Do>();
       this.add(iteration);
       iteration.id = item.id;
-      iteration.isInput = false;
+      iteration.io = 'output';
       iteration.formulaType = 'none';
       // copy code block into iteration
       iteration.setFrom(templateBlock);
       // set input item of code block
       let iterInput = iteration.value!.items[0];
-      assert(iterInput.isInput);
+      assert(iterInput.io === 'input');
       iterInput.detachValue();
       iterInput.setFrom(item);
 
@@ -390,7 +390,7 @@ export class Loop extends _Array<Do> {
         // set previous result into accumulater
         let prev = cast(this.items[this.items.length - 2].value, Do);
         let accum = iteration.value!.items[1];
-        assert(accum.isInput);
+        assert(accum.io === 'input');
         accum.detachValue();
         accum.setFrom(prev.result)
       }
@@ -434,7 +434,7 @@ export class Loop extends _Array<Do> {
         indexField.id = cast(
           this.workspace.currentVersion.down('builtins.at.^code.index').id,
           FieldID);
-        indexField.isInput = false;
+        indexField.io = 'output';
         indexField.formulaType = 'none';
         indexField.setFrom(index);
         let indexRecord = new Record;
@@ -491,7 +491,7 @@ export class Loop extends _Array<Do> {
             // set ordinals if untracked
             resultItem.id = resultArray.items.length;
           }
-          resultItem.isInput = false;
+          resultItem.io = 'output';
           resultItem.formulaType = 'none';
           resultItem.setFrom(iterationBlock.result);
         })

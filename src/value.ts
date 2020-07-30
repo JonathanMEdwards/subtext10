@@ -43,8 +43,8 @@ export abstract class Value {
     return to;
   }
 
-  /** type equality */
-  changeableFrom(from: Value, fromPath?: Path, thisPath?: Path): boolean {
+  /** type compatibility */
+  updatableFrom(from: Value, fromPath?: Path, thisPath?: Path): boolean {
     return this.constructor === from.constructor;
   }
 

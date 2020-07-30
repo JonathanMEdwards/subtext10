@@ -98,8 +98,8 @@ export class Anything extends Base {
 
   get isGeneric() { return true }
 
-  // anything can be assigned
-  changeableFrom(from: Value, fromPath?: Path, thisPath?: Path): boolean {
+  // anything is compatible
+  updatableFrom(from: Value, fromPath?: Path, thisPath?: Path): boolean {
     return true;
   }
 

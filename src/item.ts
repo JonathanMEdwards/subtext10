@@ -124,13 +124,13 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         // synthesize ^initial metadata to access initial value of an input
         // copy base item into ^initial
         // currently only used on options
-        assert(this.isInput);
+        assert(this.io === 'input');
         this.resolve();
         let copy = this.copy(this.path, this.path.down(MetaID.ids['^initial']));
         let initial = this.setMeta('^initial');
         // transfer copy into metafield
         initial.formulaType = copy.formulaType;
-        initial.isInput = false;
+        initial.io = 'output';
         if (copy.metadata) {
           initial.metadata = copy.metadata;
           initial.metadata.containingItem = initial;
@@ -215,15 +215,13 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     | 'write' | 'choose' | 'call' | 'include' | 'builtin' | 'loop'
   ) = 'none';
 
-  /** whether input or output item */
-  isInput = false;
-
-  /** updatable output */
-  isUpdatableOutput = false;
+  /** IO mode of item. Inputs are mutable state and function parameters. Outputs
+   * are read-only formulas. Interfaces are updatable formulas */
+  io: 'input' | 'output' | 'interface' = 'output';
 
   /** whether value should be rederived on copies */
   get isDerived() {
-    return !this.isInput && this.formulaType !== 'none'
+    return this.io !== 'input' && this.formulaType !== 'none'
   }
 
   /** whether item can reject having a value. Determined during analysis */
@@ -347,13 +345,13 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             // check target and type of writes
             let targetRef = cast(this.get('^target').value, Reference);
             let target = targetRef.target!;
-            if (!target.value!.changeableFrom(writeValue.value!)) {
+            if (!target.value!.updatableFrom(writeValue.value!)) {
               throw new StaticError(this, 'write changing type')
             }
             if (!target.comesBefore(writeValue)) {
               throw new StaticError(arrayLast(targetRef.tokens), 'write must go backwards')
             }
-            if (!target.isInput && !target.isUpdatableOutput) {
+            if (target.io === 'output') {
               throw new StaticError(arrayLast(targetRef.tokens),
                 'cannot update');
               // note contextual writability of target is checked in update
@@ -490,18 +488,18 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
 
   /** whether a contained item is writable in this context. Must be inputs up to
-   * a containing updatable output or this. Returns the containing updatable
-   * output or the original input */
+   * a containing interface or this. Returns the containing interface or the
+   * original input */
   isWritable(item: Item): Item | undefined {
     // scan upwards to this
     for (let up = item; up !== this; up = up.container.containingItem) {
-      // updatableOutputs are writable
-      if (up.isUpdatableOutput) return up;
+      // interfaces are writable
+      if (up.io === 'interface') return up;
       // can write into any code block statement
       if (up instanceof Statement) return up;
       // can write into := payload FIXME maybe require `:=|>` to be writable
       if (up.id === MetaID.ids['^payload']) return up;
-      if (!up.isInput) return undefined;
+      if (up.io !== 'input') return undefined;
     }
     // Inputs all the way up so can write to original item
     return item;
@@ -590,7 +588,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       if (payload) {
         // replace target value with payload value
         option.eval();
-        if (!option.value!.changeableFrom(payload.value!)) {
+        if (!option.value!.updatableFrom(payload.value!)) {
           throw new StaticError(arrayLast(ref.tokens), 'changing type of value')
         }
         option.detachValue();
@@ -606,7 +604,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       assert(target !== context);
       assert(payload);
       // replace target value with payload value
-      if (!target.value!.changeableFrom(payload.value!)) {
+      if (!target.value!.updatableFrom(payload.value!)) {
         throw new StaticError(arrayLast(ref.tokens), 'changing type of value')
       }
       delta = target.setDelta(payload);
@@ -617,7 +615,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       (this.container instanceof Call)
         // don't propagate function argument assignments
         ? [delta]
-        : context.propagateUpdates(delta);
+        : context.feedback(delta);
 
 
     // replace grounded deltas in result copied from context
@@ -645,11 +643,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   }
 
 
-  /** update propagation. Deltas propagated in reverse tree order until
-   * all grounded at inputs. Receiving item is the bounding context of change
+  /** Feedback propagates deltas in reverse tree order until
+   * all grounded at inputs. Receiving item is the bounding context of update
    * @param delta initial ^delta field
    * @returns array of grounded deltas */
-  propagateUpdates(delta: Metafield): Metafield[] {
+  feedback(delta: Metafield): Metafield[] {
 
     // stack of pending deltas, sorted in tree order
     let pendingDeltas = [delta];
@@ -661,8 +659,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     const writeRef = (ref: Reference, value: Item) => {
       let target = ref.target!;
       if (!this.contains(target)) {
-        // TODO: defer changes that leave context
-        trap();
+        // TODO: defer changes that leave context by reifying into differnt type
+        throw new StaticError(arrayLast(ref.tokens),
+          'write outside context of update')
       }
       if (!this.isWritable(target)) {
         throw new StaticError(arrayLast(ref.tokens), 'cannot update')
@@ -698,15 +697,15 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         continue;
       }
 
-      // lift deltas to containing updatable output
+      // lift deltas to containing interface
       let outputBase = this.isWritable(deltaBase);
       if (!outputBase) {
         // unwritable location
         throw new StaticError(deltaBase, 'cannot update');
       }
       if (outputBase !== deltaBase) {
-        // deltas within updatable output are lifted into its ^delta
-        assert(outputBase.isUpdatableOutput);
+        // deltas within interface are lifted into its ^delta
+        assert(outputBase.io === 'interface');
         let outputdelta = outputBase.deltaField;
         if (!outputdelta) {
           // initialize containing output delta from prior value
@@ -719,14 +718,14 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         // write into output delta at downward path
         let target =
           outputdelta.down(deltaBase.path.ids.slice(outputBase.path.length));
-        assert(target.isInput);
+        assert(target.io === 'input');
         target.detachValue();
         target.setFrom(delta);
         continue;
       }
 
       // changes to inputs
-      if (deltaBase.isInput) {
+      if (deltaBase.io === 'input') {
         if (deltaBase.container instanceof Code) {
           // code input
           let call = deltaBase.container.containingItem.container;
@@ -787,7 +786,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           // set input delta of on-update block
           onUpdate.initialize();
           let input = onUpdate.statements[0];
-          assert(input.isInput)
+          assert(input.io === 'input')
           if (input.value) {
             // possible that input got evaluated by deferred analysis
             assert(this.workspace.analyzing);
@@ -1005,8 +1004,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     let to = another(this);
     to.id = this.id;
     to.formulaType = this.formulaType;
-    to.isInput = this.isInput;
-    to.isUpdatableOutput = this.isUpdatableOutput;
+    to.io = this.io;
     to.conditional = this.conditional;
     to.usesPrevious = this.usesPrevious;
 
@@ -1024,7 +1022,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         // tranfer new copy to original deferred copy already in workspace
         assert(to.id === newCopy.id);
         to.formulaType = newCopy.formulaType;
-        to.isInput = newCopy.isInput;
+        to.io = newCopy.io;
         to.conditional = newCopy.conditional;
         to.usesPrevious = newCopy.usesPrevious
         if (newCopy.metadata) {
@@ -1056,26 +1054,26 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return to;
   }
 
-  /** Type-checking for update operations. Can this item be changed from
-   * another. Recurses within a path context, which defaults to item paths */
-  changeableFrom(from: Item, fromPath?: Path, thisPath?: Path): boolean {
+  /** Type-checking for update operations. Can this item be updated from
+   * another? Recurses within a path context, which defaults to item paths */
+  updatableFrom(from: Item, fromPath?: Path, thisPath?: Path): boolean {
     this.resolve();
     from.resolve();
     if (!thisPath) thisPath = this.path;
     if (!fromPath) fromPath = from.path;
     return (
       this.id === from.id
-      && this.isInput === from.isInput
+      && this.io === from.io
       && this.conditional === from.conditional
       && this.formulaType === from.formulaType
       && (
         this.formulaType !== 'none'
-        || this.value!.changeableFrom(from.value!, fromPath, thisPath)
+        || this.value!.updatableFrom(from.value!, fromPath, thisPath)
       )
       && !!this.metadata === !!from.metadata
       && (
         !this.metadata
-        || this.metadata.changeableFrom(from.metadata!, fromPath, thisPath)
+        || this.metadata.updatableFrom(from.metadata!, fromPath, thisPath)
       )
     )
   }

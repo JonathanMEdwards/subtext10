@@ -34,7 +34,7 @@ export class Choice extends Block {
     // analyze all choices
     // validate option definitions
     this.fields.forEach(option => {
-      assert(option.isInput && option.conditional);
+      assert(option.io === 'input' && option.conditional);
     })
     // analyze first option
     this.fields[0].eval();

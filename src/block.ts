@@ -43,7 +43,7 @@ export class Block<F extends Field = Field> extends Container<F> {
     this.fields.forEach(field => {
       field.eval();
       if (this.workspace.analyzing) {
-        if (field.isInput && field.conditional) {
+        if (field.io === 'input' && field.conditional) {
           throw new StaticError(field, 'input fields must be unconditional')
         }
         // verify conditional naming
@@ -75,16 +75,17 @@ export class Block<F extends Field = Field> extends Container<F> {
 
   /** whether contains an input field with an Anything value */
   get isGeneric() {
-    return this.fields.some(field => field.isInput && field.value!.isGeneric)
+    return this.fields.some(
+      field => field.io === 'input' && field.value!.isGeneric)
   }
 
   // type compatibility
-  changeableFrom(from: Block, fromPath?: Path, thisPath?: Path): boolean {
+  updatableFrom(from: Block, fromPath?: Path, thisPath?: Path): boolean {
     return (
-      super.changeableFrom(from, fromPath, thisPath)
+      super.updatableFrom(from, fromPath, thisPath)
       && this.fields.length === from.fields.length
       && this.fields.every((field, i) =>
-        field.changeableFrom(from.fields[i], fromPath, thisPath))
+        field.updatableFrom(from.fields[i], fromPath, thisPath))
     )
   }
 
