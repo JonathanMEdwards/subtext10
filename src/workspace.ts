@@ -1,4 +1,4 @@
-import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions, Code, Statement, StaticError, Try, Call, Do, With, assert, Value, Reference, Choice, assertDefined, OptionReference  } from "./exports";
+import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions, Code, Statement, StaticError, Try, Call, Do, With, assert, Value, Reference, Choice, assertDefined, OptionReference, Container  } from "./exports";
 
 /** A subtext workspace */
 export class Workspace extends Item<never, History> {
@@ -37,21 +37,112 @@ export class Workspace extends Item<never, History> {
     return this.value!.currentVersion;
   }
 
+
+  /** queue of items with deferred analysis */
+  analysisQueue: Item[] = [];
+  /** queue of functions to analyze exports */
+  exportAnalysisQueue: (()=>void)[] = [];
+
+  /** compile a doc
+   * @param source
+   * @param builtin whether to include builtins first
+   * @throws SyntaxError
+   */
+  static compile(source: string, builtins = true): Workspace {
+    if (builtins) {
+      source = "builtins = include builtins\n" + source;
+    }
+    let ws = new Workspace;
+    let history = new History;
+    ws.value = history;
+    history.containingItem = ws;
+    let version = new Version;
+    version.id = ws.newVersionID('initial');
+    history.add(version);
+    let head = new Head;
+    version.value = head;
+    head.containingItem = version;
+    // compile
+    let parser = new Parser(source);
+    parser.requireHead(head);
+
+    // analyze all formulas by evaluating doc
+    ws.analyzing = true;
+    ws.eval();
+
+    // execute deffered analysis
+    while (ws.analysisQueue.length) {
+      ws.analysisQueue.shift()!.resolve();
+    }
+    while (ws.exportAnalysisQueue.length) {
+      ws.exportAnalysisQueue.shift()!();
+    }
+
+    // analyze exposed updatable outputs
+    const analyzeUpdates = (container: Container<Item>) => {
+      for (let item of container.items) {
+        // (seems unneeded now) Skip unevaluated items to avoid recursive choice
+        // if (!item.value || item.deferral) continue;
+        if (item.isUpdatableOutput) {
+          // analyze updatable output
+          version.propagateUpdates(item.setDelta(item));
+        } else if (item.isInput && item.value instanceof Container) {
+          // drill into input containers
+          analyzeUpdates(item.value);
+        }
+      }
+    }
+    analyzeUpdates(head);
+
+    // initialize to force recalc after analysis
+    ws.initialize();
+
+    // Item.resolve() calls might have triggered evaluations, so re-initialize
+    // this was happening on a try inside a on-update, but now those are being
+    // forced to resolve
+    //ws.initialize();
+
+
+    ws.analyzing = false;
+
+    // check for unused code statements and validate do/with blocks
+    for (let item of ws.visit()) {
+      if (
+        item instanceof Statement &&
+        !item.used
+        && (item.dataflow === undefined || item.dataflow === 'let')
+        && !(item.container instanceof Try)
+        && !(item.container instanceof Call)
+      ) {
+        throw new StaticError(item, 'unused value')
+      }
+      if (item.value instanceof Do && item.usesPrevious) {
+        throw new StaticError(item, 'do-block cannot use previous value')
+      }
+      if (item.value instanceof With && !item.usesPrevious) {
+        throw new StaticError(item, 'with-block must use previous value')
+      }
+    }
+    ws.eval();
+
+    return ws;
+  }
+
   /** dump item at string path in current version */
   dumpAt(path: string): Item {
     return this.currentVersion.down(path).dump();
   }
 
-  /** write a value at a path in current version, creating a new version.
+  /** update a value at a path in current version, creating a new version.
    *
    * If the path refers to a Choice, the value must be the FieldID or string
    * name of an option. If the path refers to a non-Choice, the value can be a
    * Value or number or string
    */
-  writeAt(path: string, value: number | boolean | string | Value | FieldID) {
+  updateAt(path: string, value: number | boolean | string | Value | FieldID) {
     let target = this.currentVersion.down(path);
     if (!this.currentVersion.isWritable(target)) {
-      throw 'unwritable location';
+      throw 'cannot update';
     }
 
     let choose = target.value instanceof Choice;
@@ -102,74 +193,6 @@ export class Workspace extends Item<never, History> {
     }
     // evaluate new version
     newVersion.eval();
-  }
-
-
-  /** queue of items with deferred analysis */
-  analysisQueue: Item[] = [];
-  /** queue of functions to analyze exports */
-  exportAnalysisQueue: (()=>void)[] = [];
-
-  /** compile a doc
-   * @param source
-   * @param builtin whether to include builtins first
-   * @throws SyntaxError
-   */
-  static compile(source: string, builtins = true): Workspace {
-    if (builtins) {
-      source = "builtins = include builtins\n" + source;
-    }
-    let ws = new Workspace;
-    let history = new History;
-    ws.value = history;
-    history.containingItem = ws;
-    let version = new Version;
-    version.id = ws.newVersionID('initial');
-    history.add(version);
-    let head = new Head;
-    version.value = head;
-    head.containingItem = version;
-    // compile
-    let parser = new Parser(source);
-    parser.requireHead(head);
-
-    // analyze all formulas by evaluating doc
-    ws.analyzing = true;
-    ws.eval();
-
-    // execute deffered analysis
-    while (ws.analysisQueue.length) {
-      ws.analysisQueue.shift()!.resolve();
-    }
-    while (ws.exportAnalysisQueue.length) {
-      ws.exportAnalysisQueue.shift()!();
-    }
-
-    // initialize to force recalc after analysis
-    ws.initialize();
-
-    ws.analyzing = false;
-    // check for unused code statements and validate do/with blocks
-    for (let item of ws.visit()) {
-      if (
-        item instanceof Statement &&
-        !item.used
-        && (item.dataflow === undefined || item.dataflow === 'let')
-        && !(item.container instanceof Try)
-        && !(item.container instanceof Call)
-      ) {
-        throw new StaticError(item, 'unused value')
-      }
-      if (item.value instanceof Do && item.usesPrevious) {
-        throw new StaticError(item, 'do-block cannot use previous value')
-      }
-      if (item.value instanceof With && !item.usesPrevious) {
-        throw new StaticError(item, 'with-block must use previous value')
-      }
-    }
-    ws.eval();
-
-    return ws;
   }
 }
 

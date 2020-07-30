@@ -102,7 +102,7 @@ test('update', () => {
   expectDump("a = record{x: 0, y : 0}, b = a with{.x := 1}")
     .toEqual({ a: {x: 0, y: 0}, b: {x: 1, y: 0}});
   expectCompiling("a = record{x = 0, y : 0}, b = .x := 1")
-    .toThrow('not updatable location');
+    .toThrow('cannot update');
   expectCompiling("a = record{x: 0, y : 0}, b = .x := 'foo'")
     .toThrow('changing type');
   expectDump(`

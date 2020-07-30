@@ -7,40 +7,50 @@ import { compile, expectCompiling, expectDump } from './basic.test';
 
 test('write update', () => {
   let w = compile("a: 0");
-  w.writeAt('a', 1);
+  w.updateAt('a', 1);
   expect(w.dumpAt('a')).toEqual(1);
-  expect(() => { w.writeAt('a', 'foo') }).toThrow('changing type of value')
+  expect(() => { w.updateAt('a', 'foo') }).toThrow('changing type of value')
 });
 
 test('choice update', () => {
   let w = compile("a: choice{x?: 0; y?: 'foo'}");
-  w.writeAt('a', 'y');
-  w.writeAt('a.y', 'bar');
+  w.updateAt('a', 'y');
+  w.updateAt('a.y', 'bar');
   expect(w.dumpAt('a')).toEqual({y: 'bar'});
 });
 
 test('update readonly', () => {
   let w = compile("a = 0");
-  expect(() => { w.writeAt('a', 1) }).toThrow('unwritable location')
+  expect(() => { w.updateAt('a', 1) }).toThrow('cannot update')
 });
 
 test('update type check', () => {
   let w = compile("a: 0");
-  expect(() => { w.writeAt('a', 'foo') }).toThrow('changing type of value')
+  expect(() => { w.updateAt('a', 'foo') }).toThrow('changing type of value')
 });
 
 test('updatable output', () => {
   let w = compile("c: 0, f =|> c * 1.8 + 32 on-update{write - 32 / 1.8 -> c}");
   expect(w.dumpAt('f')).toEqual(32);
-  w.writeAt('f', 212);
+  w.updateAt('f', 212);
   expect(w.dumpAt('c')).toEqual(100);
 });
 
 test('reverse formula', () => {
   let w = compile("c: 0, f =|> c * 1.8 + 32");
   expect(w.dumpAt('f')).toEqual(32);
-  w.writeAt('f', 212);
+  w.updateAt('f', 212);
   expect(w.dumpAt('c')).toEqual(100);
+});
+
+test('literal update', () => {
+  expect(() => compile("c: 0, f =|> 0"))
+    .toThrow('cannot update');
+});
+
+test('constant formula update', () => {
+  expect(() => compile("c: 0, f =|> 0 * 1.8 + 32"))
+    .toThrow('cannot update');
 });
 
 test('update propagation', () => {
@@ -78,7 +88,7 @@ test('write order check', () => {
     .toThrow('write must go backwards');
 });
 
-test('conditional update', () => {
+test('conditional on-update', () => {
   let w = compile(`
   c: 0
   f =|> c * 1.8 + 32 on-update{
@@ -90,11 +100,11 @@ test('conditional update', () => {
       write - 32 / 1.8 -> c
     }
   }`);
-  w.writeAt('f', 212);
+  w.updateAt('f', 212);
   expect(w.dumpAt('c')).toEqual(100);
 });
 
-test('conditional update 2', () => {
+test('conditional on-update 2', () => {
   let w = compile(`
   c: 0
   f =|> c * 1.8 + 32 on-update{
@@ -106,8 +116,28 @@ test('conditional update 2', () => {
       write - 32 / 1.8 -> c
     }
   }`);
-  w.writeAt('f', 212);
+  w.updateAt('f', 212);
   expect(w.dumpAt('c')).toEqual(50);
+});
+
+test('conditional on-update in update', () => {
+  // tricky because of analysis deferral
+  let w = compile(`
+  s = record {
+    c: 0
+    f =|> c * 1.8 + 32 on-update{
+      try {
+        check 1 =? 2
+        write 50 -> c
+      }
+      else {
+        write - 32 / 1.8 -> c
+      }
+    }
+  }
+  t = s with{.f := 212}
+  `);
+  expect(w.dumpAt('t.c')).toEqual(100);
 });
 
 test('reverse conditional update', () => {
@@ -122,7 +152,7 @@ test('reverse conditional update', () => {
       c + 2
     }
   }`);
-  w.writeAt('f', 100);
+  w.updateAt('f', 100);
   expect(w.dumpAt('c')).toEqual(98);
 });
 
@@ -138,7 +168,7 @@ test('reverse conditional update 2', () => {
       c + 2
     }
   }`);
-  w.writeAt('f', 100);
+  w.updateAt('f', 100);
   expect(w.dumpAt('c')).toEqual(99);
 });
 
@@ -150,7 +180,7 @@ test('update aggregation', () => {
     d: 0
   }
   t =|> s`);
-  w.writeAt('t.c', 100);
+  w.updateAt('t.c', 100);
   expect(w.dumpAt('s')).toEqual({c: 100, d: 0});
 })
 
@@ -161,15 +191,15 @@ test('update aggregation 2', () => {
     d =|> c
   }
   t =|> s`);
-  w.writeAt('t.d', 100);
+  w.updateAt('t.d', 100);
   expect(w.dumpAt('s')).toEqual({c: 100, d: 100});
 })
 
 test('moot update', () => {
   let w = compile("c: 0, f =|> false on-update{write c <- + 1}");
-  w.writeAt('f', true);
+  w.updateAt('f', true);
   expect(w.dumpAt('c')).toEqual(1);
-  w.writeAt('f', false);
+  w.updateAt('f', false);
   expect(w.dumpAt('c')).toEqual(1);
 });
 
@@ -179,7 +209,7 @@ test('update propagation order', () => {
   f =|> record{x: 0, y: 0} on-update{write c <- + 1}
   g =|> false on-update{write 1 -> f.x; write 1 -> f.y}
   `);
-  w.writeAt('g', true);
+  w.updateAt('g', true);
   expect(w.dumpAt('c')).toEqual(1);
 });
 
@@ -188,7 +218,7 @@ test('update overwrite', () => {
   c: 0
   g =|> false on-update{write 1 -> c; write 2 -> c}
   `);
-  w.writeAt('g', true);
+  w.updateAt('g', true);
   expect(w.dumpAt('c')).toEqual(2);
 });
 

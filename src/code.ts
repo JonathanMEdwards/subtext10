@@ -156,6 +156,7 @@ export class Code extends Block<Statement> {
   /** iterate through nested evaluated statements */
   *evaluatedStatements(): Generator<Statement> {
     for (let statement of this.statements) {
+      if (!statement.evaluated) continue;
       yield *statement.evaluatedStatements();
       yield statement;
     }
@@ -338,6 +339,9 @@ export class OnUpdate extends Code {
     let input = this.statements[0];
     input.used = true;
     // TODO type check user-defined input
+
+    // initialize block to force resolve() conditionals
+    this.initialize();
   }
 
 }

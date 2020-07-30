@@ -17,7 +17,14 @@ export class Try extends Code {
     if (this.workspace.analyzing) {
 
       // during analysis first clause becomes result, other clauses queued for
-      // later to allow recursion
+      // later analysis to allow recursion
+
+      /** FIXME - this has caused so much pain! Needed to allow implicitly
+          recursive functions. Instead have an explicit `recursive-type exp`
+          statement following the arguments. Maybe too late for this
+          implementation. Note recursive choices will probably still need
+          deferred analysis and copying */
+
       let first = this.fields[0];
       for (let clause of this.fields) {
         /** function to analyze clause */
@@ -33,6 +40,7 @@ export class Try extends Code {
               'clause must be conditional if not last'
             )
           }
+          first.eval();
           if (clause === first) {
             // set first clause as result during analysis
             this.result = first;
@@ -48,8 +56,9 @@ export class Try extends Code {
         if (clause === first) {
           // immediately analyze first clause, setting result type
           analyzeClause();
-        } else {
+        } else if (!clause.deferral) {
           // defer secondary clauses so they can make recursive calls
+          // but ignore if a deferred copy of a deferred clause
           assert(clause.evaluated === false);
           clause.evaluated = undefined;
           clause.deferral = analyzeClause;

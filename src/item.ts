@@ -256,11 +256,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   resolve() {
     let deferral = this.deferral;
     if (!deferral) return;
-    if (this.isDetached()) {
-      debugger;
-    } else {
-      assert(this.workspace.analyzing);
-    }
+    assert(!this.isDetached() && this.workspace.analyzing)
     // set item unevaluated, with deferral to catch cycles
     this.evaluated = false;
     this.deferral = () => {
@@ -359,7 +355,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             }
             if (!target.isInput && !target.isUpdatableOutput) {
               throw new StaticError(arrayLast(targetRef.tokens),
-                'unwritable location');
+                'cannot update');
               // note contextual writability of target is checked in update
             }
           }
@@ -416,7 +412,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         for (let arg of call.statements.slice(1)) {
           yield* arg.evaluatedStatements();
         }
-        yield *cast(arrayLast(call.statements).value, Do).evaluatedStatements();
+        const body = arrayLast(call.statements).value;
+        yield* cast(body, Do).evaluatedStatements();
         break;
 
       case 'update':
@@ -554,12 +551,6 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    */
 
   private update() {
-
-    // stack of pending deltas, sorted in tree order
-    const pendingDeltas: Metafield[] = [];
-    // array of grounded deltas (on input fields)
-    const groundedDeltas: Metafield[] = [];
-
     // target and payload in metadata already evaluated
     const ref = cast(this.get('^target').value, Reference);
     assert(ref.dependent);
@@ -573,9 +564,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     let target = ref.target;
     assert(target);
     const context = this.workspace.down(ref.path.ids.slice(0, ref.context));
-    // context.eval(); // don't think this is needed
+    context.eval();
 
     // Set ^delta on target to changed value
+    let delta: Metafield;
     const payload = this.getMaybe('^payload');
     if (payload) {
       this.setConditional(payload.conditional);
@@ -587,9 +579,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       // choose
       assert(ref instanceof OptionReference);
       // copy change from current value
-      const choicedelta = target.setDelta(target);
-      pendingDeltas.push(choicedelta);
-      let choice = cast(choicedelta.value, Choice);
+      delta = target.setDelta(target);
+      let choice = cast(delta.value, Choice);
       // set choice
       choice.setChoice(choice.items.findIndex(
         option => option.id === ref.optionID));
@@ -607,7 +598,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       }
       if (target === context) {
         // replace value of entire context
-        this.copyValue(choicedelta);
+        this.copyValue(delta);
         return;
       }
     } else {
@@ -618,18 +609,63 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       if (!target.value!.changeableFrom(payload.value!)) {
         throw new StaticError(arrayLast(ref.tokens), 'changing type of value')
       }
-      pendingDeltas.push(target.setDelta(payload));
+      delta = target.setDelta(payload);
     }
+
+    // propagate updates within context
+    let groundedDeltas =
+      (this.container instanceof Call)
+        // don't propagate function argument assignments
+        ? [delta]
+        : context.propagateUpdates(delta);
+
+
+    // replace grounded deltas in result copied from context
+    if (this.value) {
+      this.detachValue();
+    }
+    this.copyValue(context);
+    for (let grounded of groundedDeltas) {
+      // follow path within delta context
+      let target = this.down(grounded.base.path.ids.slice(ref.context));
+      target.detachValue();
+      target.copyValue(grounded);
+    }
+
+
+    if (this.formulaType === 'updateInput') {
+      // initialize call body to recalc arg defaults from input value,
+      // preserving primary input value
+      // FIXME: maybe compile this into an explicit initialize oepration?
+      // But don't want to init primary input.
+      cast(this.value, Code).statements.slice(1).forEach(statement =>
+        statement.initialize())
+    }
+
+  }
+
+
+  /** update propagation. Deltas propagated in reverse tree order until
+   * all grounded at inputs. Receiving item is the bounding context of change
+   * @param delta initial ^delta field
+   * @returns array of grounded deltas */
+  propagateUpdates(delta: Metafield): Metafield[] {
+
+    // stack of pending deltas, sorted in tree order
+    let pendingDeltas = [delta];
+    // result array of grounded deltas
+    let groundedDeltas: Metafield[] = [];
+
 
     /** function to record a write through a reference in pendingdeltas */
     const writeRef = (ref: Reference, value: Item) => {
       let target = ref.target!;
-      if (!context.contains(target)) {
+      if (!this.contains(target)) {
         // TODO: defer changes that leave context
         trap();
       }
-      if (!context.isWritable(target)) {
-        throw new StaticError(arrayLast(ref.tokens), 'unwritable location')
+      if (!this.isWritable(target)) {
+        throw new StaticError(arrayLast(ref.tokens), 'cannot update')
       }
       writeDelta(target.setDelta(value));
     }
@@ -652,11 +688,6 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       pendingDeltas.splice(i + 1, 0, delta);
     }
 
-    //
-    // update main loop
-    // propagate pending deltas in reverse tree order till all grounded
-    //
-
     while (pendingDeltas.length) {
       let delta = pendingDeltas.pop()!;
       let deltaBase = delta.base;
@@ -668,10 +699,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       }
 
       // lift deltas to containing updatable output
-      let outputBase = context.isWritable(deltaBase);
+      let outputBase = this.isWritable(deltaBase);
       if (!outputBase) {
         // unwritable location
-        throw new StaticError(deltaBase, 'not updatable location')
+        throw new StaticError(deltaBase, 'cannot update');
       }
       if (outputBase !== deltaBase) {
         // deltas within updatable output are lifted into its ^delta
@@ -696,12 +727,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
       // changes to inputs
       if (deltaBase.isInput) {
-        if (
-          // changing code input field
-          deltaBase.container instanceof Code
-          // but not in a call
-          && !(this.container instanceof Call)
-        ) {
+        if (deltaBase.container instanceof Code) {
           // code input
           let call = deltaBase.container.containingItem.container;
           if (call instanceof Call &&
@@ -715,7 +741,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             writeRef(ref, delta);
             continue;
           }
-          throw new StaticError(deltaBase, 'not updatable location')
+          throw new StaticError(deltaBase, 'cannot update');
         } else {
           // ground out data delta
           groundedDeltas.push(delta);
@@ -742,7 +768,15 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
           if (arrayLast(code.statements).dataflow !== 'on-update') {
             // no on-update block - write delta onto result of code block
-            writeDelta(code.result!.setDelta(delta));
+            if (code instanceof Try && this.workspace.analyzing) {
+              // during analysis update all try clauses
+              for (let clause of code.statements) {
+                //clause.resolve();
+                writeDelta(clause.setDelta(delta));
+              }
+            } else {
+              writeDelta(code.result!.setDelta(delta));
+            }
             continue;
           }
 
@@ -753,11 +787,17 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           // set input delta of on-update block
           onUpdate.initialize();
           let input = onUpdate.statements[0];
-          assert(input.isInput && !input.value);
+          assert(input.isInput)
+          if (input.value) {
+            // possible that input got evaluated by deferred analysis
+            assert(this.workspace.analyzing);
+            input.detachValue();
+          }
           input.setFrom(delta);
           // evaluate on-update and queue up writes
           onUpdate.eval();
           // Execute all internal write statements
+          // this will traverse all try clauses during analysis
           for (let write of onUpdate.evaluatedStatements()) {
             if (write.formulaType !== 'write') continue;
             writeRef(cast(write.get('^target').value, Reference), write);
@@ -795,7 +835,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           // pass through remaining changes to context
           const updateContext = this.workspace.down(
             targetRef.path.ids.slice(0, targetRef.context));
-          assert(context.isWritable(updateContext) === updateContext);
+          assert(this.isWritable(updateContext) === updateContext);
           const contextDelta = updateContext.setDelta(delta);
           writeDelta(contextDelta);
           // restore target region to prior value
@@ -806,33 +846,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         }
 
         default:
-          trap();
+          throw new StaticError(deltaBase, 'cannot update');
       }
       continue;
     }
-
-    // replace grounded deltas in result copied from context
-    if (this.value) {
-      this.detachValue();
-    }
-    this.copyValue(context);
-    for (let grounded of groundedDeltas) {
-      // follow path within delta context
-      let target = this.down(grounded.base.path.ids.slice(ref.context));
-      target.detachValue();
-      target.copyValue(grounded);
-    }
-
-
-    if (this.formulaType === 'updateInput') {
-      // initialize call body to recalc arg defaults from input value,
-      // preserving primary input value
-      // FIXME: maybe compile this into an explicit initialize oepration?
-      // But don't want to init primary input.
-      cast(this.value, Code).statements.slice(1).forEach(statement =>
-        statement.initialize())
-    }
-
+    return groundedDeltas;
   }
 
 
