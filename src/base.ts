@@ -1,4 +1,4 @@
-import { Value, another, Path, escapedString } from "./exports";
+import { Value, another, Path, escapedString, assert } from "./exports";
 
 /** Base items contain no other items */
 export class Base extends Value {
@@ -10,7 +10,18 @@ export class Base extends Value {
 
   get isGeneric() { return false }
 
-  dump() {}
+  dump() { }
+
+  // Validate copy test
+  isCopyOf(ancestor: this): boolean {
+    if (super.isCopyOf(ancestor)) {
+      assert(this.equals(ancestor))
+      return true;
+    } else {
+      return false;
+    }
+  }
+
 }
 
 /**

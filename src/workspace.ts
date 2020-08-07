@@ -85,7 +85,10 @@ export class Workspace extends Item<never, History> {
         // if (!item.value || item.deferral) continue;
         if (item.io === 'interface') {
           // analyze interface update
-          version.feedback(item.setDelta(item));
+          let delta = item.setDelta(item);
+          // uncopy value so treated as different
+          delta.uncopy();
+          version.feedback(item);
         } else if (item.io === 'input' && item.value instanceof Container) {
           // drill into input containers
           analyzeUpdates(item.value);
@@ -97,10 +100,10 @@ export class Workspace extends Item<never, History> {
     // initialize to force recalc after analysis
     ws.initialize();
 
-    // Item.resolve() calls might have triggered evaluations, so re-initialize
+    // Item.resolve() calls might have triggered evaluation.
+    // Signature is throwing 'unused value: index: 0'
     // this was happening on a try inside a on-update, but now those are being
     // forced to resolve
-    //ws.initialize();
 
 
     ws.analyzing = false;
@@ -142,7 +145,7 @@ export class Workspace extends Item<never, History> {
   updateAt(path: string, value: number | boolean | string | Value | FieldID) {
     let target = this.currentVersion.down(path);
     if (!this.currentVersion.isWritable(target)) {
-      throw 'cannot update';
+      throw 'not updatable';
     }
 
     let choose = target.value instanceof Choice;

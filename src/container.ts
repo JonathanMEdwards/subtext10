@@ -13,7 +13,6 @@ export abstract class Container<I extends Item> extends Value {
     }
   }
 
-
   /** add an item to end */
   add(item: I) {
     assert(!item.container);
@@ -39,6 +38,25 @@ export abstract class Container<I extends Item> extends Value {
       && this.items.every(
         // TODO: only need to check input items
         (item, i) => item.equals(other.items[i])
+      )
+    )
+  }
+
+  /** whether this value was transitively copied from another Value without any
+   * updates */
+  isCopyOf(ancestor: this): boolean {
+    return (
+      this.items.length === ancestor.items.length
+      && this.items.every(
+        (item, i) => {
+          // ignore non-input items
+          if (item.io !== 'input') return true;
+          let ancestorItem = ancestor.items[i];
+          return (
+            item.id === ancestorItem.id
+            && item.value!.isCopyOf(ancestorItem.value!)
+          )
+        }
       )
     )
   }

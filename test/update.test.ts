@@ -21,7 +21,7 @@ test('choice update', () => {
 
 test('update readonly', () => {
   let w = compile("a = 0");
-  expect(() => { w.updateAt('a', 1) }).toThrow('cannot update')
+  expect(() => { w.updateAt('a', 1) }).toThrow('not updatable')
 });
 
 test('update type check', () => {
@@ -45,12 +45,12 @@ test('reverse formula', () => {
 
 test('literal update', () => {
   expect(() => compile("c: 0, f =|> 0"))
-    .toThrow('cannot update');
+    .toThrow('not updatable');
 });
 
 test('constant formula update', () => {
   expect(() => compile("c: 0, f =|> 0 * 1.8 + 32"))
-    .toThrow('cannot update');
+    .toThrow('not updatable');
 });
 
 test('update propagation', () => {
@@ -139,6 +139,24 @@ test('conditional on-update 2', () => {
   expect(w.dumpAt('c')).toEqual(50);
 });
 
+test('conditional on-update merging writes', () => {
+  let w = compile(`
+  c: record{x: 0, y: 0}
+  f =|> c.x on-update{
+    try {
+      check 1 not=? 2
+      write c <- with{.x := 1}
+      nil
+    }
+    else {
+      write 1 -> c.x
+      nil
+    }
+  }`);
+  w.updateAt('f', 1);
+  expect(w.dumpAt('c.x')).toEqual(1);
+});
+
 test('conditional on-update in update', () => {
   // tricky because of analysis deferral
   let w = compile(`
@@ -222,34 +240,86 @@ test('moot update', () => {
   expect(w.dumpAt('c')).toEqual(1);
 });
 
-test('update propagation order', () => {
+test('equal write', () => {
+  expectCompiling(`
+  c: 0
+  d = record{x = c}
+  f =|> false on-update{write d.x -> c}`)
+    .toThrow('writing same value');
+});
+
+test('try breaks provenance', () => {
   let w = compile(`
   c: 0
-  f =|> record{x: 0, y: 0} on-update{write c <- + 1}
+  d = try {check 1 =? 1; c} else {c}
+  f =|> false on-update{write c <- d}`);
+  w.updateAt('f', true);
+  expect(w.dumpAt('c')).toEqual(0);
+});
+
+test('update order', () => {
+  let w = compile(`
+  c: 0
+  f =|> record{x: 0, y: 0} on-update{
+    write c <- +(change.x) +(change.y)
+  }
   g =|> false on-update{write 1 -> f.x; write 1 -> f.y}
   `);
   w.updateAt('g', true);
-  expect(w.dumpAt('c')).toEqual(1);
+  expect(w.dumpAt('c')).toEqual(2);
 });
 
-test('update overwrite', () => {
-  let w = compile(`
+test('input write conflict', () => {
+  expectCompiling(`
+  f: record{x: 0, y: 0}
+  g =|> false on-update{write 1 -> f.x; write f <- with{.y := 1}}
+  `).toThrow('write conflict')
+});
+
+test('interface write conflict', () => {
+  expectCompiling(`
+  e: record{x: 0, y: 0}
+  f =|> e
+  g =|> false on-update{write 1 -> f.x; write f <- with{.y := 1}}
+  `).toThrow('write conflict')
+});
+
+test('overwrite', () => {
+  expectCompiling(`
   c: 0
   g =|> false on-update{write 1 -> c; write 2 -> c}
-  `);
-  w.updateAt('g', true);
-  expect(w.dumpAt('c')).toEqual(2);
+  `).toThrow('write conflict');
+});
+
+test('forked overwrite', () => {
+  expectCompiling(`
+    c: 0
+    f =|> false on-update{write c <- 1}
+    g =|> false on-update{write c <- 2}
+    h =|> false on-update{write f <- true, write g <- true}
+  `).toThrow('write conflict');
 });
 
 test('reverse update', () => {
   let w = compile(`
   u = record {
     a: 0
-    b: record{x: 0, y: 0}
+    b = record{x: 0, y: 0}
     c =|> b with{.x := a}
   }
   v = u with{.c.x := 1}
   `);
   expect(w.dumpAt('v.a')).toEqual(1);
   expect(w.dumpAt('v.b')).toEqual({x: 0, y: 0});
+});
+
+test('reverse update 2', () => {
+  let w = compile(`
+  u = record {
+    b: record{x: 0, y: 0}
+    c =|> b with{.x := 1}
+  }
+  v = u with{.c.y := 1}
+  `);
+  expect(w.dumpAt('v.b')).toEqual({x: 0, y: 1});
 });

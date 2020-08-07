@@ -53,6 +53,19 @@ export abstract class Value {
     trap();
   }
 
+  /** whether this value was transitively copied from another Value without any
+   * updates */
+  isCopyOf(ancestor: this): boolean {
+    if (!this.source) return false;
+    // check if our source is a copy
+    return this.source === ancestor || this.source.isCopyOf(ancestor)
+  }
+
+  /** static equality check. During analysis uses ifCopyOf, otherwise equals */
+  staticEquals(other: this): boolean {
+    return this.workspace.analyzing ? this.isCopyOf(other) : this.equals(other);
+  }
+
   /** whether contains an input field with an Anything value */
   abstract get isGeneric(): boolean;
 

@@ -153,13 +153,17 @@ export class Code extends Block<Statement> {
     }
   }
 
-  /** iterate through nested evaluated statements */
-  *evaluatedStatements(): Generator<Statement> {
+  /** nested write statements */
+  writeStatements(): Statement[] {
+    let writes: Statement[] = [];
     for (let statement of this.statements) {
       if (!statement.evaluated) continue;
-      yield *statement.evaluatedStatements();
-      yield statement;
+      writes.push(...statement.writeStatements());
+      if (statement.formulaType === 'write') {
+        writes.push(statement);
+      }
     }
+    return writes;
   }
 
 
@@ -340,8 +344,10 @@ export class OnUpdate extends Code {
     input.used = true;
     // TODO type check user-defined input
 
-    // initialize block to force resolve() conditionals
-    this.initialize();
+    // force resolve() conditionals
+    for (let item of this.containingItem.visit()) {
+      item.resolve();
+    }
   }
 
 }

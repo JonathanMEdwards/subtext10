@@ -1,4 +1,4 @@
-import { Do, StaticError, arrayLast, Crash, Field, Code, assert, cast, Choice, assertDefined, trap, Item, Reference, Statement } from "./exports";
+import { Do, StaticError, arrayLast, Crash, Field, Code, assert, cast, Choice, assertDefined, trap, Item, Reference, Statement, arrayRemove } from "./exports";
 
 /** a try block is the basic control structure of Subtext. It contains a sequnce
  * of do-blocks called clauses. The clauses are executed in order until one does
@@ -44,6 +44,8 @@ export class Try extends Code {
           if (clause === first) {
             // set first clause as result during analysis
             this.result = first;
+            // uncopy first clause result to break value provenance
+            (cast(first.get('^code').value, Code).result!).uncopy();
           } else if (
             // check type compatible with first clause
             !first.value!.updatableFrom(clause.value!)
@@ -135,19 +137,50 @@ export class Try extends Code {
     }
   }
 
-  /** iterate through nested evaluated statements */
-  *evaluatedStatements(): Generator<Statement> {
-    if (this.workspace.analyzing) {
-      yield* super.evaluatedStatements();
-      return;
+  /** nested write statements. During analysis merges writes of clauses */
+  writeStatements(): Statement[] {
+    if (!this.workspace.analyzing) {
+      // when not analyzing use only the executed clause
+      for (let clause of this.statements) {
+        if (!clause.rejected) {
+          return clause.writeStatements();
+        }
+      }
+      return [];
     }
-    // when not analyzing yield only the executed clause
+    // during analysis merge write statements from each clause
+    let mergedWrites: Statement[] = [];
     for (let clause of this.statements) {
-      if (!clause.rejected) {
-        yield* clause.evaluatedStatements();
-        return;
+      let prevMerged = mergedWrites.slice();
+      writeLoop: for (let write of clause.writeStatements()) {
+        let writeTarget = cast(write.get('^target').value, Reference).target!;
+        // scan writes merged from previous clauses
+        for (let merged of prevMerged) {
+          let mergedTarget =
+            cast(merged.get('^target').value, Reference).target!;
+          if (writeTarget === mergedTarget) {
+            // drop the write
+            continue writeLoop;
+          }
+          if (
+            writeTarget.contains(mergedTarget)
+            && writeTarget.isWritable(mergedTarget)!.io !== 'interface'
+          ) {
+            // drop contained merged write unless within interface
+            arrayRemove(mergedWrites, merged);
+          } else if (
+            mergedTarget.contains(writeTarget)
+            && mergedTarget.isWritable(writeTarget)!.io !== 'interface'
+          ) {
+            // drop contained write unless within interface
+            continue writeLoop;
+          }
+        }
+        mergedWrites.push(write);
+        continue writeLoop;
       }
     }
+    return mergedWrites;
   }
 
 }
