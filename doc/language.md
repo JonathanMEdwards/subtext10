@@ -114,7 +114,7 @@ record {
   y = x + 1
 }
 ```
-The item `x` is defined as an input by being followed with a colon, whereas `y` is defined as an output by being followed by an equals sign. The item `x` can be modified by the user or a function.  But the item `y` is read-only — it is automatically computed from the value of `x` whenever it changes. Note that the UI will display the computed value of `y` on a line underneath it.
+The item `x` is defined as an input by being followed with a colon, whereas `y` is defined as an output by being followed by an equals sign. As an input, `x` can be updated by the user or code.  As an outputs, `y` is not updatable — it is automatically computed from the value of `x`. Note that the UI will display the computed value of `y` on a line underneath it.
 
 This is like a spreadsheet: cells containing a formula are outputs, and cells containing just values are inputs. But unlike a spreadsheet, input cells also have formulas (`0` in this example) which compute the _initial value_ of the cell. Unlike in spreadsheets, new items are often dynamically created, and so their inputs need to be given some initial value, which can be computed with a formula. In function blocks, the initial value of inputs serve as convenient default values. Input formulas execute once when the block is created, whereas output formulas execute whenever anything they depend on changes.
 
@@ -246,6 +246,7 @@ the value of `plus` is just 1, the result of executing the function, not a speci
 > In fact functions really are “first-class” values, but they are only used in the UI and planned meta-programming capabilities.
 
 ### Updating blocks
+
 So far all of the examples have used arithmetic. But it is very common to work with blocks, particularly records,  as they are the rows of tables. Take the record:
 ```
 x: record {
@@ -309,13 +310,39 @@ x = 1 ternary-function(2, .input3 := 3)
 ```
 The syntax `.input3 := 3` is actually an update on the `do` block of `ternary-function`. It changes the value of the `input3` input item to 3. The same thing happens with the second input, which is interpreted to mean `.input2 := 2`.
 
+### Unused values
+
+ Often  in `do` blocks values will flow downward from one item to the next, as in:
+```
+x = do {
+  1
+  + 2
+}
+```
+This flow is interuppted when an formul starts with a value rather than a function call, as in:
+```
+x = do {
+  1
+  + 2 // unused value
+  3
+}
+```
+The `+ 2` item will be reported as an _unused value_ error.  However it is not an error if the item is named and referenced elsewhere, as in:
+```
+x = do {
+  1
+  i = + 2
+  3 / i
+}
+```
+
 ### Local variables
 
-Inside a block an output item can be used to name an intermediate computation and then reference it by name later. This is called a _local variable_ in some languages. As we have seen, it is common in `do` blocks for values to flow downward from one item to the next. Local variables can break this flow, so there is special output qualifier `let` that lets the previous value flow “around” it:
+Inside a block an output item can be used to name an intermediate computation and then reference it by name later. This is called a _local variable_ in some languages. As we have seen, it is common in `do` blocks for values to flow downward from one item to the next. Local variables can break this flow, so there is special output qualifier `let` that lets the previous value flow over it:
 ```
 ...
-let foo = ... // compute something from previous value for later
-// input from value preceding the let statement
+let foo = ... // compute something from previous value to be used later
+// pass on value preceding the let statement
 ```
 This avoids having to invent a name:
 ```
@@ -323,7 +350,8 @@ temp = ...
 let foo = temp ...
 temp ...
 ```
-A `let` item is also hidden from references outside the block.
+A `let` item is hidden from references outside the block. However it must be referenced by name within the block (or nested code blocks), otherwise it will be reported as an unused value error
+
 
 ### Exports
 
@@ -354,20 +382,21 @@ Note that in the example above, `x` is defined as `x = 5 integral-divide 3`, whi
 
 ### Reference binding
 
-The syntax uses conventional _lexical binding_, but the UI will not be constrained by that, nor subject to lexical shadowing. References starting with `.`, `~`, `[]` or `that` are _dependent_ on the previous value.
+The syntax uses conventional _lexical binding_, but the UI will not be constrained by that, nor subject to lexical shadowing. References starting with `.`, `~`, `[]` or `that` are said to be  _dependent_ on the previous value.
 
 > When the UI lets the developer make references that can’t be expressed lexically, we might want to automatically fix that by adding names to anonymous items and renaming shadowed items.
 
 > References could support “search paths” like `x…y` that look for a `y` item that is reachable via any path from `x`. Likewise `…y` would look for any path to `y` from any containing scope. In these examples it is an error if there is more than one path leading to `y`. A possible exception to this rule is when all the paths go through alternative cases of a choice or clauses of a conditional, and further that they lead to items of the same type. If not all of the cases or clauses are covered then the path must be conditionalized like `…y?`. This feature gives us a convenient way to extract alternative information from choices and conditionals. Search paths might be intolerably fragile in a textual language, but an IDE can automatically repair them. In fact the reference editor in the IDE will provide all reachable paths of the right type, offering “… completion” rather than just “. completion”.
 
+
 ## Conditionals
 
-When a function executes (including formulas), exactly one of the following things will happen:
+To make decisions, most languages use constructs like `if (boolean) then {…} else {…}`. Subtexct is different. Whenever a function (or formula) is evaluated, exactly one of the following things will happen:
 
 1. The function crashes. A crash indicates a programming error, not a user error: some condition has arisen that ought to be impossible. A crash is reported to the workspace developer, including a snapshot of the workspace that can reproduce the crash. No changes are made to the workspace when an input event (including user actions) causes a crash. Sometimes crashes can be predicted ahead of time when formulas are being edited (for example type mismatches). These are called static errors and are presented to the developer as problems to be fixed. Unlike conventional compiler errors, static errors do not prevent the system from running, so long as the erroneous formula is not used.
-2. The function is terminated before it completes because it has taken too long or used too many resources.
-3. The function completes successfully, producing results.
-4. The function intentionally _rejects_ without producing a result. Rejection means the function refuses to handle the input values supplied to it. Rejection is inspired by [SNOBOL](https://en.wikipedia.org/wiki/SNOBOL), which calls it _failure_, as do many parsing DSLs. We call it rejection rather than failure to make clear it is intentional, not a programming error (a crash). A related idiom in functional programming is [Railway oriented programming](https://fsharpforfunandprofit.com/rop/).
+2. The function is terminated before it completes because it has taken too long or used too many resources. See Termination.
+3. The function completes successfully, producing a result value.
+4. The function intentionally _rejects_ without producing a result. Rejection means the function refuses to handle the input values supplied to it. Rejection is inspired by [SNOBOL](https://en.wikipedia.org/wiki/SNOBOL), which calls it _failure_, as do many parsing DSLs. We call it rejection rather than failure to make clear it is intentional, not a programming error (a crash).
 
 If a function may reject it is called _conditional_, a function that never rejects is called _unconditional_. The name of a conditional function has a question mark appended to it. For example, the equality function `=?` tests whether two values are equal, rejecting if they aren’t. It is called like this: `x =? y`. You can tell that a function is conditional by the presence of a `?` inside it, which indicates a point where it may reject.
 
@@ -512,13 +541,6 @@ test {
 ```
 All `test` blocks in the workspace are executed after programmer edits that could affect them. If a rejection occurs inside the test block then it is treated as a static error, which is a problem for the programmer to resolve, but does not prevent the workspace from being used.
 
-### TODO: Termination
-
-Sometimes a function takes too long to execute, or consumes too many internal resources.
-
-> Simplest solution is that doc becomes read-only while reacting to an input, and then the results are shown atomically at completion. If computation takes too long the user can terminate it, which cancels the entire input action and leaves the workspace in its prior state. The input action remains in the history though and can be redone later if desired. Exceeding resource quotas (like stack size) would terminate computation automatically. This is the state of the art for computational notebooks.
-
-> However it would be nicer to be able to interrupt a long-running execution, observe it’s execution so far, and resume if desired. That should probably wait for an implementation of incremental execution.
 
 ## Choices
 
@@ -762,7 +784,230 @@ An `accumulate` block must define two input items. The block will be executed re
 > If an item is rejected, should it be skipped, or stop the accumulation?
 
 
-# Features not yet implemented
+
+## Feedback
+
+Up to this point we have discussed workspaces that operate much like a spreadsheet. The user can directly edit the values of input items, and the output items will be recalculated from the changed input values. What we lack is any way for the workspace to makes changes to itself, or have any effect outside the workspace. Another way of stating this is that so far these workspaces are _purely functional_: the outputs are calculated from the inputs and nothing else happens. The standard way to escape this limitation is to allow programs to freely modify data anywhere at any time. But this freedom quickly leads to chaos. Making sure that the right things change at the right time becomes very complex and error-prone as programs evolve and combine. Professional programmers have developed many advanced techniques to live with this difficulty — however the goal of Subtext is to avoid needing such expertise.  Subtext instead offers a simpler and more restricted way to make changes, called _feedback_. Feedback has restrictions that limit the chaos, and make it easier to see and understand what is happening.
+
+Feedback starts with a third type of item: in addition to inputs and outputs there are _interfaces_. Interfaces are like outputs in that their value is automatically calculated from a formula, but they are also like inputs in that they can be directly changed by the user (and by other interfaces, as we will see). The simplest example of an interface is a formula that can execute both backwards and forwards, as in this temperature converter:
+```
+c: 0
+f =|> c * 1.8 + 32
+```
+Note that `=|>` is used to define `f` as an interface. This means the user can edit the value of `f` just like they can edit the input `c`. A change to `f` is run through the formula backwards to update the value of `c`. Updating `f` to 212 will change `c` to 100.
+
+Not all formulas can execute backwards like this — we will discuss the limitations in a moment. When we can’t or don’t want to execute a formula backwards we can instead specify exactly how to handle updates with an `on-update` block. The previous example is equivalent to:
+```
+c: 0
+f =|> c * 1.8 + 32 on-update{write - 32 / 1.8 -> c}
+```
+When the interface `f` is updated, the `on-update` block is evaluated instead of trying to run the formula backwards. The updated value of `f` is passed into the `on-update` block, which then executes a `write` statement, which can only be used inside `on-update` blocks. The `write` statement evaluates `- 32 / 1.8` starting with the updated value of `f`, and then updates `c` with the result.  Since the update formula is equivalent to running the output formula backwards, we get the same effect on `c`.
+
+An `on-update` block looks somewhat like a _callback_ in many conventional languages, but it is quite different because it is _static_: it is written into the definition of the formula and therefore known at compile time. There is no way to dynamically associate callbacks with interfaces at runtime. Another differencec is that there are severe constraints on what can be done inside an `on-update` block, as we will proceed to explain.
+
+### Interfaces can be unstable
+
+In both of the prior examples after the change to `f` has fed back into a change to `c`, a new value of `f` will be calculated from the new value of `c`. In these cases the new value of `f` is always the same as the value it was updated to. These are called _stable_ interfaces. But not all interfaces are stable. Some formulas are not stable (for example squaring a number), and even if the formula is stable, it may depend on other items which have also changed. An `on-update` block can easily cause instability by mangling the value, as in:
+
+```
+c: 0
+f =|> c * 1.8 + 32 on-update{write 0 -> c}
+```
+which will react to any change to `f` by setting `c` to `0` which then makes `f` = 32. Now that is a pretty useless example. Here is a more useful unstable interface:
+
+```
+count: 0
+button =|> false on-update{write count <- + 1}
+```
+The `button` interface is a boolean value set to false. Boolean values are represented in the UI as clickable buttons. Clicking the button changes the value from false to true, and also executes the `on-update` block, which increments `count`. The `button` interface is unstable because oit always reverts back to `false`, making it a “push button” that pops back out when pressed. 
+
+### Change is unequal
+
+In the button example above we used a boolean value that can be either true or false, and changed it from false to true to “press” the button. What if we changed it from false to false, as in `write button <- false`? Nothing would happen — the write would be ignored. Changes must change a value, otherwise they are ignored. This is an important principle, because it lets us aggregate changes. For example:
+
+```
+customers table{name: '', phone: ''}
+new-customer =|> false on-update{write customers <- &()}
+```
+
+When the `new-customer` button is pressed we create a new item in the `customers` table. The `&()` function takes the current state of the customer table and results in a new table containing a new customer. The `write` then replaces the old value of the entire table with this newer bigger one. But since none of the prior customers were changed, we can safely ignore all those writes, and just add the new customer to the existing table. In fact we know this at compile time, so we can avoid doing any equality comparisons at runtime, and optimize to just performing an insertion. This is more than just a performance issue, because `customers` might have been an interface that would trigger on-update blocks whenever a customer changes (what databases call an _update trigger_).
+
+The benefit of this approach is that we don’t need a special language feature that lets us insert into a table like a write statement. Many languages offer two ways to do things: a _purely functional_ way like the `&` function that returns a whole new value, and a _mutable_ way that lets you change an existing value “in place” like JavaScript’s `Array.push()`. Subtext has the single `write` statement that lets you turn any functional change into a mutation, based on the fact that writes only pay attention to changes in values, which is helped by the language tracking what values can possibly have changed. From this perspective, mutating APIs are a premature optimization that a smart language can do automatically.
+
+### Feedback is responsive
+
+Our examples so far have all been triggered by user actions. In general, change comes from the world external to the workspace, in the form of user actions, incoming network packets, or clock ticks. _There will be one exception to this rule: free-running processes called tasks._  Subtext records all external events as changes to the value of an input or interface. Changes to an interface propagate to other interfaces and inputs either by executing formulas in reverse or `on-update` blocks. The entire process of responding to external changes, called _feedback_, is governed by a number of rules. One of these rules is that feedback is quick — you can not perform large computations during feedback, as that would make the workspace unresponsive. Another rule is that feedback is _transactional_ : if one of several kinds of error occurs (to be discussed later) then the workspace is left unchanged. 
+
+### Feedback is definite
+
+Another rule of feedback is that `write` statements can not interfere with each other. When a write is made to some location in the workspace, no other writes can occur at that location during the current feedback transaction. Possibly interfering writes are detected at compile time, and not allowed to execute at all. For example, this is illegal:
+```
+button =|> false on-update{
+  write count <- + 1
+  write count <- * 2
+}
+```
+If we want to make a sequence of changes like this we must instead chain the formulas into a single write statement like `write count <- + 1 * 2`. 
+
+A more interesting case is this:
+```
+button =|> false on-update{write count <- + 1}
+button2 =|> false on-update{write count <- + 1}
+ganged-button =|> false on-update{
+  write button <- true
+  write button2 <- true
+}
+```
+Here `ganged-button` triggers both `button` and `button2`. But they both change `count`, so this is illegal. Note that it is fine to have multiple interfaces that might conflict — it is only an error to change them within the same feedback transaction, as `ganged-button` does. Accordingly the user interface only lets the user push one button at a time.
+
+Writes to array items conflict as if they were writing to the same item. For example:
+
+```
+a: array{0} & 1 & 2
+i: 1
+j: 2
+button =|> false on-update{
+  write a[i] <- 0
+  write a[j] <- 0
+}
+```
+this is an error because there is no guarantee that `i` and `j` are different. Even if we changed it to `i = 1, j = 2` the language isn’t _currently_smart enough to know they are different. One solution would be to sequence the updates as in:
+`write a <- with{[i] := 1, [j] := 2}`
+which will overwrite the value of `[i]` if `i` = `j`.
+
+Another solution is:
+`write a <- merge!(with{[i] := 1}, with{[j] := 2}}`
+which checks at runtime that there is no conflict, crashing if there is. You can instead use `merge?` to reject on a conflict. The `merge` functions do a three-way merge, combining the differences between the source value and the two argument values. The unqualified `merge` function (without `!` or `?`) uses the same conflict rules as `write`, guaranteeing at compiled time there is no conflict. There is also a `merge-over`function that lets the second argument overwrite the changes of the first. Note that the `merge` functions work on arbirarily large values, up to an entire workspace, and in fact that is how workspace versions are merged.
+
+### Feedback goes backwards
+
+Since writes can not conflict, an interface can only be triggered once per feedback transaction, and the set of writes between interfaces forms a directed acyclic graph. To guarantee this property a simple rule is enforced: writes must go backwards. Technically this means backwards in the pre-ordering of the workspace tree structure, but that equates to the simpler rule that writes must refer to something defined earlier in the textual definition of the workspace. So this is illegal:
+
+```
+button =|> false on-update{write count <- + 1} // forward write error
+count: 0
+```
+
+_Theoretically we could allow forward writes so long as they statically form a DAG, but physically ordering them is much simpler to implement and explain, and the error messages are more actionable_
+
+### Feedback is oblivious
+
+Feedback does not see the consequences of changes. For example:
+
+```
+button =|> false on-update{
+  change: that
+  assert{change =? true}
+  assert{button =? false}
+  let temp = count
+  write count <- + 1
+  assert{count =? temp}
+}
+```
+
+The value of `change` must be true, because changes must change the current value and the only other possible value is true. But the `button` field still is false. Likewise the write to `count` doesn’t appear to have changed its value. This is because code running in an `on-update` block only sees the state of the workspace as it was at the beginning of the current feedback transaction. External inputs and internal writes are held separate until the succesful completion of the entire feedback. Until then, the only place these changes are visible is where they are passed as the input to an `on-update` block.
+
+### Reverse execution
+Recall the reversible temperature convertor:
+
+```
+c: 0
+f =|> c * 1.8 + 32
+```
+
+When an interface does not have an `on-update` block then changes to the interface are pushed backwards thgrough its formula. We can see this better by reformulating the example as:
+```
+c: 0
+f =|> do {
+  c 
+  * 1.8 
+  + 32
+}
+```
+A change to `f` will be written first to the bottom expression `+ 32` which calls the `+` function. Many functions like `+` are updatable, meaning that you can write a changed value to their result and they will emit a write to their source. The `+` function is equivalent to:
+```
+plus = do{
+  source: 0
+  and: 0
+  source + and
+  on-update {
+    change: that
+    write source <- change - and  
+  }
+}
+```
+Note that this simply does the inverse of addition, which is subtraction. In the case of the call `plus 32` what happens is that the changed value has 32 subtracted from it and is written back to the source of the call. The source of the call is the previous statement in the original formula: `* 1.8` which will likewise divide the value by `1.8` and write it to the previous statement, which is a reference to `c`, which writes the change to `c`.
+
+Updatable functions allways write to their source (except for a few exceptions). They treat their other arguments as read-only, and use their values prior to the feedback transaction. So feedback proceeds through a formula from bottom-up and right-to-left, the reverse of its execution order. Indeed one of the reasons for choosing chained infix operations in Subtext was that it defines a clear reverse order of execution. 
+
+`try` blocks execute in reverse following the same rules. A write to the result of a try block is written to the result of the clause that produced it: the first satisfied clause. The choice made by a try clause remains frozen in its state prior to the feedback transaction, the same as all the formulas inside it.
+
+There is one case where reverse execution is not strictly linear: the update operator `:=`. For example:
+```
+s: 'foo'
+r: record{
+  x: ''
+  y: 0
+}
+t =|> r with {.x := s} 
+```
+Any change made to the interface `t` will get written to the update expression `.x := s`. Say the user modified the field `t.x` to be `'bar'`. Then `'bar'` will get written back to `s`. But if the user had modified `t.y` the change will pass through to `r.x`. Thus `:=` can switch changes in two directions.
+
+### Internal feedback
+
+Feedback is designed to handle external input, so we have been using examples of user actions to trigger changes. Recall the counter example:
+```
+count: 0
+button =|> false on-update{write count <- + 1}
+```
+When the user clicks on the button the value true is writren to the field`button`, triggering the feedback process. This is actually implemented with code like this:
+
+```
+current-workspace = record {
+  count: 0
+  button =|> false on-update{write count <- + 1}
+}
+changed-workspace = current-workspace with{.button := true}
+```
+
+Here is the magic trick: feedback is a feature of the `:=` update operation. Normally we use `:=` to override input fields as data state or as arguments to a function. But when `:=` writes to an interface field, it internally runs a complete feedback transaction. At the end of the transaction, the final set of writes to input fields determine the final result of the update. 
+
+Because all interactions between a workspace and the external world are encoded as value changes, we get universal testability. The `test` block make this convenient by passing the initial state of the containing workspace into a code block, and reports a test failure if the block rejects. For example:
+
+```
+count: 0
+button =|> false on-update{write count <- + 1}
+test {
+  .button := true
+  check .count =? 1
+  check .button =? false
+  .button := true
+  check .count =? 2
+}
+```
+
+There is an important safety restriction on internal feedback: it must stay internal. In other words, writes can’t escape. For example, this is illegal:
+```
+count: 0
+sub-state = record {
+  button =|> false on-update{write count <- + 1}
+}
+new-state = sub-state with{ .button := true}
+```
+
+Here the internal write to the `button` interface attempts to write `c`, which is outside the source of the update operation `sub-state`. This is a compile-time error. 
+
+> Note that it might be possible to allow escaping writes by holding them pending inside the result of the update, allowing it to be executed later. You could say `write sub-state <- new-state` to execute those pending writes. This is theoretically interesting but it is not yet clear how useful it would be.
+
+
+
+query interfaces (updatable views)
+updatable block?
+feeedback errors and transactions
+
+
+
+# Appendix: TODO
 
 
 ## Relational data and queries
@@ -1184,9 +1429,13 @@ array{0} &()      // this will insert 0
 
 A generic function is one with an input containing `anything`. The function can be called with any input value where the `anything` occurs. Every call of a generic function will recompute the input default values based on the actual input values before becoming the value from the call. Inputs to the call are type-checked against those new defaults. Note that type checking is still static: every call to a generic function gets statically checked — types can not vary dynamically, only across different call-sites. It is notable that we obtain parametric types without introducing an explicitly parametric type system with type variables like `<T>`, which are notoriously baffling to beginners. Yet unlike template meta-programming, we retain static type checking at call sites for comprehensible errors.
 
-# Appendix: Deferred features
+## Termination
 
-Mostly about application programming concerns which do not arise in a data-analysis setting.
+Sometimes a function takes too long to execute, or consumes too many internal resources.
+
+> Simplest solution is that doc becomes read-only while reacting to an input, and then the results are shown atomically at completion. If computation takes too long the user can terminate it, which cancels the entire input action and leaves the workspace in its prior state. The input action remains in the history though and can be redone later if desired. Exceeding resource quotas (like stack size) would terminate computation automatically. This is the state of the art for computational notebooks.
+
+> However it would be nicer to be able to interrupt a long-running execution, observe it’s execution so far, and resume if desired. That should probably wait for an implementation of incremental execution.
 
 ## Input rejects, transactions, and data constraints
 
@@ -1307,7 +1556,7 @@ customers: table {
 }
 ```
 
-## TODO: Nested links
+## Nested links
 
 Links can target nested arrays, linking to a path of IDs. Reflecting links can cross multiple layers of containing arrays. Cardinality constraints are specified separately for each level of nesting.
 
@@ -1345,7 +1594,7 @@ database do {
 
 Synchronization takes place when a set statement (`:=`) executes on a context containing the affected tables and links, as in the `database` record in the above example. Changes made to copies of the links or tables have no side-effects until they are assigned back into a sufficiently broad context. _This feature is a sneak peek at the planned semantics of updatable views and bidirectional formulas._
 
-## TODO: invalid links
+## Invalid links
 Links can have the wrong number of linked items through several causes:
 1. The user edits the link in the UI
 2. Code computes a link
