@@ -803,7 +803,9 @@ f =|> c * 1.8 + 32 on-update{write - 32 / 1.8 -> c}
 ```
 When the interface `f` is updated, the `on-update` block is evaluated instead of trying to run the formula backwards. The updated value of `f` is passed into the `on-update` block, which then executes a `write` statement, which can only be used inside `on-update` blocks. The `write` statement evaluates `- 32 / 1.8` starting with the updated value of `f`, and then updates `c` with the result.  Since the update formula is equivalent to running the output formula backwards, we get the same effect on `c`.
 
-An `on-update` block looks somewhat like a _callback_ in many conventional languages, but it is quite different because it is _static_: it is written into the definition of the formula and therefore known at compile time. There is no way to dynamically associate callbacks with interfaces at runtime. Another differencec is that there are severe constraints on what can be done inside an `on-update` block, as we will proceed to explain.
+Note that an `on-update` block looks like a _callback_ in many conventional languages, but it is quite different because it is _static_: it is fixed in the definition of the formula and therefore known at compile time. There is no way to dynamically associate callbacks with interfaces at runtime. 
+
+Also note that a `write` looks like _pointer assignment_ in many conventional languages, but it is actually highly restricted in order to know at compile time what it does. Subtext does not have dynamic pointer values as in standard imperative languages. The target of a `write` is static: it must be a reference to a writable location that is fixed at compile time, allowing only variability of indexing within an array. Another way of stating this restriction is that the target of a write can only vary dynamically between array siblings and cousins within the worskspace tree. This restrtiction lets us know at compile time the possible effects of a write more precisely than with conventional pointers. There are additonal major restrictions on the effects of a write that will be explained below.
 
 ### Interfaces can be unstable
 
@@ -834,7 +836,7 @@ When the `new-customer` button is pressed we create a new item in the `customers
 
 The benefit of this approach is that we don’t need a special language feature that lets us insert into a table like a write statement. Many languages offer two ways to do things: a _purely functional_ way like the `&` function that returns a whole new value, and a _mutable_ way that lets you change an existing value “in place” like JavaScript’s `Array.push()`. Subtext has the single `write` statement that lets you turn any functional change into a mutation, based on the fact that writes only pay attention to changes in values, which is helped by the language tracking what values can possibly have changed. From this perspective, mutating APIs are a premature optimization that a smart language can do automatically.
 
-### Feedback is responsive
+### Feedback is interactive
 
 Our examples so far have all been triggered by user actions. In general, change comes from the world external to the workspace, in the form of user actions, incoming network packets, or clock ticks. _There will be one exception to this rule: free-running processes called tasks._  Subtext records all external events as changes to the value of an input or interface. Changes to an interface propagate to other interfaces and inputs either by executing formulas in reverse or `on-update` blocks. The entire process of responding to external changes, called _feedback_, is governed by a number of rules. One of these rules is that feedback is quick — you can not perform large computations during feedback, as that would make the workspace unresponsive. Another rule is that feedback is _transactional_ : if one of several kinds of error occurs (to be discussed later) then the workspace is left unchanged. 
 
@@ -888,7 +890,11 @@ button =|> false on-update{write count <- + 1} // forward write error
 count: 0
 ```
 
-_Theoretically we could allow forward writes so long as they statically form a DAG, but physically ordering them is much simpler to implement and explain, and the error messages are more actionable_
+> Theoretically we could allow forward writes so long as they statically form a DAG, but physically ordering them is much simpler to implement and explain, and the error messages are more actionable.
+
+> It would be consistent to disallow forward references in formulas. However that would disallow mutually recursive functions, unless we add some special feature to support them.
+
+Feedback starts with a single write to an interface, and can cascade backwards through other interfaces, finally resulting in a set of writes to inputs that not inside an interface or a code block. Such inputs are called  the _state_ of the workspace: they record the data values from which everything else in the workspace is derived.
 
 ### Feedback is oblivious
 
@@ -938,11 +944,11 @@ plus = do{
 ```
 Note that this simply does the inverse of addition, which is subtraction. In the case of the call `plus 32` what happens is that the changed value has 32 subtracted from it and is written back to the source of the call. The source of the call is the previous statement in the original formula: `* 1.8` which will likewise divide the value by `1.8` and write it to the previous statement, which is a reference to `c`, which writes the change to `c`.
 
-Updatable functions allways write to their source (except for a few exceptions). They treat their other arguments as read-only, and use their values prior to the feedback transaction. So feedback proceeds through a formula from bottom-up and right-to-left, the reverse of its execution order. Indeed one of the reasons for choosing chained infix operations in Subtext was that it defines a clear reverse order of execution. 
+Updatable functions always write back to their source (except for a few special cases to be noted). Updatable functions treat their other arguments as read-only, and see their values as of the start of the feedback transaction. So feedback proceeds through a formula from bottom-up and right-to-left, the reverse of its execution order. Indeed one of the reasons for choosing chained infix operations in Subtext was that it defines a clear reverse order of execution. 
 
-`try` blocks execute in reverse following the same rules. A write to the result of a try block is written to the result of the clause that produced it: the first satisfied clause. The choice made by a try clause remains frozen in its state prior to the feedback transaction, the same as all the formulas inside it.
+A `try` block executes in reverse following the same rules. A write to the result of a try block is written to the result of the clause that produced it: the first satisfied clause. The choice made by a try clause remains frozen in its state prior to the feedback transaction, the same as all the formulas inside it.
 
-There is one case where reverse execution is not strictly linear: the update operator `:=`. For example:
+There is one important case where reverse execution is not strictly linear: the update operator `:=`. For example:
 ```
 s: 'foo'
 r: record{
@@ -951,7 +957,7 @@ r: record{
 }
 t =|> r with {.x := s} 
 ```
-Any change made to the interface `t` will get written to the update expression `.x := s`. Say the user modified the field `t.x` to be `'bar'`. Then `'bar'` will get written back to `s`. But if the user had modified `t.y` the change will pass through to `r.x`. Thus `:=` can switch changes in two directions.
+Any change made to the interface `t` will feedback into the update expression `.x := s`. Say the user modified the field `t.x` to be `'bar'`. Then `'bar'` will get written back to `s`. But if the user had modified `t.y` the change will pass through to `r.x`. Thus `:=` can feedback changes in two directions.
 
 ### Internal feedback
 
@@ -998,6 +1004,8 @@ new-state = sub-state with{ .button := true}
 Here the internal write to the `button` interface attempts to write `c`, which is outside the source of the update operation `sub-state`. This is a compile-time error. 
 
 > Note that it might be possible to allow escaping writes by holding them pending inside the result of the update, allowing it to be executed later. You could say `write sub-state <- new-state` to execute those pending writes. This is theoretically interesting but it is not yet clear how useful it would be.
+
+Because feedback can’t escape, Subtext is technically a pure functional language. I/O is simulated by writing a top-level code block, called a _history_, that starts with the initial definition of the workspace, followed by a sequence of update operations producing modified versions of the workspace reacting to inputs. The current state of the workspace is the final result of the history block. Now every functional language use some magic trick like this to encode I/O. What is different about Subtext is that the way input is handled offers some of the freedom of naive imperative programming, where you can write through a reference to change some global state, rather than having to pipe, deconstruct, and reconstruct global states throughout the program. But unlike naive imperative programming, and some of its emulations in functional languages, you don’t need to worry about carefuly ordering writes (performed deep in code thst may be in hidden from you) so that they do not wipe each other out, or reveal partial intermediate states. Subtext restricts the targets of writes and enforces a static ordering on them that avoids these notorious pitfalls.
 
 
 
