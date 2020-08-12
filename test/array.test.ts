@@ -82,16 +82,33 @@ test('find', () => {
 
 test('for-all', () => {
   expectDump(`a = array{0} & 1 & 2; b = a for-all{+ 1}`)
-    .toEqual({ a: [1, 2], b: [2, 3]});
-  expectDump(`a = array{0} & 1 & 2 & 3; b = a query{check not=? 2}`)
+    .toEqual({ a: [1, 2], b: [2, 3] });
+  expectDump(`
+  a = array{0} & 1 & 2
+  b = a for-all{
+    n = that
+    record{a: n, b: n + 1}
+  }`)
+    .toEqual({ a: [1, 2], b: [{ a: 1, b: 2 }, { a: 2, b: 3 }] });
+})
+
+test('such-that', () => {
+  expectDump(`a = array{0} & 1 & 2 & 3; b = a such-that{check not=? 2}`)
     .toEqual({ a: [1, 2, 3], b: [1, 3]});
-  expectDump(`a = array{0} & 1 & 2 & 3; b? = a for-all?{check not=? 0}`)
-    .toEqual({ a: [1, 2, 3], b: [1, 2, 3]});
-  expectDump(`a = array{0} & 1 & 2 & 3; b? = a for-all?{check not=? 2}`)
-    .toEqual({ a: [1, 2, 3], b: false });
-  expectDump(`a = array{0} & 1 & 2 & 3; b? = a for-none?{=? 0}`)
+    expectDump(`a = array{0} & 1 & 2 & 3; b = a such-that{check not=? 0}`)
+      .toEqual({ a: [1, 2, 3], b: [1, 2, 3]});
+    expectDump(`a = array{0} & 1 & 2 & 3; b = a such-that{check not=? 2}`)
+      .toEqual({ a: [1, 2, 3], b: [1, 3] });
+})
+
+test('all/none', () => {
+  expectDump(`a = array{0} & 1 & 2 & 3; b? = a all?{>? 0}`)
     .toEqual({ a: [1, 2, 3], b: [1, 2, 3] });
-  expectDump(`a = array{0} & 1 & 2 & 3; b? = a for-none?{=? 1}`)
+  expectDump(`a = array{0} & 1 & 2 & 3; b? = a none?{<? 0}`)
+    .toEqual({ a: [1, 2, 3], b: [1, 2, 3] });
+  expectDump(`a = array{0} & 1 & 2 & 3; b? = a all?{=? 1}`)
+    .toEqual({ a: [1, 2, 3], b: false });
+  expectDump(`a = array{0} & 1 & 2 & 3; b? = a none?{=? 1}`)
     .toEqual({ a: [1, 2, 3], b: false });
 })
 

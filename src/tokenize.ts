@@ -13,7 +13,7 @@ export type TokenType = (
   | 'record' | 'choice' | 'table' | 'array' | 'do' | 'builtin' | 'anything'
   | 'nil' | 'try' | 'check' | 'not' | 'else' | 'reject' | 'let' | 'export'
   | 'that' | 'include' | 'with' | 'find?' | 'find!'
-  | 'for-all' | 'for-all?' | 'for-all!' | 'for-none?' | 'query' | 'accumulate'
+  | 'for-all' | 'such-that' | 'all?' | 'all!' | 'none?' | 'none!' | 'accumulate'
 )
 
 export class Token {
@@ -255,11 +255,12 @@ export function tokenize(source: string): Token[] {
         case 'include':
         case 'find?':
         case 'find!':
-        case 'for-all?':
-        case 'for-all!':
         case 'for-all':
-        case 'for-none?':
-        case 'query':
+        case 'such-that':
+        case 'all?':
+        case 'all!':
+        case 'none?':
+        case 'none!':
         case 'accumulate':
         case 'on-update':
         case 'updatable':

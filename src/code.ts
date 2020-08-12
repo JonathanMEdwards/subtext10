@@ -60,9 +60,9 @@ export class Code extends Block<Statement> {
       }
       if (statement.rejected) {
         this.rejected = true
-        // execute to completion during analysis and inside loop templates
+        // execute to completion during analysis
         // can't complete in all cases because of recursion
-        if (this.workspace.analyzing || this.containingItem.inTemplate) {
+        if (this.workspace.analyzing) {
           continue;
         }
         this.result = undefined

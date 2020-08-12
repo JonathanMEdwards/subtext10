@@ -744,7 +744,15 @@ A `find-last?` does the same thing as `find?` except that it scans the table bac
 
 ### Iterating
 
-A `for-all` block will evaluate a `do` block on each item of an array in order, resulting in an unsorted array of the results. The block cannot be conditional. This is like the traditional 'map’ combinator. A `for-all?` or `for-all!` takes a conditional block and either checks or asserts that every item is accepted. A `query` will transform only the items accepted by a (possibly) conditional block. This is like a combination of the traditional 'map' and 'filter’ combinators. A `for-none?` block rejects if the code block accepts any item, otherwise resulting in the input array. For example:
+A `for-all` block will evaluate a `do` block on each item of an array in order, resulting in an unsorted array of the results. The block cannot be conditional. This is like the _map_ function of functional programming languages. 
+
+A `such-that` block will remove from the source array any items which the following conditional block rejects. The result will be the same type as the source and maintain its sorting. This is like the _filter_ function of functional programming languages. 
+
+`all?` and `all!` are like `such-that` except that if one of the array items is rejected they will reject or crash respectively. `none?` and `none!` check that all of the items are rejected. Both `all` and `none` result in the source array if they succeed.
+
+> `all?` could be a shortcut for checking that 
+
+A `for-all?` or `for-all!` takes a conditional block and either checks or asserts that every item is accepted. A `query` will transform only the items accepted by a (possibly) conditional block. This is like a combination of the traditional 'map' and 'filter’ combinators. A `for-none?` block rejects if the code block accepts any item, otherwise resulting in the input array. For example:
 
 ```
 test {
@@ -873,7 +881,7 @@ button =|> false on-update{
   write a[j] <- 0
 }
 ```
-this is an error because there is no guarantee that `i` and `j` are different. Even if we changed it to `i = 1, j = 2` the language isn’t _currently_smart enough to know they are different. One solution would be to sequence the updates as in:
+this is an error because there is no guarantee that `i` and `j` are different. Even if we changed it to `i = 1, j = 2` the language isn’t \_currently\_smart enough to know they are different. One solution would be to sequence the updates as in:
 `write a <- with{[i] := 1, [j] := 2}`
 which will overwrite the value of `[i]` if `i` = `j`.
 

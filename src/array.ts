@@ -342,8 +342,8 @@ builtins['skip-white'] = (s: Statement, a: _Array) => {
 export class Loop extends _Array<Do> {
 
   /** type of loop */
-  loopType!: 'find?' | 'find!' | 'for-all' | 'for-all?' | 'for-all!'
-    | 'for-none?' | 'query' | 'accumulate';
+  loopType!: 'find?' | 'find!' | 'for-all' | 'such-that' | 'all?' | 'all!'
+    | 'none?' | 'none!' | 'accumulate';
 
   /** input array, set on eval */
   input!: _Array;
@@ -380,10 +380,10 @@ export class Loop extends _Array<Do> {
       iteration.formulaType = 'none';
       // copy code block into iteration
       iteration.setFrom(templateBlock);
+      iteration.initialize();
       // set input item of code block
       let iterInput = iteration.value!.items[0];
       assert(iterInput.io === 'input');
-      iterInput.detachValue();
       iterInput.setFrom(item);
 
       if (this.loopType === 'accumulate' && item !== this.input.items[0]) {
@@ -391,7 +391,6 @@ export class Loop extends _Array<Do> {
         let prev = cast(this.items[this.items.length - 2].value, Do);
         let accum = iteration.value!.items[1];
         assert(accum.io === 'input');
-        accum.detachValue();
         accum.setFrom(prev.result)
       }
 
@@ -407,9 +406,11 @@ export class Loop extends _Array<Do> {
     let templateBlock = this.template.value!;
 
     switch (this.loopType) {
+
+
+      // find first non-rejecting block
       case 'find?':
-      case 'find!':
-        // find first non-rejecting block
+      case 'find!': {
         if (!templateBlock.conditional) {
           throw new StaticError(templateBlock.token, 'block must be conditional');
         }
@@ -442,46 +443,33 @@ export class Loop extends _Array<Do> {
         let exportField = statement.replaceMeta('^export', indexRecord);
         exportField.setConditional(guarded);
         return;
+      }
 
-      case 'for-all':
-      case 'for-all?':
-      case 'for-all!':
-      case 'query':
-        if (this.loopType === 'for-all') {
-          if (templateBlock.conditional) {
-            throw new StaticError(templateBlock.token, 'block cannot be conditional');
-          }
-        } else if (this.loopType === 'query') {
-        } else if (!templateBlock.conditional) {
-          throw new StaticError(templateBlock.token, 'block must be conditional');
+
+      // map an array through a function
+      case 'for-all': {
+        if (templateBlock.conditional) {
+          throw new StaticError(templateBlock.token,
+            'block cannot be conditional');
         }
 
         // create result array
         let resultArray = new _Array;
         statement.setFrom(resultArray);
         resultArray.tracked = this.input.tracked;
+        // result isn't sorted FIXME: should it be?
         resultArray.sorted = false;
         // define template from result of template block
-        // note template blocks execute to completion even if rejecting
+        /** This is the reason we can't combine filtering with mapping: the
+         * filter might reject the template of the source. We could allow this,
+         * and use the value produced by the rejected filter, but that would
+         * require documenting what every conditional functional does in that
+         * case. Not worth the doc overhead */
         resultArray.createTemplate().setFrom(templateBlock.result);
 
         // copy results of loop into result array
         this.items.forEach(iteration => {
           let iterationBlock = assertDefined(iteration.value);
-          if (iterationBlock.rejected) {
-            if (this.loopType === 'for-all?') {
-              // reject whole function
-              statement.rejected = true;
-            } else if (
-              this.loopType === 'for-all!'
-              && !this.workspace.analyzing
-            ) {
-              // failed assertion
-              throw new Crash(this.token, 'assertion failed')
-            }
-            // skip rejections
-            return;
-          }
           let resultItem = new Entry;
           resultArray.add(resultItem);
           if (resultArray.tracked) {
@@ -496,22 +484,75 @@ export class Loop extends _Array<Do> {
           resultItem.setFrom(iterationBlock.result);
         })
         return;
+      }
 
-      case 'for-none?':
+
+      // filter
+      case 'such-that': {
+
+        if (!templateBlock.conditional) {
+          throw new StaticError(templateBlock.token,
+            'block must be conditional');
+        }
+
+        // create result array
+        let resultArray = new _Array;
+        statement.setFrom(resultArray);
+        resultArray.tracked = this.input.tracked;
+        resultArray.sorted = false;
+        // copy source template
+        resultArray.createTemplate().setFrom(this.input.template);
+
+        // copy source items into result array when not rejected
+        this.items.forEach((iteration, i) => {
+          let iterationBlock = assertDefined(iteration.value);
+          if (iterationBlock.rejected) {
+            // skip rejections
+            return;
+          }
+          let resultItem = this.input.items[i].copy(
+            this.input.containingItem.path, statement.path);
+          resultArray.add(resultItem);
+          if (!resultArray.tracked) {
+            // set ordinals if untracked
+            resultItem.id = resultArray.items.length;
+          }
+          resultItem.io = 'output';
+          resultItem.formulaType = 'none';
+        })
+        return;
+      }
+
+
+      // test filtering
+      case 'all?':
+      case 'all!':
+      case 'none?':
+      case 'none!': {
+
+        const all = this.loopType.startsWith('all');
         if (!templateBlock.conditional) {
           throw new StaticError(templateBlock.token, 'block must be conditional');
         }
-
-        // reject if any iteration succeeded
-        if (this.items.find(iteration => !iteration.value!.rejected)) {
+        // reject if any/no iteration succeeded
+        if (this.items.find(iteration => {
+          let rejected = iteration.value!.rejected;
+          return all ? rejected : !rejected
+        })) {
           statement.rejected = true;
+          if (this.loopType.endsWith('!') && !this.workspace.analyzing) {
+            // failed assertion
+            throw new Crash(this.token, 'assertion failed')
+          }
         }
 
         // copy input array to result
         statement.setFrom(this.input);
         return;
+      }
 
-      case 'accumulate':
+
+      case 'accumulate': {
         if (templateBlock.conditional) {
           throw new StaticError(templateBlock.token, 'block cannot be conditional');
         }
@@ -523,6 +564,8 @@ export class Loop extends _Array<Do> {
           statement.setFrom(templateBlock.items[1]);
         }
         return;
+      }
+
 
       default: trap();
     }
