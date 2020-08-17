@@ -7,39 +7,73 @@ import { compile, expectCompiling, expectDump } from './basic.test';
 
 test('write update', () => {
   let w = compile("a: 0");
-  w.updateAt('a', 1);
+  w.writeAt('a', 1);
   expect(w.dumpAt('a')).toEqual(1);
-  expect(() => { w.updateAt('a', 'foo') }).toThrow('changing type of value')
+  expect(() => { w.writeAt('a', 'foo') }).toThrow('changing type of value')
 });
 
 test('choice update', () => {
   let w = compile("a: choice{x?: 0; y?: 'foo'}");
-  w.updateAt('a', 'y');
-  w.updateAt('a.y', 'bar');
+  w.writeAt('a', 'y');
+  w.writeAt('a.y', 'bar');
   expect(w.dumpAt('a')).toEqual({y: 'bar'});
 });
 
 test('update readonly', () => {
   let w = compile("a = 0");
-  expect(() => { w.updateAt('a', 1) }).toThrow('not updatable')
+  expect(() => { w.writeAt('a', 1) }).toThrow('not updatable')
 });
 
 test('update type check', () => {
   let w = compile("a: 0");
-  expect(() => { w.updateAt('a', 'foo') }).toThrow('changing type of value')
+  expect(() => { w.writeAt('a', 'foo') }).toThrow('changing type of value')
 });
 
 test('interface', () => {
   let w = compile("c: 0, f =|> c * 1.8 + 32 on-update{write - 32 / 1.8 -> c}");
   expect(w.dumpAt('f')).toEqual(32);
-  w.updateAt('f', 212);
+  w.writeAt('f', 212);
   expect(w.dumpAt('c')).toEqual(100);
+});
+
+test('incrementer', () => {
+  let w = compile(`
+  c: 0
+  button =|> false on-update{write c <- +1}`);
+  w.writeAt('button', true);
+  expect(w.dumpAt('c')).toEqual(1);
+});
+
+test('internal incrementer', () => {
+  let w = compile(`
+  r = record {
+    c: 0
+    button =|> false on-update{write c <- + 1}
+  }
+  s = r with{.button := true}
+  `);
+  expect(w.dumpAt('s')).toEqual({c: 1, button: false});
+});
+
+test('function on-update', () => {
+  let w = compile(`
+  c: 0,
+  f = do {
+    in: 0
+    + 1
+    on-update { write 1 -> in}
+  }
+  g =|> c f()
+  `);
+  expect(w.dumpAt('g')).toEqual(1);
+  w.writeAt('g', 212);
+  expect(w.dumpAt('c')).toEqual(1);
 });
 
 test('reverse formula', () => {
   let w = compile("c: 0, f =|> c * 1.8 + 32");
   expect(w.dumpAt('f')).toEqual(32);
-  w.updateAt('f', 212);
+  w.writeAt('f', 212);
   expect(w.dumpAt('c')).toEqual(100);
 });
 
@@ -65,7 +99,7 @@ test('update propagation', () => {
   expect(w.dumpAt('u')).toEqual({c: 100, f: 212});
 });
 
-test('reverse formula in update', () => {
+test('internal reverse formula', () => {
   let w = compile(`
   s = record {
     c: 0;
@@ -119,7 +153,7 @@ test('conditional on-update', () => {
       write - 32 / 1.8 -> c
     }
   }`);
-  w.updateAt('f', 212);
+  w.writeAt('f', 212);
   expect(w.dumpAt('c')).toEqual(100);
 });
 
@@ -135,7 +169,7 @@ test('conditional on-update 2', () => {
       write - 32 / 1.8 -> c
     }
   }`);
-  w.updateAt('f', 212);
+  w.writeAt('f', 212);
   expect(w.dumpAt('c')).toEqual(50);
 });
 
@@ -153,7 +187,7 @@ test('conditional on-update merging writes', () => {
       nil
     }
   }`);
-  w.updateAt('f', 1);
+  w.writeAt('f', 1);
   expect(w.dumpAt('c.x')).toEqual(1);
 });
 
@@ -189,7 +223,7 @@ test('reverse conditional update', () => {
       c + 2
     }
   }`);
-  w.updateAt('f', 100);
+  w.writeAt('f', 100);
   expect(w.dumpAt('c')).toEqual(98);
 });
 
@@ -205,7 +239,7 @@ test('reverse conditional update 2', () => {
       c + 2
     }
   }`);
-  w.updateAt('f', 100);
+  w.writeAt('f', 100);
   expect(w.dumpAt('c')).toEqual(99);
 });
 
@@ -217,7 +251,7 @@ test('update aggregation', () => {
     d: 0
   }
   t =|> s`);
-  w.updateAt('t.c', 100);
+  w.writeAt('t.c', 100);
   expect(w.dumpAt('s')).toEqual({c: 100, d: 0});
 })
 
@@ -228,15 +262,15 @@ test('update aggregation 2', () => {
     d =|> c
   }
   t =|> s`);
-  w.updateAt('t.d', 100);
+  w.writeAt('t.d', 100);
   expect(w.dumpAt('s')).toEqual({c: 100, d: 100});
 })
 
 test('moot update', () => {
   let w = compile("c: 0, f =|> false on-update{write c <- + 1}");
-  w.updateAt('f', true);
+  w.writeAt('f', true);
   expect(w.dumpAt('c')).toEqual(1);
-  w.updateAt('f', false);
+  w.writeAt('f', false);
   expect(w.dumpAt('c')).toEqual(1);
 });
 
@@ -253,7 +287,7 @@ test('try breaks provenance', () => {
   c: 0
   d = try {check 1 =? 1; c} else {c}
   f =|> false on-update{write c <- d}`);
-  w.updateAt('f', true);
+  w.writeAt('f', true);
   expect(w.dumpAt('c')).toEqual(0);
 });
 
@@ -265,7 +299,7 @@ test('update order', () => {
   }
   g =|> false on-update{write 1 -> f.x; write 1 -> f.y}
   `);
-  w.updateAt('g', true);
+  w.writeAt('g', true);
   expect(w.dumpAt('c')).toEqual(2);
 });
 
@@ -323,3 +357,128 @@ test('reverse update 2', () => {
   `);
   expect(w.dumpAt('v.b')).toEqual({x: 0, y: 1});
 });
+
+test('such-that', () => {
+  let w = compile(`
+  a : tracked array{0} & 1 & 2 & 3
+  b =|> a such-that{ check not=? 2}
+  `);
+  expect(w.dumpAt('b')).toEqual([1, 3]);
+  w.writeAt('b.1', 10);
+  expect(w.dumpAt('a')).toEqual([10, 2, 3]);
+  expect(w.dumpAt('b')).toEqual([10, 3]);
+})
+
+test('delete such-that', () => {
+  let w = compile(`
+  s = record{
+    a : tracked array{0} & 1 & 2 & 3
+    b =|> a such-that{ check not=? 2}
+  }
+  t = s with{.b := delete!(1)}
+  `);
+  expect(w.dumpAt('t')).toEqual({a: [2, 3], b: [3]});
+})
+
+test('create such-that', () => {
+  let w = compile(`
+  s = record{
+    a : tracked array{0} & 1 & 2 & 3
+    b =|> a such-that{ check not=? 2}
+  }
+  t = s with{.b := & 10}
+  `);
+  expect(w.dumpAt('t')).toEqual({a: [1, 2, 3, 10], b: [1, 3, 10]});
+})
+
+test('for-all', () => {
+  let w = compile(`
+  a : tracked array{0} & 1 & 2 & 3
+  b =|> a for-all{+ 1}
+  `);
+  expect(w.dumpAt('b')).toEqual([2, 3, 4]);
+  w.writeAt('b.2', 11);
+  expect(w.dumpAt('a')).toEqual([1, 10, 3]);
+  expect(w.dumpAt('b')).toEqual([2, 11, 4]);
+})
+
+test('for-all with update', () => {
+  let w = compile(`
+  r: record {
+    a : tracked array{0} & 1 & 2 & 3
+    b =|> a for-all{+ 1}
+  }
+  s = r with{.b := update!(2, .value := 11) }
+  `);
+  expect(w.dumpAt('s')).toEqual({a: [1, 10, 3], b: [2, 11, 4]});
+})
+
+test('for-all with delete', () => {
+  let w = compile(`
+  r: record {
+    a : tracked array{0} & 1 & 2 & 3
+    b =|> a for-all{+ 1}
+  }
+  s = r with{.b := delete! 2 }
+  `);
+  expect(w.dumpAt('s')).toEqual({a: [1, 3], b: [2, 4]});
+})
+
+test('for-all with create', () => {
+  let w = compile(`
+  r: record {
+    a : tracked array{0} & 1 & 2 & 3
+    b =|> a for-all{+ 1}
+  }
+  s = r with{.b := & 11 }
+  `);
+  expect(w.dumpAt('s')).toEqual({a: [1, 2, 3, 10], b: [2, 3, 4, 11]});
+})
+
+test('for-all with noop create', () => {
+  let w = compile(`
+  r: record {
+    a : tracked array{0} & 1 & 2 & 3
+    b =|> a for-all{+ 1}
+  }
+  s = r with{.b := & 1 }
+  `);
+  expect(w.dumpAt('s')).toEqual({a: [1, 2, 3, 0], b: [2, 3, 4, 1]});
+})
+
+test('for-all with empty on-update', () => {
+  let w = compile(`
+  a : tracked array{0} & 1 & 2 & 3
+  b =|> a for-all{on-update{1}}
+  `);
+  expect(w.dumpAt('b')).toEqual([1, 2, 3]);
+  w.writeAt('b.2', 10);
+  expect(w.dumpAt('a')).toEqual([1, 2, 3]);
+})
+
+test('for-all with on-update', () => {
+  let w = compile(`
+  a : tracked array{0} & 1 & 2 & 3
+  b =|> a for-all{item:[]; on-update{write 1 -> item}}
+  `);
+  expect(w.dumpAt('b')).toEqual([1, 2, 3]);
+  w.writeAt('b.2', 10);
+  expect(w.dumpAt('a')).toEqual([1, 1, 3]);
+})
+
+test('for-all write encapsulation', () => {
+  expectCompiling(`
+  c : 0
+  a : tracked array{0} & 1 & 2 & 3
+  b =|> a for-all{item: []; on-update{write 1 -> item; write 1 -> c}}
+  `).toThrow('external write from for-all')
+})
+
+test('for-all reference encapsulation', () => {
+  expectCompiling(`
+  c : 0
+  a : tracked array{0} & 1 & 2 & 3
+  b =|> a for-all{c}
+  `).toThrow('external write from for-all')
+})
+

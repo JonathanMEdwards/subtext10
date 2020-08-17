@@ -894,6 +894,7 @@ export class Parser {
       return this.requireBlock(new Choice);
     }
 
+    let tracked = this.matchToken('tracked');
     let isArray = this.matchToken('array');
     if (isArray || this.matchToken('table')) {
       let template: Value | undefined;
@@ -906,8 +907,11 @@ export class Parser {
         template = this.requireBlock(new Record);
       }
       let array = new _Array;
+      array.tracked = tracked;
       array.createTemplate().setFrom(template);
       return array;
+    } else if (tracked) {
+      throw this.setError('expecting an array or table')
     }
 
     this.setError('Expecting a value');

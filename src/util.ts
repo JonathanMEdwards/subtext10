@@ -71,7 +71,7 @@ class Trap extends Error {
 // Array utils
 
 /** return last element of array else trap */
-export function arrayLast<T>(array: T[]): T {
+export function arrayLast<T>(array: ReadonlyArray<T>): T {
   if (array.length === 0) trap();
   return array[array.length - 1];
 }

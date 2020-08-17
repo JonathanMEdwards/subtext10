@@ -136,13 +136,18 @@ export class Workspace extends Item<never, History> {
     return this.currentVersion.down(path).dump();
   }
 
-  /** update a value at a path in current version, creating a new version.
+  /** write a value at a path in current version, creating a new version.
    *
    * If the path refers to a Choice, the value must be the FieldID or string
    * name of an option. If the path refers to a non-Choice, the value can be a
    * Value or number or string
+   *
+   * If the path is to an array item, the value can be undefined to delete it.
    */
-  updateAt(path: string, value: number | boolean | string | Value | FieldID) {
+  writeAt(
+    path: string,
+    value: number | boolean | string | Value | FieldID
+  ) {
     let target = this.currentVersion.down(path);
     if (!this.currentVersion.isWritable(target)) {
       throw 'not updatable';

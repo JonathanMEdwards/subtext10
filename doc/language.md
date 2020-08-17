@@ -1,6 +1,6 @@
 # The Subtext Programming Language
 
-> End-user programming may still be out of reach - reframe goal as small-scale application programming?
+> End-user programming may still be out of reach - reframe goal as small-scale app dev?
 
 Subtext is searching for the missing link between spreadsheets and programming. It is an interactive medium for data processing by people who don’t want to learn how to program.  For example, scientists who want to process data without becoming “data scientists”. Or people who want to build simple custom apps without learning to program. Spreadsheets primarily fill this role, but they have significant limitations. The goal of Subtext is to merge the power of programming with the simplicity of spreadsheets, without inheriting all the complexity of modern programming.  That said, there is indeed a programming language at the foundation of Subtext. This document specifies that language through examples as a way to solicit feedback from other researchers.
 
@@ -697,7 +697,7 @@ When a table column is conditional, meaning the corresponding block item is a co
 
 ### Sorted arrays
 
-Normally, items are added to the end of an array. But an array can be defined as _sorted_, which means the items will be automatically kept in order of increasing value, or _reverse sorted_, which keeps then in order of decreasing value. Tables, whose items are blocks, use lexicographical ordering, where the first column is the most significant. Thus
+Normally, items are added to the end of an array. But an array can be defined as _sorted_, which means the items will be automatically kept in order of increasing value, or _reverse sorted_, which keeps then in order of decreasing value. Tables, whose items are blocks, use lexicographical (dictionary) ordering, where the first column is the most significant. Thus
 ```
 customers: sorted table {
   name: ''
@@ -719,6 +719,10 @@ where 1 ≤ `j` ≤ length + 1.
 Two arrays are considered equal by the `=?` function when they have the same number of items with equal values in the same order, and their templates are equal, and they are sorted and tracked the same. These constraints are necessary to preserve the property that calling a function with equal inputs produces equal results, specifically the `&` function creating new items.
 
 > Maybe we need `currently=?` to compare ignoring the values of the templates and sorting/tracking, which only affect new insertions.
+
+
+### TODO: Reordering arrays
+
 
 ### Searching
 
@@ -750,28 +754,21 @@ A `such-that` block will remove from the source array any items which the follow
 
 `all?` and `all!` are like `such-that` except that if one of the array items is rejected they will reject or crash respectively. `none?` and `none!` check that all of the items are rejected. Both `all` and `none` result in the source array if they succeed.
 
-> `all?` could be a shortcut for checking that 
-
-A `for-all?` or `for-all!` takes a conditional block and either checks or asserts that every item is accepted. A `query` will transform only the items accepted by a (possibly) conditional block. This is like a combination of the traditional 'map' and 'filter’ combinators. A `for-none?` block rejects if the code block accepts any item, otherwise resulting in the input array. For example:
-
 ```
 test {
   l = array{0} & 1 & 2 & 3
 
   // update each item with result of block on it
-  check l for-all{+ 1} =? (array{0} & 2 & 3 & 4)
+  l for-all{+ 1} =! (array{0} & 2 & 3 & 4)
 
   // filter out rejected items
-  check l query{check not=? 2} =? (array{0} & & 3)
-
-  // filter and update together
-  check l query{check not=? 2; + 1} =? (array{0} & 1 & 3)
+  l such-that{check not=? 2} =! (array{0} & & 3)
 
   // check every item satisfies a condition
-  check l for-all?{>? 0}
+  check l all?{>? 0}
 
   // check no item satisfies a condition
-  check l for-none?{<? 0}
+  check l none?{<? 0}
 }
 ```
 
@@ -791,7 +788,33 @@ An `accumulate` block must define two input items. The block will be executed re
 
 > If an item is rejected, should it be skipped, or stop the accumulation?
 
+### TODO: Queries
 
+A _query_ is a formula that calculates an array from one or more other other arrays. This includes the `for-all` and `such-that` functions. Queries get more powerful when they operate on multiple tables. Subtext does this by _nesting_, unlike relational databases, which use _joins_.
+
+
+
+### Tracked arrays
+
+An array can be _tracked_ by prefixing its definition with `tracked`, as in
+```
+tracked array{text}
+tracked table{name: '', address: ''}
+```
+
+A tracked array automatically assigns a unique ID to each item when it is created. The ID is used to precisely track changes to the item. Such IDs are called _surrogate keys_ in databases. The tracking ID is hidden from the user and programmer. Tracking allows three important capabilities:
+
+1. Relationships between tracked arrays can be established, similar to _foreign keys_ in relational databases, but without requiring that every item contain a unique and immutable key. See Links.
+2. A tracked array can be versioned and merged, similar to version control systems like git, except more precisely. See Merging.
+3. A query over tracked arrays can be updated, with the changes feeding back into the source arrays. This is called an _updatable view_ in databases. See Query update.
+
+Two tracked arrays are equal if their items are not only equal but also were created in the same relative order, including all items that were deleted. Tracked equality means that the arrays not only have the same current state but also the same history of inserts and deletes.
+
+Text is an an untracked array of characters. Two texts are equal if they have the same characters in the same order, regardless of their change histories.
+
+> Tracked arrays could offer sorting by creation time, and creation-time could be used to order duplicates in an array sorted by value.
+
+> The IDs in a tracked array are implemented as monotonically increasing serial numbers within the array, as in an _auto-increment_ item in a relational database. The serial number is not exposed to the user or programmer, so that merging may automatically renumber items.
 
 ## Feedback
 
@@ -906,7 +929,7 @@ Feedback starts with a single write to an interface, and can cascade backwards t
 
 ### Feedback is oblivious
 
-Feedback does not see the consequences of changes. For example:
+Feedback does not see the consequences of changes, only the state of the workspace at the beginning of the feedback transaction. For example:
 
 ```
 button =|> false on-update{
@@ -919,7 +942,7 @@ button =|> false on-update{
 }
 ```
 
-The value of `change` must be true, because changes must change the current value and the only other possible value is true. But the `button` field still is false. Likewise the write to `count` doesn’t appear to have changed its value. This is because code running in an `on-update` block only sees the state of the workspace as it was at the beginning of the current feedback transaction. External inputs and internal writes are held separate until the succesful completion of the entire feedback. Until then, the only place these changes are visible is where they are passed as the input to an `on-update` block.
+The value of `change` must be true, because changes must change the current value and the only other possible value is true. But the `button` field still seen as false. Likewise the write to `count` doesn’t appear to have changed its value. This is because code running in an `on-update` block only sees the state of the workspace as it was at the beginning of the current feedback transaction. External inputs and internal writes are held separate until the succesful completion of the entire feedback. Until then, the only place these changes are visible is where they are passed as the input to an `on-update` block.
 
 ### Reverse execution
 Recall the reversible temperature convertor:
@@ -965,7 +988,18 @@ r: record{
 }
 t =|> r with {.x := s} 
 ```
-Any change made to the interface `t` will feedback into the update expression `.x := s`. Say the user modified the field `t.x` to be `'bar'`. Then `'bar'` will get written back to `s`. But if the user had modified `t.y` the change will pass through to `r.x`. Thus `:=` can feedback changes in two directions.
+Any change made to the interface `t` will feedback into the update expression `.x := s`. Say the user modified the field `t.x` to be `'bar'`. Then `'bar'` will get written back to `s`, where it came from. But if the user had modified `t.y` the change will pass through to `r.x`, where it came from. Thus `:=` can feedback changes in two directions.
+
+### Query update
+Queries are arrays constructed with the `for-all`, `such-that`, and ??? functions. Queries on tracked arrays can be updated, with the changes feeding back into the source arrays. Databases call this an _updatable view_. Queries on untracked arrays are not updatable.
+
+The `such-that` function removes some items from the source array. The items that make it through into the result can be updated, with the updates feeding back into the original items in the source array. Likewise items in the result can be created and deleted, feeding back into the same operations on the source array. Note `such-that` is not stable: an item might be changed in a way that removes it from the result afterwards.
+
+The `for-all` function produces an array whose items are the result of applying a code block to each source item. Updates to the result items are feed back through the same code block instances that derived them. These code blocks respond to changes as described above: if there is an `on-update` block it will be executed, otherwise the code block is executed in reverse. Either way, a change can only feedback to the source item — any attempt to write outside of it is a static error. Deleting an item in the result of a `for-all` just deletes the corresponding item in the source. A `for-all` is stable if its code block is stable. 
+
+Creating an item in the result of a `for-all` is a little more complicated: an item is created in the source array and a new instance of the code block is executed on it. If the result of this code block is different from the new item in the result, then the change is feed back through the code block as described above to change the new source item appropriately. 
+
+
 
 ### Internal feedback
 
@@ -1020,6 +1054,44 @@ Because feedback can’t escape, Subtext is technically a pure functional langua
 query interfaces (updatable views)
 updatable block?
 feeedback errors and transactions
+
+
+# Appendix: FAQs
+
+## why are you reinventing the wheel?
+Because the standard wheels are square. 
+Everywhere you look in the world of programming, from the grandest architectures to the tiniest details, is riddled with design mistakes, anachronisms, and historical accidents. Essentially we have never fixed or thrown anything away, and just added extra layers to workaround the defects.
+Subtext is an experiment to see how much we can simplify programming by starting with a clean slate.
+
+## why ignore equal changes?
+make update semantics equivalent to diffing
+“difference without a distinction” is troubling
+easy to aggregate changes in values
+e.g. insert() is a function, not a special operation
+easy to abstract sets of changes into a function
+Don’t need to have distinct functional and imperative versions of operation
+otherwise need to introduce delta-types into language semantics
+with implicit coercion to basis type
+Think this is simplist solution, but worth exploring design with first-class deltas
+
+## why tracking instead of unique immutable keys?
+Handles auto-numbering without kluges (like transactional and distributed consistency)
+Friendly to user to be able to change keys and allow them to be duplicates.
+Things have the same names in the real world all the time. Names also change.
+See Airtable
+Supports declarative links instead of foreign keys and referential integrity maintenance
+Supports accurate diffing and merging in the presence of manual reordering for things like document formats where there are no natural keys
+Pushing this fundamental data model issue onto the application programmer is an enormous cop-out
+
+## how can you abandon the proven relational model?
+Has no built-in notions of order or nesting, which are unbiquitous in the programming and UI worlds.
+It’s over-specialized and unusable. Optimized for read-only queries, and theoretical concisions, and implementability.
+Joins duplicate data, hiding the underlying relationships (which then have to be expressed in the mathematics of functional dependencies, which aren’t explicitly supported in any DBs).
+We believe joins are confusing to non-mathematical users, and hypothesize that nesting will be easier to understand.
+Not having to learn the relational model and SQL is one of the major benefits of Subtext.
+
+## Will Subtext be open source?
+I hope not. Open source works best for software used by other programmers, because that is how the contributors get their cred. But the economics of startups conflict with the goal of liberating software development. Perhaps a hybrid form like a Public Benefit Corp or a Coop offers a workable middle way.
 
 
 
@@ -1485,22 +1557,6 @@ non-negative // >=? 0
 non-zero     // not=? 0
 required     // not missing (see Missing Values)
 ```
-
-## Tracked arrays
-
-An array is defined to be either _tracked_ or _untracked_. Untracked is the default. _Is this right?_
-A tracked array automatically assigns a unique ID to each item when it is created. The ID is used to precisely track changes to the item. Such IDs are called _surrogate keys_ in databases. The tracking ID is hidden from the user and programmer. Tracking allows two important capabilities:
-
-1. Relationships between tracked arrays can be maintained, similar to relational databases, but without requiring that every item contain a unique and immutable key (see Links)
-2. Tracked arrays can be versioned and merged, similar to version control systems like git, except more precisely.
-
-Two tracked arrays are equal if their items are not only equal but also were created in the same relative order, including all items that were deleted. Tracked equality means that the array not only have the same current state but also effectively the same history of changes.
-
-Text is an an untracked array of characters. Two texts are equal if they have the same characters in the same order, regardless of their change histories.
-
-> Tracked arrays could offer sorting by creation time, and creation-time could be used to order duplicates in an array sorted by value.
-
-> The IDs in a tracked array are implemented as monotonically increasing serial numbers within the array, as in an “auto-increment” item in a relational database. We are not exposing this because merging may renumber items.
 
 ## Tracked links
 

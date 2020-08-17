@@ -1,4 +1,4 @@
-import { Workspace, Item, trap, ID, Path, another, Token } from "./exports";
+import { Workspace, Item, trap, ID, Path, another, Token, assert } from "./exports";
 
 /** Every Value is contained in an Item */
 export abstract class Value {
@@ -54,8 +54,9 @@ export abstract class Value {
   }
 
   /** whether this value was transitively copied from another Value without any
-   * updates */
+   * updates. Only used during analysis */
   isCopyOf(ancestor: this): boolean {
+    assert(this.workspace.analyzing);
     if (!this.source) return false;
     // check if our source is a copy
     return this.source === ancestor || this.source.isCopyOf(ancestor)

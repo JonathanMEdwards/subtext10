@@ -12,7 +12,7 @@ export type TokenType = (
   // keywords - add to matchToken switch statement
   | 'record' | 'choice' | 'table' | 'array' | 'do' | 'builtin' | 'anything'
   | 'nil' | 'try' | 'check' | 'not' | 'else' | 'reject' | 'let' | 'export'
-  | 'that' | 'include' | 'with' | 'find?' | 'find!'
+  | 'that' | 'include' | 'with' | 'find?' | 'find!' | 'tracked'
   | 'for-all' | 'such-that' | 'all?' | 'all!' | 'none?' | 'none!' | 'accumulate'
 )
 
@@ -248,6 +248,7 @@ export function tokenize(source: string): Token[] {
         case 'reject':
         case 'table':
         case 'array':
+        case 'tracked':
         case 'anything':
         case 'nil':
         case 'builtin':

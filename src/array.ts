@@ -7,7 +7,7 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
 
   /** whether array is tracked using serial numbers */
   tracked = false;
-  /** last used serial number */
+  /** last used serial number. During analysis counts creates and deletes */
   serial = 0;
 
   /** whether array is sorted by the value of the items */
@@ -22,11 +22,39 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
     let template = new Entry<V>();
     this.template = template;
     template.container = this;
-    template.io = 'output';
+    template.io = 'input';
     template.formulaType = 'none';
     template.id = 0;
     return template;
   }
+
+  /** ghost items. Only used when updating a tracked array through a for-all.
+   * Contains entries with ids greater than the serial #. These are created in
+   * response to creations in the result of a for-all on the array. A
+   * corresponding ghost entry will be created in the for-all Loop, which is
+   * updated by the creation and feeds back into this array */
+  ghosts!: Entry<V>[];
+
+  createGhost(id: number): Entry<V> {
+    assert(id > this.serial);
+    let entry: Entry<V> = new Entry;
+    entry.id = id;
+    if (!this.ghosts) {
+      this.ghosts = [];
+    }
+    // remove an existing ghost to allow speculative feedbacks
+    let existing = this.ghosts.findIndex(item => item.id === id);
+    if (existing !== -1) {
+      this.ghosts.splice(existing, 0);
+    }
+    this.ghosts.push(entry);
+    entry.container = this;
+    entry.io = 'input';
+    entry.formulaType = 'none';
+    entry.setFrom(this.template);
+    return entry;
+  }
+
 
   /** Columns, synthesized on demand, not copied. Note override type by forcing
    * container of column to be an Array not a Record */
@@ -41,6 +69,10 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
       }
       if (this.tracked) {
         // find serial number if tracked
+        if (id > this.serial && this.ghosts) {
+          // ghost item
+          return this.ghosts.find(item => item.id === id);
+        }
         return this.items.find(item => item.id === id);
       }
       // use ordinal number if untracked
@@ -143,6 +175,18 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
     )
   }
 
+  /** whether this value was transitively copied from another Value without any
+    * updates. Template must be a copy and serial #s match. During analysis
+    * deletes also increment the serial #. */
+  isCopyOf(ancestor: this): boolean {
+    return (
+      ancestor instanceof _Array
+      && this.template.value!.isCopyOf(ancestor.template.value!)
+      && this.serial === ancestor.serial
+      && super.isCopyOf(ancestor)
+    )
+  }
+
   /** whether this is a text-like array */
   get isText() {
     return this.template.value instanceof Character;
@@ -231,6 +275,10 @@ export class Text extends _Array<Character> {
     let to = another(this);
     to.source = this;
     to.value = this.value;
+    if (this.workspace.analyzing) {
+      // copy template during analysis to track copying
+      to.createTemplate().setValue(this.template.value!.copy(srcPath, dstPath));
+    }
     return to;
   }
 
@@ -254,6 +302,13 @@ skip-white = do{in: ''; builtin skip-white}
 builtins['&'] = (s: Statement, array: _Array, value: builtinValue) => {
   let copy = array.copy(array.containingItem.path, s.path);
   s.setValue(copy);
+  if (s.workspace.analyzing) {
+    // during analysis just increment serial # to break copying detection
+    ++copy.serial;
+    s.exportFrom(0);
+    return;
+  }
+
   let entry = new Entry;
   // add to end
   copy.add(entry);
@@ -275,6 +330,12 @@ builtins['&'] = (s: Statement, array: _Array, value: builtinValue) => {
 builtins['followed-by'] = (s: Statement, a: _Array, b: _Array) => {
   let copy = a.copy(a.containingItem.path, s.path);
   s.setValue(copy);
+  if (s.workspace.analyzing) {
+    // during analysis just increment serial # to break copying detection
+    ++copy.serial;
+    return;
+  }
+
   b.items.forEach((item, i) => {
     // renumner id of copy if untracked
     let id = a.tracked ? item.id : a.items.length + i + 1;
@@ -295,6 +356,12 @@ builtins['delete?'] = (s: Statement, array: _Array, index: number) => {
   s.setAccepted(accepted);
   let copy = array.copy(array.containingItem.path, s.path);
   s.setValue(copy);
+  if (s.workspace.analyzing) {
+    // during analysis just increment serial # to break copying detection
+    ++copy.serial;
+    return;
+  }
+
   if (accepted) {
     copy.items.splice(index - 1, 1);
     if (!array.tracked) {
@@ -326,6 +393,10 @@ builtins['update?'] = (
   s.setAccepted(accepted);
   let copy = array.copy(array.containingItem.path, s.path);
   s.setValue(copy);
+  if (s.workspace.analyzing) {
+    // force change during analysis
+    s.uncopy();
+  }
   if (accepted) {
     let item = copy.items[index - 1];
     item.detachValue();
@@ -355,12 +426,18 @@ export class Loop extends _Array<Do> {
     // eval template
     this.template.eval();
     let templateBlock = this.template.value!;
-    // get input array
-    let inputTemplate =
-      cast(templateBlock.items[0].get('^reference').value, Reference).target!;
-    assert(inputTemplate.id === 0);
-    assert(inputTemplate.container instanceof _Array);
-    this.input = inputTemplate.container;
+    const blockInput = templateBlock.items[0];
+    // Input of loop template block is reference to source array template
+    blockInput.used = true;
+    let sourceTemplate =
+      cast(blockInput.get('^reference').value, Reference).target!;
+    assert(sourceTemplate.id === 0);
+    assert(sourceTemplate.container instanceof _Array);
+    this.input = sourceTemplate.container;
+
+    // mimic tracking of input array
+    this.tracked = this.input.tracked;
+    this.serial = this.input.serial;
 
     if (this.loopType === 'accumulate' && this.workspace.analyzing) {
       // TODO: type check accumulator and result
@@ -381,10 +458,13 @@ export class Loop extends _Array<Do> {
       // copy code block into iteration
       iteration.setFrom(templateBlock);
       iteration.initialize();
-      // set input item of code block
+      // set iteration source reference to source entry
       let iterInput = iteration.value!.items[0];
-      assert(iterInput.io === 'input');
-      iterInput.setFrom(item);
+      assert(iterInput.formulaType === 'reference');
+      let iterRef = cast(iterInput.get('^reference').value, Reference);
+      assert(arrayLast(iterRef.path.ids) === 0);
+      iterRef.path = item.path;
+      assert(!iterRef.target);
 
       if (this.loopType === 'accumulate' && item !== this.input.items[0]) {
         // set previous result into accumulater
@@ -457,6 +537,7 @@ export class Loop extends _Array<Do> {
         let resultArray = new _Array;
         statement.setFrom(resultArray);
         resultArray.tracked = this.input.tracked;
+        resultArray.serial = this.input.serial;
         // result isn't sorted FIXME: should it be?
         resultArray.sorted = false;
         // define template from result of template block
@@ -479,7 +560,7 @@ export class Loop extends _Array<Do> {
             // set ordinals if untracked
             resultItem.id = resultArray.items.length;
           }
-          resultItem.io = 'output';
+          resultItem.io = 'input';
           resultItem.formulaType = 'none';
           resultItem.setFrom(iterationBlock.result);
         })
@@ -499,7 +580,8 @@ export class Loop extends _Array<Do> {
         let resultArray = new _Array;
         statement.setFrom(resultArray);
         resultArray.tracked = this.input.tracked;
-        resultArray.sorted = false;
+        resultArray.serial = this.input.serial;
+        resultArray.sorted = this.input.sorted;
         // copy source template
         resultArray.createTemplate().setFrom(this.input.template);
 
@@ -517,8 +599,6 @@ export class Loop extends _Array<Do> {
             // set ordinals if untracked
             resultItem.id = resultArray.items.length;
           }
-          resultItem.io = 'output';
-          resultItem.formulaType = 'none';
         })
         return;
       }

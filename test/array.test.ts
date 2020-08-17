@@ -40,6 +40,22 @@ test('array add/delete', () => {
     .toEqual({ a: [1, 2, 3, 4]});
 })
 
+test('tracked array', () => {
+  expectDump(`
+  a = tracked array {0} & 1 & 2 delete! 1
+  b = tracked array {0} & 1 & 2 delete! 1
+  c = tracked array {0} & 2
+  t1? = a =? b
+  t2? = a =? c
+  `).toEqual({
+    a: [2],
+    b: [2],
+    c: [2],
+    t1: [2],
+    t2: false
+  });
+})
+
 test('array at/update', () => {
   expectDump("a = array {0} & 1 & 2; b = a at! 1; c? = a at? 0")
     .toEqual({ a: [1, 2], b: 1, c: false });

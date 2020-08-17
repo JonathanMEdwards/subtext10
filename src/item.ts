@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer, _Boolean, arrayReverse} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer, _Boolean, arrayReverse, _Array, arrayRemove, Entry} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -500,8 +500,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
 
   /** whether a contained item is writable in this context. Must be inputs up to
-   * a containing interface or this. Returns the containing interface or the
-   * original input */
+   * a containing interface or this (the context). Certain locations are treated
+   * like interfaces: Code statements, and ^payload fields.
+   * If writable up to this context, returns the item, otherwise returns the
+   * containing interface-like location. */
   isWritable(item: Item): Item | undefined {
     // scan upwards to this
     for (let up = item; up !== this; up = up.container.containingItem) {
@@ -672,6 +674,22 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     const writeRef = (ref: Reference, value: Item) => {
       let target = ref.target!;
       if (!this.contains(target)) {
+        // write leaving feedback context
+
+        if (this.container instanceof Loop
+          && this.container.template === this
+        ) {
+          // called from analysis of for-all to check for escaping writes
+          if (cast(this.value, Do).items[0].getMaybe('^reference')?.value
+            === ref) {
+            // the write to the source of the for-all block is ignored
+            assert(this.workspace.analyzing);
+            return;
+          }
+          throw new StaticError(arrayLast(ref.tokens),
+            'external write from for-all')
+        }
+
         // TODO: defer changes that leave context by reifying into differnt type
         throw new StaticError(arrayLast(ref.tokens),
           'write outside context of update')
@@ -699,9 +717,74 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       pendingWrites.splice(i + 1, 0, write);
     }
 
+    /** write to result of a Code block. analyzeForAll flag set when
+     * analyzing a for-all update
+     */
+    const writeCode = (code: Code, delta: Item, analyzeForAll = false) => {
+      if (arrayLast(code.statements).dataflow !== 'on-update') {
+        // no on-update block - write delta onto result of code block
+        if (code instanceof Try && this.workspace.analyzing) {
+          // during analysis speculatively update each clause, then merge
+          for (let clause of code.statements) {
+            //clause.resolve();
+            clause.setDelta(delta);
+            // do rest of feedback for just this clause
+            let grounds = this.feedback(...[...pendingWrites, clause]);
+            // merge resultant grounded writes together
+            grounds.forEach(grounded => {
+              if (groundedWrites.includes(grounded)) return;
+              groundedWrites.push(grounded);
+            })
+          }
+          // terminate feedback with merged speculative feedbacks
+          pendingWrites = [];
+          return
+        }
+
+        // write result
+        let resultDelta = code.result!.setDelta(delta);
+        if (analyzeForAll) {
+          // analyzing for-all
+          // set result different
+          resultDelta.uncopy();
+          // check for feedback leaving for-all block
+          code.containingItem.feedback(code.result!)
+        }
+        writePending(code.result!);
+        return
+      }
+
+      // execute on-update block
+      // note types were already checked during analysis of def site
+      let onUpdate = cast(arrayLast(code.statements).value, OnUpdate);
+
+      // set input delta of on-update block
+      onUpdate.initialize();
+      let input = onUpdate.statements[0];
+      assert(input.io === 'input')
+      if (input.value) {
+        // possible that input got evaluated by deferred analysis
+        assert(this.workspace.analyzing);
+        input.detachValue();
+      }
+      input.setFrom(delta);
+      // evaluate on-update and queue up writes
+      onUpdate.eval();
+      // Execute all internal write statements
+      // this will traverse all try clauses during analysis
+      for (let statement of onUpdate.writeStatements()) {
+        const ref = cast(statement.get('^target').value, Reference);
+        if (analyzeForAll && !code.containingItem.contains(ref.target!)) {
+          throw new StaticError(arrayLast(ref.tokens),
+            'external write from for-all')
+        }
+        writeRef(ref, statement);
+      }
+    }
+
     while (pendingWrites.length) {
       const write = pendingWrites.pop()!;
-      let delta = assertDefined(write.deltaField);
+      const delta = assertDefined(write.deltaField);
       write.eval();
 
       // discard equi-writes
@@ -716,7 +799,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         if (write.value!.equals(delta.value!)) continue;
       }
 
-      // lift deltas to containing interface
+      // lift deltas to containing interface or interface-like item
       let interfaceWrite = this.isWritable(write);
       if (!interfaceWrite) {
         // unwritable location
@@ -724,7 +807,6 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       }
       if (interfaceWrite !== write) {
         // writes within interface are lifted into its ^delta
-        assert(interfaceWrite.io === 'interface');
         let interfaceDelta: Metafield | undefined;
         // scan prior writes for conflicts or existing write to interface
         for (let prior of arrayReverse(pendingWrites)) {
@@ -763,17 +845,25 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       if (write.io === 'input') {
         if (write.container instanceof Code) {
           // code input
-          let call = write.container.containingItem.container;
-          if (call instanceof Call &&
-            write.container.items[0] === write
-          ) {
-            // primary input of a call - propagate delta into call
-            let inputUpdate = call.statements[1];
-            assert(inputUpdate.formulaType === 'updateInput');
-            let ref = inputUpdate.get('^payload').get('^reference').value;
-            assert(ref instanceof Reference);
-            writeRef(ref, delta);
-            continue;
+          if (write.container.items[0] === write
+            ) {
+            // source input
+            let call = write.container.containingItem.container;
+            if (call instanceof Call) {
+              // source input of a call - propagate delta into call
+              let inputUpdate = call.statements[1];
+              assert(inputUpdate.formulaType === 'updateInput');
+              let ref = inputUpdate.get('^payload').get('^reference').value;
+              assert(ref instanceof Reference);
+              writeRef(ref, delta);
+              continue;
+            } else if (call instanceof Loop) {
+              // source input of a loop block - propagate back through reference
+              assert(write.formulaType === 'reference');
+              let ref = cast(write.get('^reference').value, Reference);
+              writeRef(ref, delta);
+              continue;
+            }
           }
           throw new StaticError(write, 'not updatable');
         } else {
@@ -806,54 +896,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             code = cast(write.get('^code').value, Code);
           }
 
-          if (arrayLast(code.statements).dataflow !== 'on-update') {
-            // no on-update block - write delta onto result of code block
-            if (code instanceof Try && this.workspace.analyzing) {
-              // during analysis recursively update each clause, then merge
-              for (let clause of code.statements) {
-                //clause.resolve();
-                clause.setDelta(delta);
-                // do rest of feedback for just this clause
-                let grounds = this.feedback(...[...pendingWrites, clause]);
-                // merge resultant grounded writes together
-                grounds.forEach(grounded => {
-                  if (groundedWrites.includes(grounded)) return;
-                  groundedWrites.push(grounded);
-                })
-              }
-              // return merged conditionally grounded writes
-              return groundedWrites;
-            } else {
-              // update satisfied clause
-              code.result!.setDelta(delta);
-              writePending(code.result!);
-            }
-            continue;
-          }
-
-          // execute on-update block
-          // note types were already checked during analysis of def site
-          let onUpdate = cast(arrayLast(code.statements).value, OnUpdate);
-
-          // set input delta of on-update block
-          onUpdate.initialize();
-          let input = onUpdate.statements[0];
-          assert(input.io === 'input')
-          if (input.value) {
-            // possible that input got evaluated by deferred analysis
-            assert(this.workspace.analyzing);
-            input.detachValue();
-          }
-          input.setFrom(delta);
-          // evaluate on-update and queue up writes
-          onUpdate.eval();
-          // Execute all internal write statements
-          // this will traverse all try clauses during analysis
-          for (let statement of onUpdate.writeStatements()) {
-            writeRef(
-              cast(statement.get('^target').value, Reference),
-              statement);
-          }
+          writeCode(code, delta);
           break;
         }
 
@@ -899,6 +942,205 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           }
           break;
         }
+
+        case 'loop': {
+          // TODO: move this code into array.ts
+          const loop = cast(write.get('^loop').value, Loop);
+          const source = loop.input;
+
+          switch (loop.loopType) {
+
+            case 'find?':
+            case 'find!': {
+              // TODO: feedback into found item
+              trap();
+            }
+
+            case 'all!':
+            case 'all?':
+            case 'none!':
+            case 'none?': {
+              // feedback changes to source
+              let sourceItem = source.containingItem;
+              sourceItem.setDelta(delta);
+              writePending(sourceItem);
+              break;
+            }
+
+            case 'such-that': {
+              // overwrite changes into source
+              if (!source.tracked) {
+                throw new StaticError(write,
+                  'such-that not updatable for untracked array');
+              }
+              // first set delta to copy of original source value
+              let sourceItem = source.containingItem;
+              let sourceDelta = sourceItem.setDelta(sourceItem);
+              writePending(sourceItem);
+              let sourceDeltaArray = sourceDelta.value;
+              assert(sourceDeltaArray instanceof _Array);
+              let resultArray = write.value;
+              assert(resultArray instanceof _Array);
+              let deltaArray = delta.value;
+              assert(deltaArray instanceof _Array);
+              if (this.workspace.analyzing) {
+                // change everything during analysis
+                sourceDelta.uncopy();
+                if (deltaArray.serial !== resultArray.serial) {
+                  // pass through creates and deletes
+                  sourceDeltaArray.serial++
+                }
+                break;
+              }
+              // scan items in original result of such-that
+              for (let resultItem of resultArray.items) {
+                let sourceItem = sourceDelta.get(resultItem.id);
+                let deltaItem = deltaArray.getMaybe(resultItem.id);
+                if (!deltaItem) {
+                  // item deleted in delta; delete from source
+                  arrayRemove(sourceDeltaArray.items, sourceItem as Entry);
+                  continue;
+                }
+                // change source item
+                sourceItem.detachValue();
+                sourceItem.setFrom(deltaItem);
+                // FIXME move source item if moved in delta
+              }
+              // feedback creations
+              assert(resultArray.serial === sourceDeltaArray.serial);
+              for (
+                let id = resultArray.serial + 1;
+                id <= deltaArray.serial;
+                id++
+              ) {
+                sourceDeltaArray.serial = id;
+                let deltaItem = deltaArray.getMaybe(id);
+                if (deltaItem) {
+                  // feedback creation
+                  let sourceItem = new Entry;
+                  sourceDeltaArray.add(sourceItem);
+                  sourceItem.io = 'input';
+                  sourceItem.formulaType = 'none';
+                  sourceItem.id = id;
+                  sourceItem.setFrom(deltaItem);
+                  // FIXME: move creation if moved in delta
+                }
+              }
+              break;
+            }
+
+
+            case 'for-all': {
+              if (!source.tracked) {
+                throw new StaticError(write,
+                  'for-all not updatable for untracked array');
+              }
+              // first set delta of source to copy of its original value
+              let sourceItem = source.containingItem;
+              let sourceDelta = sourceItem.setDelta(sourceItem);
+              writePending(sourceItem);
+              let sourceDeltaArray = sourceDelta.value;
+              assert(sourceDeltaArray instanceof _Array);
+              // feedback changed items
+              let resultArray = write.value;
+              assert(resultArray instanceof _Array);
+              let deltaArray = delta.value;
+              assert(deltaArray instanceof _Array);
+              if (this.workspace.analyzing) {
+                // in analysis: update for-block template
+                let templateBlock = cast(loop.template.value, Do);
+                // write current result back to it
+                // set special flag to bound effects
+                writeCode(templateBlock, templateBlock.result!, true)
+                if (deltaArray.serial !== resultArray.serial) {
+                  // pass through creates and deletes
+                  sourceDeltaArray.serial++
+                }
+                if (sourceDeltaArray.isCopyOf(sourceItem.value as _Array)) {
+                  // no changes made to source, so remove its delta
+                  arrayRemove(pendingWrites, sourceItem);
+                }
+                break;
+              } else {
+                for (let resultItem of resultArray.items) {
+                  let deltaItem = deltaArray.getMaybe(resultItem.id);
+                  if (!deltaItem) {
+                    // item deleted in delta; delete from source
+                    arrayRemove(
+                      sourceDeltaArray.items,
+                      sourceDelta.get(resultItem.id) as Entry);
+                    continue;
+                  }
+                  if (resultItem.value.equals(deltaItem.value)) {
+                    // ignore if value unchanged
+                    continue;
+                  }
+                  // write changed item to for-all block instance
+                  let instance = loop.getMaybe(resultItem.id)!;
+                  writeCode(cast(instance.value, Do), deltaItem)
+                  continue;
+                }
+              }
+              // feedback creations
+              assert(resultArray.serial === sourceDeltaArray.serial);
+              for (
+                let id = resultArray.serial + 1;
+                id <= deltaArray.serial;
+                id++
+              ) {
+                sourceDeltaArray.serial = id;
+                let deltaItem = deltaArray.getMaybe(id);
+                if (deltaItem) {
+                  /** creation feedback. Uses special ghost items in the source
+                   * array and the for-all loop, so that the creation can
+                   * feedback through the for-all code block
+                   */
+                  let sourceGhost = source.createGhost(id);
+                  let sourceDeltaCreate = new Entry;
+                  sourceDeltaCreate.id = id;
+                  sourceDeltaArray.add(sourceDeltaCreate);
+                  sourceDeltaCreate.io = 'input';
+                  sourceDeltaCreate.formulaType = 'none';
+                  sourceDeltaCreate.setFrom(sourceDeltaArray.template);
+
+                  // link for-all iteration to source ghost
+                  let iteration = loop.createGhost(id);
+                  // copied from Loop.eval()
+                  iteration.initialize();
+                  let iterInput = iteration.value!.items[0];
+                  assert(iterInput.formulaType === 'reference');
+                  let iterRef = cast(iterInput.get('^reference').value, Reference);
+                  assert(arrayLast(iterRef.path.ids) === 0);
+                  iterRef.path = sourceGhost.path;
+                  assert(!iterRef.target);
+                  iteration.eval();
+                  let iterationResult = cast(iteration.value, Do).result!;
+
+                  // compare creation to ghost for-all result
+                  if (deltaItem.value!.equals(iterationResult.value)) {
+                    // creation doesn't change ghost mapping
+                    // leave default source creation
+                    continue;
+                  }
+                  iterationResult.setDelta(deltaItem);
+                  writePending(iterationResult);
+                  continue;
+                  // FIXME: move creation if moved in delta
+                }
+              }
+              break;
+            }
+
+            case 'accumulate': {
+              // TODO: feedback through chained functions
+              trap();
+            }
+
+            default: trap();
+          }
+          break;
+        }
+
 
         default:
           throw new StaticError(write, 'not updatable');
@@ -1126,6 +1368,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       if (item.io === 'input' && item.value) {
         // forget input item source
         item.value.source = undefined;
+      }
+      if (item.value instanceof _Array) {
+        // break copying of array template too
+        item.value.template.uncopy();
       }
     }
     this.value!.source = undefined;

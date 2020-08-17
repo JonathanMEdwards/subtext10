@@ -1,3 +1,3 @@
-## Subtext: the missing link between spreadsheets and programming languages
+## Application development for non-programmers
 
 [doc](doc/language.md)
