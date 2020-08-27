@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer, _Boolean, arrayReverse, _Array, arrayRemove, Entry} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer, _Boolean, arrayReverse, _Array, arrayRemove, Entry, Record} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -204,6 +204,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    * loop: value is result of a Loop block in ^loop
    *
+   * extend: extension in ^extend, ^reference refers to `that`
+   *
    * update: dependent reference in ^target, formula in ^payload
    *
    * updateInput: special update used for input of a call
@@ -222,7 +224,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *  */
   formulaType: (
     'none' | 'literal' | 'reference' | 'code' | 'update' | 'updateInput'
-    | 'write' | 'choose' | 'call' | 'include' | 'builtin' | 'loop'
+    | 'write' | 'choose' | 'call' | 'include' | 'builtin' | 'loop' | 'extend'
   ) = 'none';
 
   /** IO mode of item. Inputs are mutable state and function parameters. Outputs
@@ -305,6 +307,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         throw new Crash(this.container.token!, 'Workspace too deep')
       }
 
+      if (this.formulaType === 'extend') {
+        this.extend()
+      }
+
       // evaluate metadata
       this.metadata?.eval();
 
@@ -380,6 +386,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
         case 'builtin':
           evalBuiltin(cast(this, Statement));
+          break;
+
+        case 'extend':
+          // already evaluated
           break;
 
         default:
@@ -469,6 +479,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   /** The previous item in evaluation order. Used by dependent references. */
   previous(): Item | undefined {
     // should only be used during analysis to bind references
+    // because if previous value is in outer container, copies of this item need
+    // to capture the reference
     assert(this.workspace.analyzing);
     this.usesPrevious = true;
     let container = this.container;
@@ -495,6 +507,42 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return container.containingItem.previous();
   }
 
+  /** evaluate a record extension */
+  private extend() {
+    let extending = cast(this.get('^extend').value, Record);
+    let ref = cast(this.get('^reference').value, Reference);
+    if (this.workspace.analyzing && !ref.target) {
+      // first binding
+      ref.eval();
+      // inject source fields into record for proper lexical binding
+      let source = ref.target!.value;
+      if (!(source instanceof Record)) {
+        throw new StaticError(this, 'extend requires a record');
+      }
+      for (let field of arrayReverse(source.fields)) {
+        // copy in context of record
+        let copy = field.copy(
+          source.containingItem.path, extending.containingItem.path);
+        extending.fields.splice(0, 0, copy)
+        copy.container = extending;
+      }
+      // bind extension
+      extending.eval()
+    } else {
+      ref.eval();
+    }
+    // copy source record into value
+    this.copyValue(ref.target);
+    let value = cast(this.value, Record);
+    // append extended fields into value
+    for (let i = value.fields.length; i < extending.fields.length; i++) {
+      let field = extending.fields[i];
+      // copy with record context
+      let copy = field.copy(extending.containingItem.path, this.path);
+      value.fields.push(copy);
+      copy.container = value;
+    }
+  }
 
 /* --------------------------------- update --------------------------------- */
 
@@ -942,6 +990,41 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           }
           break;
         }
+
+        case 'extend': {
+          // reverse execution of extend
+          // split feedback between source and extension
+          let extending = cast(write.get('^extend').value, Record);
+          let ref = cast(write.get('^reference').value, Reference);
+          let sourceRec = cast(ref.target!.value, Record);
+          let deltaRec = cast(delta.value, Record);
+          let origRec = cast(write.value, Record);
+          for (let i = 0; i < origRec.fields.length; i++) {
+            let deltaField = deltaRec.fields[i];
+            let origField = origRec.fields[i];
+            if (origField.io !== 'input'
+              || deltaField.value!.staticEquals(origField.value!)
+            ) {
+              // ignore if not input or unchanged
+              // interfaces are ignored because they should have already
+              // intercepted changes
+              continue;
+            }
+            if (i < sourceRec.fields.length) {
+              // send write to source
+              let sourceField = sourceRec.fields[i];
+              sourceField.setDelta(deltaField);
+              writePending(sourceField);
+            } else {
+              // send write to extension
+              let extensionField = extending.fields[i];
+              extensionField.setDelta(deltaField);
+              writePending(extensionField);
+            }
+          }
+          break;
+        }
+
 
         case 'loop': {
           // TODO: move this code into array.ts

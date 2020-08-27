@@ -92,5 +92,6 @@ export class MetaID extends FieldID {
     '^exportType': new MetaID('^exportType'), // Exported value type
     '^writeValue': new MetaID('^writeValue'), // Formula before ->
     '^delta': new MetaID('^delta'),      // Pending change in DeltaContainer
+    '^extend': new MetaID('^extend'),         // record extension
   }
 }

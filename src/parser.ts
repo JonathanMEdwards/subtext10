@@ -338,6 +338,16 @@ export class Parser {
       return true;
     }
 
+    if (this.parseToken('extend')) {
+      field.setMeta('^extend', this.requireBlock(new Record));
+      field.formulaType = 'extend';
+      // ^reference to `that`
+      let ref = new Reference;
+      ref.tokens = [Token.fake('that', this.cursorToken)];
+      field.setMeta('^reference', ref);
+      return true;
+    }
+
     if (this.parseToken('updatable')) {
       field.setMeta('^code', this.requireBlock(new Updatable));
       field.formulaType = 'code';
@@ -394,7 +404,7 @@ export class Parser {
       ) {
         // update/choose operation
         if (!ref.dependent) {
-          throw this.setError(`# requires dot-path`, ref.tokens[0]);
+          throw this.setError(`expecting dot-path`, ref.tokens[0]);
         }
 
         field.formulaType = this.prevToken.type === ':=' ? 'update' : 'choose';

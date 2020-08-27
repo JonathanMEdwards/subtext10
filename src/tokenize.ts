@@ -14,6 +14,7 @@ export type TokenType = (
   | 'nil' | 'try' | 'check' | 'not' | 'else' | 'reject' | 'let' | 'export'
   | 'that' | 'include' | 'with' | 'find?' | 'find!' | 'tracked'
   | 'for-all' | 'such-that' | 'all?' | 'all!' | 'none?' | 'none!' | 'accumulate'
+  | 'extend'
 )
 
 export class Token {
@@ -266,6 +267,7 @@ export function tokenize(source: string): Token[] {
         case 'on-update':
         case 'updatable':
         case 'write':
+        case 'extend':
 
           return name;
       }

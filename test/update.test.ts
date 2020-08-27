@@ -482,3 +482,65 @@ test('for-all reference encapsulation', () => {
   `).toThrow('external write from for-all')
 })
 
+test('updatable query', () => {
+  let w = compile(`
+  customers: do{
+    tracked table{customer-id: number}
+    &(with{.customer-id:= 1})
+    &(with{.customer-id:= 2})
+  }
+  orders: do{
+    tracked table{order-id: number, customer-id: number}
+    &(with{.order-id:= 1, .customer-id:= 1})
+    &(with{.order-id:= 2, .customer-id:= 1})
+  }
+
+  query =|> customers for-all{
+    extend{their-orders =|> orders such-that{.customer-id =? customer-id}}
+  }
+  `)
+
+  expect(w.dumpAt('query')).toEqual([
+    {
+      'customer-id': 1,
+      'their-orders': [
+        { 'customer-id': 1, 'order-id': 1 },
+        { 'customer-id': 1, 'order-id': 2 },
+      ]
+    },
+    {
+      'customer-id': 2,
+      'their-orders':[],
+    },
+  ]);
+
+  // update nested table
+  w.writeAt('query.1.their-orders.2.customer-id', 2);
+  expect(w.dumpAt('orders')).toEqual([
+    { 'customer-id': 1, 'order-id': 1 },
+    { 'customer-id': 2, 'order-id': 2 },
+  ]);
+  expect(w.dumpAt('query')).toEqual([
+    {
+      'customer-id': 1,
+      'their-orders': [
+        { 'customer-id': 1, 'order-id': 1 },
+      ]
+    },
+    {
+      'customer-id': 2,
+      'their-orders': [
+        { 'customer-id': 2, 'order-id': 2 },
+      ],
+    },
+  ]);
+
+  // update containing table
+  w.writeAt('query.2.customer-id', 3);
+  expect(w.dumpAt('customers')).toEqual([
+    { 'customer-id': 1 },
+    { 'customer-id': 3 },
+  ]);
+
+  // TODO: creation and deletion
+})

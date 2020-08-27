@@ -532,3 +532,13 @@ test('recursive export', () => {
   }
   `).toThrow('changing type of value')
 })
+
+test('extend', () => {
+  expectDump(`
+  e = record{a: 0} extend{b = a + 1}
+  f = with{.a := 1}`)
+    .toEqual({
+      e: { a: 0, b: 1 },
+      f: { a: 1, b: 2 }
+    })
+})

@@ -772,6 +772,51 @@ test {
 }
 ```
 
+### Queries
+
+A _query_ is a formula that calculates an array from one or more other other arrays. This includes the `for-all` and `such-that` functions, which operate on a single array. Queries get more complicated when we want to combine multiple tables.  For example, take these two tables:
+
+```
+customers: do{
+  table{customer-id: number, name: ''}
+  &(with{.customer-id:= 1, .name := 'John'})
+  &(with{.customer-id:= 2, .name := 'Jane})
+}
+orders: do{
+  table{order-id: number, customer-id: number, item: ''}
+  &(with{.order-id:= 1, .customer-id:= 1, .item := 'widget})
+  &(with{.order-id:= 2, .customer-id:= 1, .item := 'fidget})
+}
+```
+
+To see the orders for each customer,  we can use:
+```
+customers for-all{
+  extend{their-orders = orders such-that{.customer-id =? customer-id}}
+}
+```
+
+The new feature used here is the `extend`block, which takes a record (a `customer` row) and appends all the fields in a record definition to it (the single field `their-orders`). So this appends `their-orders` to each customer. The value of `their-orders` is a table containing all the orders for that customer, which is computed by `orders such-that{.customer-id =? customer-id}`.  Note in this expression the difference between `.customr-id` and `customer-id`. The former refers to the `customer-id` of an order supplied by the `such-that`. The latter refers to the `customer-id` of a customer supplied by the `for-all`. There is no `.` preceding the latter reference, because the `extend` gives all the extending fields direct access to the source fields being extended. technically speaking, extend is lexically scoped within the source record, similarly to the way OO languages extend classes.
+
+The result of this query is equal to:
+```
+table{customer-id: number, name: '', their-orders = 
+  table{order-id: number, customer-id: number, item: ''}
+}
+&(with{.customer-id:= 1, .name := 'John', their-orders := 
+  &(with{.order-id:= 1, .customer-id:= 1, .item := 'widget})
+  &(with{.order-id:= 2, .customer-id:= 1, .item := 'fidget})
+})
+&(with{.customer-id:= 2, .name := 'Jane})
+
+```
+> A screen shot or nested table layout would be much nicer
+
+Note that this query does not use a _join_ as in a relational database. Joins multiply tables together to produce a table each of whose rows contains fields from the input tables in multiple possible combinations. This can get confusing because data gets duplicated throughout the result, but it is hard to see exactly what is a duplicate of what. Tracking these duplications is the subject of the theory of _Functional Dependencies_, which you don’t want to have to understand. Subtext takes a different approach, combining tables by nesting them inside each other, reducing the amount of duplication, and making the necessary duplication explicit. This also allows the results to be updated: see _Updatable Queries_.
+
+The above example shows how to combine tables when they have fields that relate to each other, called a _foreign key_. Data imported from relational datrabases typically uses foreign keys, but Subtext offers are more convenient way to relate tables: see _Selectors_.
+
+
 ### Accumulating
 
 An `accumulate` block is used to accumulate a result by scanning an array.
@@ -787,11 +832,6 @@ check =? 3
 An `accumulate` block must define two input items. The block will be executed repeatedly, like a `for-all`, feeding items from the input array into the first input item. The first item (named `item` in this example) must be an input referencing the template value with `[]`. The second input (`sum`) acts as an accumulator. On the first call it defaults to the defined value (0). On the second and subsequent calls, `sum` becomes the result of the previous call. This example is equivalent to the built-in `sum()` function that sums an array of numbers. An `accumulate` is  like a conventional _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `sum(100)` starts the accumulator at 100).
 
 > If an item is rejected, should it be skipped, or stop the accumulation?
-
-### TODO: Queries
-
-A _query_ is a formula that calculates an array from one or more other other arrays. This includes the `for-all` and `such-that` functions. Queries get more powerful when they operate on multiple tables. Subtext does this by _nesting_, unlike relational databases, which use _joins_.
-
 
 
 ### Tracked arrays
@@ -990,15 +1030,28 @@ t =|> r with {.x := s}
 ```
 Any change made to the interface `t` will feedback into the update expression `.x := s`. Say the user modified the field `t.x` to be `'bar'`. Then `'bar'` will get written back to `s`, where it came from. But if the user had modified `t.y` the change will pass through to `r.x`, where it came from. Thus `:=` can feedback changes in two directions.
 
-### Query update
-Queries are arrays constructed with the `for-all`, `such-that`, and ??? functions. Queries on tracked arrays can be updated, with the changes feeding back into the source arrays. Databases call this an _updatable view_. Queries on untracked arrays are not updatable.
+### Updatable queries
+Queries are arrays constructed with the `for-all` and `such-that` functions. Queries on tracked arrays can be updated, with the changes feeding back into the source arrays. Databases call this an _updatable view_. Queries on untracked arrays are not updatable.
 
 The `such-that` function removes some items from the source array. The items that make it through into the result can be updated, with the updates feeding back into the original items in the source array. Likewise items in the result can be created and deleted, feeding back into the same operations on the source array. Note `such-that` is not stable: an item might be changed in a way that removes it from the result afterwards.
 
 The `for-all` function produces an array whose items are the result of applying a code block to each source item. Updates to the result items are feed back through the same code block instances that derived them. These code blocks respond to changes as described above: if there is an `on-update` block it will be executed, otherwise the code block is executed in reverse. Either way, a change can only feedback to the source item — any attempt to write outside of it is a static error. Deleting an item in the result of a `for-all` just deletes the corresponding item in the source. A `for-all` is stable if its code block is stable. 
 
-Creating an item in the result of a `for-all` is a little more complicated: an item is created in the source array and a new instance of the code block is executed on it. If the result of this code block is different from the new item in the result, then the change is feed back through the code block as described above to change the new source item appropriately. 
+Creating an item in the result of a `for-all` is a little more complicated: an item is created in the source array and a new instance of the code block is executed on it. If the result of this code block is different from the new item in the result, then the change is feed back through the code block as described above to change the new source item appropriately. _TODO: example_
 
+Updating queries that combine multiple tables has been a long-standing quandry, known as the _view update problem_. Subtext sidesteps many of the difficulties of view update by nesting tables rather than joining them. The example presented from the _Queries_ section can be made updatable by tracking the tables and defining ther results of the `for-all` and `such-that` as interfaces with `=|>` instead of `=` :
+
+```
+customers: tracked table{customer-id: number, name: ''}
+
+orders: tracked table{order-id: number, customer-id: number, item: ''}
+
+query =|> customers for-all{
+  extend{their-orders =|> orders such-that{.customer-id =? customer-id}}
+}
+```
+
+Now `query` can be updated as if it was an input table, with the changes sent back to the `customers` and `orders` tables. Remember that it is not possible for changes outside the source to leak from a `for-all` — so how do changes escape to the `orders` table? The trick here is the way the `extend` block works: the definition of the `their-orders` field becomes part of the result records. Any changes inside the `their-orders` field in the results will get fed back directly through that definition, containing a `such-that` and then onward to `orders`. These changes get rerouted into `orders` before the `for-all` gets a chance to see them. Only the change to the fields inherited from `customers` feed back into the `for-all` and hence to `customers` without breaking the rules.
 
 
 ### Internal feedback
@@ -1011,15 +1064,17 @@ button =|> false on-update{write count <- + 1}
 When the user clicks on the button the value true is writren to the field`button`, triggering the feedback process. This is actually implemented with code like this:
 
 ```
-current-workspace = record {
+current = record {
   count: 0
   button =|> false on-update{write count <- + 1}
 }
-changed-workspace = current-workspace with{.button := true}
+changed = current with{.button := true}
 ```
 
 Here is the magic trick: feedback is a feature of the `:=` update operation. Normally we use `:=` to override input fields as data state or as arguments to a function. But when `:=` writes to an interface field, it internally runs a complete feedback transaction. At the end of the transaction, the final set of writes to input fields determine the final result of the update. 
 
+> TODO: useful as escape to allow writes to overwrite
+>  
 Because all interactions between a workspace and the external world are encoded as value changes, we get universal testability. The `test` block make this convenient by passing the initial state of the containing workspace into a code block, and reports a test failure if the block rejects. For example:
 
 ```
@@ -1033,6 +1088,8 @@ test {
   check .count =? 2
 }
 ```
+
+> Note breaks lens laws
 
 There is an important safety restriction on internal feedback: it must stay internal. In other words, writes can’t escape. For example, this is illegal:
 ```
@@ -1075,12 +1132,17 @@ with implicit coercion to basis type
 Think this is simplist solution, but worth exploring design with first-class deltas
 
 ## why tracking instead of unique immutable keys?
-Handles auto-numbering without kluges (like transactional and distributed consistency)
+Adding the same key in two versions can’t be merged
+The UI can’t insert a new item without first knowing at least its key
+A program can’t insert a new item without first generating a key, and the insertion could fail if the key is already taken. Alternatively, implicitly updating the record with an existing key changes the semantics of insertion in subtle ways.
+The user can never edit a key, which breaks normal expecations. People change their names. This is case where the needs of the softeware force the user to adapt.
+Handles auto-numbering while guranteeing safe merging of inserts
 Friendly to user to be able to change keys and allow them to be duplicates.
 Things have the same names in the real world all the time. Names also change.
 See Airtable
 Supports declarative links instead of foreign keys and referential integrity maintenance
 Supports accurate diffing and merging in the presence of manual reordering for things like document formats where there are no natural keys
+Spreadsheets and data science libraries (data frames) aren’t hung up on keys
 Pushing this fundamental data model issue onto the application programmer is an enormous cop-out
 
 ## how can you abandon the proven relational model?
@@ -1098,23 +1160,12 @@ I hope not. Open source works best for software used by other programmers, becau
 # Appendix: TODO
 
 
-## Relational data and queries
 
-Subtext lets you work with relational data without learning SQL or understanding what a join is. A Subtext workspace already is a database, in the sense that it persists even after you turn off the computer. Traditional programming languages are concerned only with data in memory, and so must access persistent data stored externally in a database using completely different syntax and semantics. Consider this simple example database:
+## Relationships and queries
 
-```
-orders: table {
-  id: ###
-  customer: ''
-}
-order-lines: table {
-  order-id: ###
-  product: ''
-  quantity: 1
-}
-```
 
-This database contains a table of orders, each with a unique id number. Orders can include multiple products, which are recorded in the order-lines table. A common question to ask this database is to list the order-lines in a given order. This would normally require a query called a _join_. Subtext avoids this kind of query by defining _links_.
+### TODO: rename link -\> selector
+Should links be based on address of source table or static origin? That would allow arbitrary exprs instead of just refs
 
 ### `in` links
 
@@ -1186,85 +1237,12 @@ orders: tracked table {
 }
 ```
 
-### Advanced queries
-
-Links eliminate many simple queries, but there can still be a need for queries in more complex cases. Let’s return to the original example and avoid using links to see how relational-style queries can be done. Here is the database again:
-
-```
-orders: table {
-  id: ###
-  customer: ''
-}
-order-lines: table {
-  order-id: ###
-  product: ''
-  quantity: 1
-}
-```
-
-To find the `order-lines` in an order we can use a `query` block (see Iterating):
-```
-order-lines query{.order-id =? order.id}
-```
-
-That formula will produce a table containing all the `order-line` rows for the order `order`. This is the equality constraint at the heart of  the _join_ operation in a relational query. However relational joins are typically expressed not just as doing a lookup for one order, but doing it for all of them at once, and combining the results into a big table where the order information gets duplicated for each order-line. While that may be appealing from a theoretical perspective, we feel that is not typically how people or programs prefer to see the information. Nevertheless if that is what you want, you can still do it in Subtext, which we will walk through in several steps:
-
-```
-orders for-all{
-  order: []
-  order-lines query{.order-id =? order.id}
-}
-```
-This formula produces a table that updates each row of the `orders` table with a table of the corresponding `order-lines` rows. But that discards information from the orders table. So instead we can add a field to each order containing the order-lines:
-```
-orders for-all{
-  order: []
-  extend{
-    lines = order-lines query{.order-id =? order.id}
-  }
-}
-```
-The `extend` block expects a record as its input, and adds all the fields defined inside its block to the end of that record. In this case we get a table that looks like this:
-```
-table{
-  id: ###
-  customer: ''
-  lines: table{
-    order-id: ###
-    product: ''
-    quantity: 1
-  }
-}
-```
-Note that this is equivalent to what we got by adding the `from` link to `orders`. We computed the same result using a `for-all`, `query`, and `extend`. But this is still not quite a relational join, because it contains nested tables. We can flatten out the nesting with an `ungroup()`:
-```
-orders for-all{
-  order: []
-  extend{
-    order-lines query{.order-id =? order.id}
-  }
-}
-ungroup()
-```
-
-The `ungroup()` function takes a table as input, and looks for the first field that is a nested table. It then updates that field with all the fields of its contained table. So in this case it produces the table:
-```
-table{
-  id: ###
-  customer: ''
-  order-id: ###
-  product: ''
-  quantity: 1
-}
-```
-The `ungroup()` function replaces each row of the input table with multiple rows of the expanded table, one per row of the nested table. The other fields outside the nested table are duplicated across all these rows. If the nested table (containing the query match) is empty, then the input row is skipped. That is exactly what an _inner join_ does in a relational query. Other kinds of joins can be produced by alternative forms of ungroup. The reason we call this `ungroup` instead of `join` is first, we think it is much more explanatory term, and second, it actually is the inverse of the `group()` function that will create a nested table to eliminate duplication in other columns.
-
-We have seen above how joins can be done in Subtext through several operations. Those fond of SQL might criticize this as verbose and complex. We stand with those not fond of SQL, finding it an overly abstract and mathematical language that forces everything into the Procrustean Bed of normalized relations. We think nested tables are actually more friendly for both humans and programs.
-
 
 ## Parsing
 
 It is common to need to find and operate on patterns in text. The traditional solutions involve specialized languages with radically different syntax and semantics, such as _regular expressions_ or _parser generators_. Subtext provides these capabilities without the need to learn a specialized sub-language.
+
+TODO: rename selection -\> range. before/covered/after
 
 A _selection_ is an array that has been divided into three parts, called _before_, _selected_, and _after_. Any of these parts can be empty. We can think of a selection as an array plus two indices `begin` and `end` where `1 ≤ begin ≤ end ≤ length + 1`. A selection is created from an array with
 ```
@@ -1413,7 +1391,7 @@ The recursive call `continue?()` has a question mark because the repeat block ca
 
 > Perhaps a `visit` block that can be multiply-recursive, and collects the exports in order of execution, concatenating them as in a “flat map”. Combined with skipping of conditional exports, this allows arbitrary search algorithms to be easily written.
 
-## Repeated exports
+### Repeated exports
 
 When we parse a CSV we typically want to produce an array of the numeric values. We can do that by adding an export:
 
