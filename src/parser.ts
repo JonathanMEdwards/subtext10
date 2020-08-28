@@ -651,9 +651,9 @@ export class Parser {
 
   /** inject an input argument field at start of block with specified syntax */
   injectInput(block: Block, syntax: string): Field {
-    let fieldParser = new Parser(syntax);
-    fieldParser.space = this.space;
-    let field = fieldParser.requireField(block);
+    let parser = new Parser(syntax);
+    parser.space = this.space;
+    let field = parser.requireField(block);
     // move to beginning
     arrayRemove(block.items, field);
     block.items.splice(0, 0, field);

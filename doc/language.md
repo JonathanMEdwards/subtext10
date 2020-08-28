@@ -816,6 +816,7 @@ Note that this query does not use a _join_ as in a relational database. Joins mu
 
 The above example shows how to combine tables when they have fields that relate to each other, called a _foreign key_. Data imported from relational datrabases typically uses foreign keys, but Subtext offers are more convenient way to relate tables: see _Selectors_.
 
+> Queries are a central research problem (especially making them updatable), but they may become a specialized advanced feature given selectors and the ability to refactor foreign keys into selectors
 
 ### Accumulating
 

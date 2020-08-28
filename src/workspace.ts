@@ -1,4 +1,4 @@
-import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions, Code, Statement, StaticError, Try, Call, Do, With, assert, Value, Reference, Choice, assertDefined, OptionReference, Container  } from "./exports";
+import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions, Code, Statement, StaticError, Try, Call, Do, With, assert, Value, Reference, Choice, assertDefined, OptionReference, Container, Field, _Array, Entry  } from "./exports";
 
 /** A subtext workspace */
 export class Workspace extends Item<never, History> {
@@ -136,24 +136,20 @@ export class Workspace extends Item<never, History> {
     return this.currentVersion.down(path).dump();
   }
 
-  /** write a value at a path in current version, creating a new version.
+
+
+
+  /** create a new version by updating the current one.
    *
-   * If the path refers to a Choice, the value must be the FieldID or string
-   * name of an option. If the path refers to a non-Choice, the value can be a
-   * Value or number or string
-   *
-   * If the path is to an array item, the value can be undefined to delete it.
-   */
-  writeAt(
-    path: string,
-    value: number | boolean | string | Value | FieldID
-  ) {
+   * Executes `path := formula`.
+   * @param path dotted string allowing array indices.
+   * @param formula syntax of formula.
+   *   */
+  updateAt(path: string, formula: string) {
     let target = this.currentVersion.down(path);
     if (!this.currentVersion.isWritable(target)) {
       throw 'not updatable';
     }
-
-    let choose = target.value instanceof Choice;
 
     // append new version to history
     let history = this.value!;
@@ -162,10 +158,10 @@ export class Workspace extends Item<never, History> {
     newVersion.id = this.newVersionID(new Date().toLocaleString());
     history.add(newVersion);
     // new version formula is a update ro choose command
-    newVersion.formulaType = choose ? 'choose' : 'update';
+    newVersion.formulaType = 'update';
 
     // target is dependent reference to target in previous version
-    let targetRef = choose ? new OptionReference : new Reference;
+    let targetRef = new Reference;
     newVersion.setMeta('^target', targetRef);
     targetRef.path = target.path;
     // flag as dependent ref
@@ -182,23 +178,85 @@ export class Workspace extends Item<never, History> {
       targetRef.guards.unshift(up.conditional ? '!' : undefined);
     }
 
-    if (choose) {
-      // set option ID into target OptionalReference
-      assert(value instanceof FieldID || typeof value === 'string');
-      // validate option FieldID
-      let optionID = target.get(value).id as FieldID;
-      assert(targetRef instanceof OptionReference);
-      targetRef.optionID = optionID;
-      targetRef.optionToken = new Token(
-        'name', 0, optionID.name!.length - 1, optionID.name!
-      );
-      // leave payload undefined
+    // compile payload from formula
+    let payload = newVersion.setMeta('^payload')
+    let parser = new Parser(formula);
+    parser.space = this;
+    parser.requireFormula(payload);
+
+    // evaluate new version
+    newVersion.eval();
+  }
+
+  /** write a JS values to a path */
+  writeAt(path: string, value: number | boolean | string) {
+    let formula: string;
+    if (typeof value === 'string') {
+      formula = "'" + value + "'";
     } else {
-      // payload is value to write
-      let payload = newVersion.setMeta('^payload');
-      assert(!(value instanceof FieldID));
-      payload.setFrom(value);
+      formula = value.toString();
     }
+    this.updateAt(path, formula);
+  }
+
+  /** create an item in an array */
+  createAt(path: string) {
+    this.updateAt(path, '&()');
+  }
+
+  /** delete an item from an array */
+  deleteAt(path: string, index: number) {
+    this.updateAt(path, 'delete! ' + index);
+  }
+
+
+  // FIXME: eliminate this when change choosing to be a formula
+  /** Make a choice. */
+  chooseAt(path: string, value: string | FieldID) {
+    let target = this.currentVersion.down(path);
+    if (!this.currentVersion.isWritable(target)) {
+      throw 'not updatable';
+    }
+    assert(target.value instanceof Choice);
+
+    // append new version to history
+    let history = this.value!;
+    let newVersion = new Version;
+    // using time as label
+    newVersion.id = this.newVersionID(new Date().toLocaleString());
+    history.add(newVersion);
+    // new version formula is a update ro choose command
+    newVersion.formulaType = 'choose';
+
+    // target is dependent reference to target in previous version
+    let targetRef = new OptionReference;
+    newVersion.setMeta('^target', targetRef);
+    targetRef.path = target.path;
+    // flag as dependent ref
+    targetRef.tokens = [new Token('that', 0, 0, '')];
+    // context of the reference is the previous version
+    targetRef.context = 1;
+    // Assert all conditionals along path
+    targetRef.guards = [];
+    for (
+      let up = target;
+      !!up.container;
+      up = up.container.containingItem
+    ) {
+      targetRef.guards.unshift(up.conditional ? '!' : undefined);
+    }
+
+    // set option ID into target OptionalReference
+    assert(value instanceof FieldID || typeof value === 'string');
+    // validate option FieldID
+    let optionID = target.get(value).id as FieldID;
+    assert(targetRef instanceof OptionReference);
+    targetRef.optionID = optionID;
+    targetRef.optionToken = new Token(
+      'name', 0, optionID.name!.length - 1, optionID.name!
+    );
+    // leave payload undefined
+
     // evaluate new version
     newVersion.eval();
   }

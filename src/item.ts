@@ -54,7 +54,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return this.container!.up;
   }
 
-  /** iterate upwards through logical containers to Workspace */
+  /** iterate upwards through logical containers to Version */
   *upwards(): Generator<Item> {
     for (
       let item: Item = this.up;
@@ -183,6 +183,12 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return meta;
   }
 
+  /** wether this item is in metadata of a Version, meaning it is a formula
+   * in History
+   */
+  get inHistoryFormula() {
+    return this.path.ids[1] instanceof MetaID;
+  }
 
 /* ------------------------------- evaluation ------------------------------- */
 
@@ -481,7 +487,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // should only be used during analysis to bind references
     // because if previous value is in outer container, copies of this item need
     // to capture the reference
-    assert(this.workspace.analyzing);
+    assert(this.workspace.analyzing || this.inHistoryFormula);
     this.usesPrevious = true;
     let container = this.container;
     let itemIndex = container.items.indexOf(this);

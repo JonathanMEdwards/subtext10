@@ -14,9 +14,21 @@ test('write update', () => {
 
 test('choice update', () => {
   let w = compile("a: choice{x?: 0; y?: 'foo'}");
-  w.writeAt('a', 'y');
+  w.chooseAt('a', 'y');
   w.writeAt('a.y', 'bar');
   expect(w.dumpAt('a')).toEqual({y: 'bar'});
+});
+
+test('create update', () => {
+  let w = compile("a: array{0}");
+  w.createAt('a');
+  expect(w.dumpAt('a')).toEqual([0]);
+});
+
+test('delete update', () => {
+  let w = compile("a: array{0} & 1 & 2");
+  w.deleteAt('a', 1);
+  expect(w.dumpAt('a')).toEqual([2]);
 });
 
 test('update readonly', () => {
@@ -278,15 +290,16 @@ test('equal write', () => {
   expectCompiling(`
   c: 0
   d = record{x = c}
-  f =|> false on-update{write d.x -> c}`)
-    .toThrow('writing same value');
+  f =|> false on-update{write d.x -> c}
+  `).toThrow('writing same value');
 });
 
 test('try breaks provenance', () => {
   let w = compile(`
   c: 0
   d = try {check 1 =? 1; c} else {c}
-  f =|> false on-update{write c <- d}`);
+  f =|> false on-update{write c <- d}
+  `);
   w.writeAt('f', true);
   expect(w.dumpAt('c')).toEqual(0);
 });
@@ -371,6 +384,15 @@ test('such-that', () => {
 
 test('delete such-that', () => {
   let w = compile(`
+  a : tracked array{0} & 1 & 2 & 3
+  b =|> a such-that{ check not=? 2}
+  `);
+  w.deleteAt('b', 1)
+  expect(w.dump()).toEqual({ a: [2, 3], b: [3] });
+})
+
+test('internal delete such-that', () => {
+  let w = compile(`
   s = record{
     a : tracked array{0} & 1 & 2 & 3
     b =|> a such-that{ check not=? 2}
@@ -381,6 +403,15 @@ test('delete such-that', () => {
 })
 
 test('create such-that', () => {
+  let w = compile(`
+  a : tracked array{0} & 1 & 2 & 3
+  b =|> a such-that{ check not=? 2}
+  `);
+  w.createAt('b');
+  expect(w.dump()).toEqual({a: [1, 2, 3, 0], b: [1, 3, 0]});
+})
+
+test('internal create such-that', () => {
   let w = compile(`
   s = record{
     a : tracked array{0} & 1 & 2 & 3
@@ -535,6 +566,12 @@ test('updatable query', () => {
     },
   ]);
 
+  // delete from nested table
+  w.deleteAt('query.2.their-orders', 1);
+  expect(w.dumpAt('orders')).toEqual([
+    { 'customer-id': 1, 'order-id': 1 },
+  ]);
+
   // update containing table
   w.writeAt('query.2.customer-id', 3);
   expect(w.dumpAt('customers')).toEqual([
@@ -542,5 +579,35 @@ test('updatable query', () => {
     { 'customer-id': 3 },
   ]);
 
-  // TODO: creation and deletion
+  // delete from containing table
+  w.deleteAt('query', 2);
+  expect(w.dumpAt('customers')).toEqual([
+    { 'customer-id': 1 },
+  ]);
+
+  // create in containing table
+  w.createAt('query');
+  w.writeAt('query.2.customer-id', 3);
+  expect(w.dumpAt('customers')).toEqual([
+    { 'customer-id': 1 },
+    { 'customer-id': 3 },
+  ]);
+
+  // create in nested table
+  w.createAt('query.1.their-orders');
+  w.writeAt(`orders.2.order-id`, 3);
+  w.writeAt(`orders.2.customer-id`, 1);
+  expect(w.dumpAt('query')).toEqual([
+    {
+      'customer-id': 1,
+      'their-orders': [
+        { 'customer-id': 1, 'order-id': 1 },
+        { 'customer-id': 1, 'order-id': 3 },
+      ]
+    },
+    {
+      'customer-id': 3,
+      'their-orders': [],
+    },
+  ]);
 })

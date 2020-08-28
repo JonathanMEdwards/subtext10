@@ -124,7 +124,8 @@ export class Reference extends Base {
 
   // bind reference during analysis
   private bind(from: Item) {
-    assert(this.workspace.analyzing);
+    const inHistoryFormula = this.containingItem.inHistoryFormula;
+    assert(this.workspace.analyzing || inHistoryFormula);
     assert(this.tokens && this.tokens.length);
 
     // strip out guards from names
@@ -177,6 +178,7 @@ export class Reference extends Base {
       /** bind first name of structural reference lexically by searching upward
        * to match first name. Note upwards scan skips from metadata to base
        * item's container. Also looks one level into includes */
+      // TODO: bind downwards through records in includes
       let first = tokenNames[0];
       lexicalBinding: for (let up of from.upwards()) {
         if (up.value instanceof Block) {
@@ -197,6 +199,10 @@ export class Reference extends Base {
             }
           }
         }
+      }
+      if (!target && inHistoryFormula) {
+        // at toplevel bind against initial builtins
+        target = this.workspace.down('initial.builtins');
       }
       if (!target) {
         // hit top without binding
@@ -301,7 +307,7 @@ export class Reference extends Base {
           throw new StaticError(token, 'Undefined name')
         }
         this.evalIfNeeded(target);
-        if (!target.value) {
+        if (!target.value && this.workspace.analyzing) {
           // cyclic dependency
           let lastToken = arrayLast(this.tokens);
           if (lastToken.type === 'call') {
