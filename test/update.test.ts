@@ -516,12 +516,12 @@ test('for-all reference encapsulation', () => {
 test('updatable query', () => {
   let w = compile(`
   customers: do{
-    tracked table{customer-id: number}
+    tracked table{customer-id: ###}
     &(with{.customer-id:= 1})
     &(with{.customer-id:= 2})
   }
   orders: do{
-    tracked table{order-id: number, customer-id: number}
+    tracked table{order-id: ###, customer-id: ###}
     &(with{.order-id:= 1, .customer-id:= 1})
     &(with{.order-id:= 2, .customer-id:= 1})
   }

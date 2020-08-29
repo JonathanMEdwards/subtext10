@@ -854,7 +854,7 @@ export class Parser {
     }
 
     // missing number
-    if (this.matchToken('_number')) {
+    if (this.matchToken('###')) {
       let num = new _Number;
       num.token = this.prevToken;
       num.value = NaN;

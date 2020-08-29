@@ -72,7 +72,7 @@ Although Subtext is statically typed in the above sense, there is no mention of 
 ## Base values
 Subtext provides several kinds of values out of which a workspace is built:
 
-- _Number_: double float using JavaScript syntax, and the special value `number` not equal to any other number (except itself)
+- _Number_: double float using JavaScript syntax, and the special value `###` not equal to any other number (except itself)
 - TODO: infinite precision rationals
 - _Text_: JavaScript string literal using single quotes: `'hello'`
 - _Character_: a unicode character, using a literal of the form `character'a'`
@@ -251,16 +251,16 @@ So far all of the examples have used arithmetic. But it is very common to work w
 ```
 x: record {
   name: ''
-  telephone: 0
+  age: 0
 }
 ```
-This block contains two input items: `name`, which is an initially empty text, and `telephone`, which is initially the number `0`.
+This block contains two input items: `name`, which is an initially empty text, and `age`, which is initially the number `0`.
 
-The essential operations on a block are to read and update individual items. We read the items using paths, like `x.name` and `x.number`. To update an item we use the symbol `:=`, called an\_update\_.
+The essential operations on a block are to read and update individual items. We read the items using paths, like `x.name` and `x.age`. To update an item we use the symbol `:=`, called an _update_.
 ```
 x with{.name := 'Joe'}
 ```
-This is pronounced “x with name updated to Joe”. The result is a record equal to the value of `x` except with the item `name` having it’s value updated to `'Joe'` (keeping the prior value of `telephone`). We used a `with` block to contain the update operation, which is like a `do` block except that it feeds the previous value into a list of operations, rather than starting with a value. The equivalent `do` block would be:
+This is pronounced “x with name updated to Joe”. The result is a record equal to the value of `x` except with the item `name` having it’s value updated to `'Joe'` (keeping the prior value of `age`). We used a `with` block to contain the update operation, which is like a `do` block except that it feeds the previous value into a list of operations, rather than starting with a value. The equivalent `do` block would be:
 ```
 do{x; .name := 'Joe'}
 ```
@@ -269,17 +269,17 @@ do{x; .name := 'Joe'}
 
 We can chain multiple updates together:
 ```
-x with{.name := 'Joe'; .telephone := 2}
+x with{.name := 'Joe'; .age := 30}
 ```
-Note how `.telephone :=` applies to the result of the previous update.
+Note how `.age :=  30` applies to the result of the previous update.
 
-The `:=` operation passes the current value of the left hand side as an input to the expression on the right side. Thus for example `y = x with{.telephone := + 1}` will increment the value of the `telephone` field.
+The `:=` operation passes the current value of the left hand side as an input to the expression on the right side. Thus for example `y = x with{.age := + 1}` will increment the value of the `age` field.
 
 Updates can drill into nested records by using a dotted path to the left of the `:=`
 ```
 x: record {
   name: ''
-  telephone: 0
+  age: 0
   address: record {
     street: ''
     city: ''
@@ -778,12 +778,12 @@ A _query_ is a formula that calculates an array from one or more other other arr
 
 ```
 customers: do{
-  table{customer-id: number, name: ''}
+  table{customer-id: 0, name: ''}
   &(with{.customer-id:= 1, .name := 'John'})
   &(with{.customer-id:= 2, .name := 'Jane})
 }
 orders: do{
-  table{order-id: number, customer-id: number, item: ''}
+  table{order-id: 0, customer-id: 0, item: ''}
   &(with{.order-id:= 1, .customer-id:= 1, .item := 'widget})
   &(with{.order-id:= 2, .customer-id:= 1, .item := 'fidget})
 }
@@ -800,8 +800,8 @@ The new feature used here is the `extend`block, which takes a record (a `custome
 
 The result of this query is equal to:
 ```
-table{customer-id: number, name: '', their-orders = 
-  table{order-id: number, customer-id: number, item: ''}
+table{customer-id: 0, name: '', their-orders = 
+  table{order-id: 0, customer-id: 0, item: ''}
 }
 &(with{.customer-id:= 1, .name := 'John', their-orders := 
   &(with{.order-id:= 1, .customer-id:= 1, .item := 'widget})
@@ -1043,9 +1043,9 @@ Creating an item in the result of a `for-all` is a little more complicated: an i
 Updating queries that combine multiple tables has been a long-standing quandry, known as the _view update problem_. Subtext sidesteps many of the difficulties of view update by nesting tables rather than joining them. The example presented from the _Queries_ section can be made updatable by tracking the tables and defining ther results of the `for-all` and `such-that` as interfaces with `=|>` instead of `=` :
 
 ```
-customers: tracked table{customer-id: number, name: ''}
+customers: tracked table{customer-id: 0, name: ''}
 
-orders: tracked table{order-id: number, customer-id: number, item: ''}
+orders: tracked table{order-id: 0, customer-id: 0, item: ''}
 
 query =|> customers for-all{
   extend{their-orders =|> orders such-that{.customer-id =? customer-id}}
@@ -1444,7 +1444,7 @@ _Null values_ are a perennial controversy in PL and DB design. The idea is to ad
 
 We propose a simple solution for missing values that visualizes naturally in the UI:
 
-1. There is a special number called `number` that corresponds to an empty numeric item in the UI. Numeric functions treat `number` as a special case, as Excel does with empty cells. Unlike IEEE NaN, `number` is equal to itself.
+1. There is a special missing number called `###` that corresponds to an empty numeric item in the UI. Numeric functions treat `###` as a special case, as Excel does with empty cells. Unlike IEEE NaN, `###` is equal to itself.
 2. There are predefined missing values for each media type that serve as placeholders.
 3. The missing value of a block has all its input items missing.
 4. The missing value of a text or array or table is empty.
@@ -1467,7 +1467,7 @@ A `maybe` block is often useful in cases where we would like to change an input 
 
 ## Types
 
-Subtext has no syntax for describing types: it only talks about values. Function inputs are defined with a default value, so no type needs be specified. For example in the definition `foo: number`, `number` is not the name of a type — it is just the special missing number value. Likewise error messages never talk about types — instead they point to a mismatch between values at two code locations, additionally referencing the code locations where they were defined.
+Subtext has no syntax for describing types: it only talks about values. Function inputs are defined with a default value, so no type needs be specified. Likewise error messages never talk about types — instead they point to a mismatch between values at two code locations, additionally referencing the code locations where they were defined.
 
 We believe that type systems are an essential formalism for language theoreticians and designers, but that many language users would prefer to obtain their benefits without having to know about them and write about them.
 
@@ -1702,7 +1702,7 @@ BaseValue :=
 	| string				// single-quoted JS string literal
 	| 'character' string	// character literal
 	| number				// JS number literal
-	| '###'			// Special missing number
+	| '###'					// Special missing number
 	| 'true' | 'false'		// Booleans
 	| 'nil'					// unit value
 	| 'anything'			// generic value
