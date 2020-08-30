@@ -545,12 +545,23 @@ export class Parser {
         this.parseReference()
         || this.parseLiteral()
         || this.parseToken('(')
+        || this.parseToken('{') // or special &{}
       )
     ) {
       // reject ternary form at beginning of formula
       this.cursor = startCursor;
       return undefined;
     }
+
+    // special case for `&{...}`
+    if (!rightValue
+      && arrayLast(ref.tokens).text === '&'
+      && this.peekToken('{')
+    ) {
+      // parse &-block as a with-block argument
+      rightValue = this.requireBlock(new With)
+    }
+
     if (!rightValue && !this.matchToken('(')) {
       return undefined;
     }
@@ -602,7 +613,11 @@ export class Parser {
       if (rightValue instanceof Reference) {
         payload.formulaType = 'reference';
         payload.setMeta('^reference', rightValue)
+      } else if (rightValue instanceof With) {
+        payload.formulaType = 'code';
+        payload.setMeta('^code', rightValue);
       } else {
+        // literal
         payload.formulaType = 'none';
         payload.setValue(rightValue);
       }

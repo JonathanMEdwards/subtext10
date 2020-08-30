@@ -622,7 +622,10 @@ The `&` function (pronounced “and”) is used to add items to an array. For ex
 n = numbers & 1 & 2 & 3
 c = customers &(with{.name := 'Joe', .address := 'Pleasantown, USA'})
 ```
-The `&` function takes an array as it’s left input and an item value as its right input, resulting in an array equal to the input plus a new item with that value. The default value of the item is the array template. In a table it is often convenient to use a `with` block as above to update some of the columns and let the others default to their template values.
+The `&` function takes an array as it’s left input and an item value as its right input, resulting in an array equal to the input plus a new item with that value. The default value of the item is the array template. In a table it is often convenient to use a `with` block as above to update some of the columns and let the others default to their template values. A shorter way of doing `&(with{...})` is with the &-block: `&{...}`, making the last example equivalent to:
+```
+c = customers &{.name := 'Joe', .address := 'Pleasantown, USA'}
+```
 
 The `followed-by` function concatenates two arrays: `array1 followed-by array2` is a copy of `array1` with all the items from `array2` added to its end. The two array must have the same type template.
 
@@ -779,13 +782,13 @@ A _query_ is a formula that calculates an array from one or more other other arr
 ```
 customers: do{
   table{customer-id: 0, name: ''}
-  &(with{.customer-id:= 1, .name := 'John'})
-  &(with{.customer-id:= 2, .name := 'Jane})
+  &{.customer-id:= 1, .name := 'John'}
+  &{.customer-id:= 2, .name := 'Jane}
 }
 orders: do{
   table{order-id: 0, customer-id: 0, item: ''}
-  &(with{.order-id:= 1, .customer-id:= 1, .item := 'widget})
-  &(with{.order-id:= 2, .customer-id:= 1, .item := 'fidget})
+  &{.order-id:= 1, .customer-id:= 1, .item := 'widget}
+  &{.order-id:= 2, .customer-id:= 1, .item := 'fidget}
 }
 ```
 
@@ -803,11 +806,11 @@ The result of this query is equal to:
 table{customer-id: 0, name: '', their-orders = 
   table{order-id: 0, customer-id: 0, item: ''}
 }
-&(with{.customer-id:= 1, .name := 'John', their-orders := 
-  &(with{.order-id:= 1, .customer-id:= 1, .item := 'widget})
-  &(with{.order-id:= 2, .customer-id:= 1, .item := 'fidget})
-})
-&(with{.customer-id:= 2, .name := 'Jane})
+&{.customer-id:= 1, .name := 'John', their-orders := 
+  &{.order-id:= 1, .customer-id:= 1, .item := 'widget}
+  &{.order-id:= 2, .customer-id:= 1, .item := 'fidget}
+}
+&{.customer-id:= 2, .name := 'Jane}
 
 ```
 > A screen shot or nested table layout would be much nicer
@@ -1721,6 +1724,7 @@ Op :=
 	| Control Block
 	| 'include' Name
 	| 'builtin' Name
+    | '&' Block						// &(with{})
 
 Arguments :=
 	| Value

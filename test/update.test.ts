@@ -517,13 +517,13 @@ test('updatable query', () => {
   let w = compile(`
   customers: do{
     tracked table{customer-id: ###}
-    &(with{.customer-id:= 1})
-    &(with{.customer-id:= 2})
+    &{.customer-id:= 1}
+    &{.customer-id:= 2}
   }
   orders: do{
     tracked table{order-id: ###, customer-id: ###}
-    &(with{.order-id:= 1, .customer-id:= 1})
-    &(with{.order-id:= 2, .customer-id:= 1})
+    &{.order-id:= 1, .customer-id:= 1}
+    &{.order-id:= 2, .customer-id:= 1}
   }
 
   query =|> customers for-all{
@@ -610,4 +610,15 @@ test('updatable query', () => {
       'their-orders': [],
     },
   ]);
+})
+test('query update context error', () => {
+  expectCompiling(`
+  customers: tracked table{customer-id: ###}
+  orders: tracked table{order-id: ###, customer-id: ###}
+  query =|> customers for-all{
+    extend{their-orders =|> orders such-that{.customer-id =? customer-id}}
+  }
+  x = query &{.their-orders := &()}
+  `)
+    .toThrow('write outside context')
 })

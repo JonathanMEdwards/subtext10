@@ -63,15 +63,17 @@ test('array at/update', () => {
     .toEqual({ a: [1, 2], b: [-1, 2] });
   expectDump(`a = array{0} &(with{+ 1})`)
     .toEqual({ a: [1] });
-  expectCompiling(`a = array{0} & with{+ 1}`)
-    .toThrow('expecting call argument');
+  expectDump(`a = array{0} &{+ 1}`)
+    .toEqual({ a: [1] });
+  // expectCompiling(`a = array{0} & with{+ 1}`)
+  //   .toThrow('expecting call argument');
   expectDump(`a = array{0} & 1; b = a update!(1, .value := with{+1})`)
     .toEqual({ a: [1], b: [2] });
 })
 
 test('tables', () => {
   expectDump(`
-  a = table{x: 0, y: ''} &() &(with{.x := 1, .y := 'foo'})
+  a = table{x: 0, y: ''} &() &{.x := 1, .y := 'foo'}
   b = a.x
   c = a.y`)
     .toEqual({
