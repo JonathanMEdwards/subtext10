@@ -72,26 +72,33 @@ export class Metafield extends Field<MetaID> {
  * interned. */
 export class MetaID extends FieldID {
   // MetaID doesn't use a serial #. Instead the name is the globally unique ID.
-  constructor(name: string) {
+  private constructor(name: string) {
     super(NaN);
     this.name = name;
   }
 
-/** predefined metadata IDs */
-  static ids: Dictionary<MetaID> = {
-    '^literal': new MetaID('^literal'),       // Literal formula
-    '^reference': new MetaID('^reference'),   // Reference formula
-    '^code': new MetaID('^code'),             // Code block
-    '^loop': new MetaID('^loop'),             // Loop block
-    '^target': new MetaID('^target'),         // target reference of := & ->
-    '^payload': new MetaID('^payload'),       // Formula after :=
-    '^call': new MetaID('^call'),             // function call
-    '^builtin': new MetaID('^builtin'),       // builtin call
-    '^initial': new MetaID('^initial'),       // initial value of item
-    '^export': new MetaID('^export'),         // Exported value
-    '^exportType': new MetaID('^exportType'), // Exported value type
-    '^writeValue': new MetaID('^writeValue'), // Formula before ->
-    '^delta': new MetaID('^delta'),      // Pending change in DeltaContainer
-    '^extend': new MetaID('^extend'),         // record extension
+  private static define(names: string[]): Dictionary<MetaID> {
+    let dict: Dictionary<MetaID> = {};
+    names.forEach(name => {
+      dict[name] = new MetaID(name)
+    })
+    return dict;
   }
+  static ids: Dictionary<MetaID> = MetaID.define([
+    '^literal',       // Literal formula
+    '^reference',     // Reference formula
+    '^code',          // Code block
+    '^loop',          // Loop block
+    '^target',        // target reference of := & ->
+    '^payload',       // Formula after :=
+    '^call',          // function call
+    '^builtin',       // builtin call
+    '^initial',       // initial value of item
+    '^export',        // Exported value
+    '^exportType',    // Exported value type
+    '^writeValue',    // Formula before ->
+    '^delta',         // Pending change in DeltaContainer
+    '^extend',        // record extension
+    '^any',           // generic select-from
+  ]);
 }

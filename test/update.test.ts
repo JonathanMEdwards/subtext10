@@ -26,7 +26,7 @@ test('create update', () => {
 });
 
 test('delete update', () => {
-  let w = compile("a: array{0} & 1 & 2");
+  let w = compile("a: array{###} & 1 & 2");
   w.deleteAt('a', 1);
   expect(w.dumpAt('a')).toEqual([2]);
 });
@@ -373,7 +373,7 @@ test('reverse update 2', () => {
 
 test('such-that', () => {
   let w = compile(`
-  a : tracked array{0} & 1 & 2 & 3
+  a : tracked array{###} & 1 & 2 & 3
   b =|> a such-that{ check not=? 2}
   `);
   expect(w.dumpAt('b')).toEqual([1, 3]);
@@ -384,7 +384,7 @@ test('such-that', () => {
 
 test('delete such-that', () => {
   let w = compile(`
-  a : tracked array{0} & 1 & 2 & 3
+  a : tracked array{###} & 1 & 2 & 3
   b =|> a such-that{ check not=? 2}
   `);
   w.deleteAt('b', 1)
@@ -394,7 +394,7 @@ test('delete such-that', () => {
 test('internal delete such-that', () => {
   let w = compile(`
   s = record{
-    a : tracked array{0} & 1 & 2 & 3
+    a : tracked array{###} & 1 & 2 & 3
     b =|> a such-that{ check not=? 2}
   }
   t = s with{.b := delete!(1)}
@@ -414,7 +414,7 @@ test('create such-that', () => {
 test('internal create such-that', () => {
   let w = compile(`
   s = record{
-    a : tracked array{0} & 1 & 2 & 3
+    a : tracked array{###} & 1 & 2 & 3
     b =|> a such-that{ check not=? 2}
   }
   t = s with{.b := & 10}
@@ -424,7 +424,7 @@ test('internal create such-that', () => {
 
 test('for-all', () => {
   let w = compile(`
-  a : tracked array{0} & 1 & 2 & 3
+  a : tracked array{###} & 1 & 2 & 3
   b =|> a for-all{+ 1}
   `);
   expect(w.dumpAt('b')).toEqual([2, 3, 4]);
@@ -436,7 +436,7 @@ test('for-all', () => {
 test('for-all with update', () => {
   let w = compile(`
   r: record {
-    a : tracked array{0} & 1 & 2 & 3
+    a : tracked array{###} & 1 & 2 & 3
     b =|> a for-all{+ 1}
   }
   s = r with{.b := update!(2, .value := 11) }
@@ -447,7 +447,7 @@ test('for-all with update', () => {
 test('for-all with delete', () => {
   let w = compile(`
   r: record {
-    a : tracked array{0} & 1 & 2 & 3
+    a : tracked array{###} & 1 & 2 & 3
     b =|> a for-all{+ 1}
   }
   s = r with{.b := delete! 2 }
@@ -458,7 +458,7 @@ test('for-all with delete', () => {
 test('for-all with create', () => {
   let w = compile(`
   r: record {
-    a : tracked array{0} & 1 & 2 & 3
+    a : tracked array{###} & 1 & 2 & 3
     b =|> a for-all{+ 1}
   }
   s = r with{.b := & 11 }
@@ -469,7 +469,7 @@ test('for-all with create', () => {
 test('for-all with noop create', () => {
   let w = compile(`
   r: record {
-    a : tracked array{0} & 1 & 2 & 3
+    a : tracked array{###} & 1 & 2 & 3
     b =|> a for-all{+ 1}
   }
   s = r with{.b := & 1 }
@@ -479,7 +479,7 @@ test('for-all with noop create', () => {
 
 test('for-all with empty on-update', () => {
   let w = compile(`
-  a : tracked array{0} & 1 & 2 & 3
+  a : tracked array{###} & 1 & 2 & 3
   b =|> a for-all{on-update{1}}
   `);
   expect(w.dumpAt('b')).toEqual([1, 2, 3]);
@@ -489,7 +489,7 @@ test('for-all with empty on-update', () => {
 
 test('for-all with on-update', () => {
   let w = compile(`
-  a : tracked array{0} & 1 & 2 & 3
+  a : tracked array{###} & 1 & 2 & 3
   b =|> a for-all{item:[]; on-update{write 1 -> item}}
   `);
   expect(w.dumpAt('b')).toEqual([1, 2, 3]);
@@ -500,7 +500,7 @@ test('for-all with on-update', () => {
 test('for-all write encapsulation', () => {
   expectCompiling(`
   c : 0
-  a : tracked array{0} & 1 & 2 & 3
+  a : tracked array{###} & 1 & 2 & 3
   b =|> a for-all{item: []; on-update{write 1 -> item; write 1 -> c}}
   `).toThrow('external write from for-all')
 })
@@ -508,7 +508,7 @@ test('for-all write encapsulation', () => {
 test('for-all reference encapsulation', () => {
   expectCompiling(`
   c : 0
-  a : tracked array{0} & 1 & 2 & 3
+  a : tracked array{###} & 1 & 2 & 3
   b =|> a for-all{c}
   `).toThrow('external write from for-all')
 })

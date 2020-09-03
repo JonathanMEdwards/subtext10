@@ -605,17 +605,20 @@ eval-expr = do {
 
 Here the first try clause accesses the `literal?` option. If it was chosen, its numeric value becomes the result. But if `plus?` was chosen, then the first clause will reject and the second will execute instead, recursively evaluating the `left` and `right` items of the `plus?` option and then adding them together. We get pattern matching “for free” because accessing an option makes the entire containing try clause conditional on that option having been chosen.
 
+
+
+
 ## Arrays and tables
 
 So far we have discussed various kinds of blocks. The other way data is combined is with an  _array_. An array is an ordered set of zero or more items containing values of the same fixed type. A _text_ is an array of characters. A _table_ is an array of records, where each record is called a _row_, and each of the fields of the record is called a _column_. Every array defines a value, called it’s _template_, which defines the default value for newly created items. For example:
 ```
-numbers: array {0}
+numbers: array {###}
 customers: table {
   name: ''
   address: ''
 }
 ```
-The array `numbers` contain numbers, defaulting to 0. The table definition `customers: table {...}` is equivalent to `customers: array {record {...}}`. The table contains columns `name` and `address` defaulting to the empty text. The template of an array is access by using empty square brackets, as in `numbers[]`.
+The array `numbers` contain numbers, defaulting to the missing number `###`. The table definition `customers: table {...}` is equivalent to `customers: array {record {...}}`. The table contains columns `name` and `address` defaulting to the empty text. The template of an array is access by using empty square brackets, as in `numbers[]`.
 
 The `&` function (pronounced “and”) is used to add items to an array. For example:
 ```
@@ -627,7 +630,7 @@ The `&` function takes an array as it’s left input and an item value as its ri
 c = customers &{.name := 'Joe', .address := 'Pleasantown, USA'}
 ```
 
-The `followed-by` function concatenates two arrays: `array1 followed-by array2` is a copy of `array1` with all the items from `array2` added to its end. The two array must have the same type template.
+The `&&` function concatenates two arrays: `array1 && array2` is a copy of `array1` with all the items from `array2` added to its end. The two arrays must have the same template.
 
 The items in an array are numbered starting at 1 for the first item. This number is called the item’s _index_. The number of items in an array (not counting the template) is provided by the `length()` function. An array is initially created empty.
 
@@ -642,7 +645,7 @@ The square brackets will cause a crash if an invalid index is supplied. To inste
 check n[m]? =? 1
 ```
 
-The first and last items can be accessed with `first?()` and `last?()`, which will reject if the array is empty. The function `sole?()` will return the only item in the array or reject.
+The first and last items can be accessed with `first?()` and `last?()`, which will reject if the array is empty. The function `only?()` will return the only item in the array or reject.
 
 Items in an array can be updated by using square brackets on the left of a `:=` modification:
 ```
@@ -698,7 +701,7 @@ A column  can only be updated with an array of the same length as the table, oth
 
 When a table column is conditional, meaning the corresponding block item is a conditional output, then the column will skip all items where the item rejected.
 
-### Sorted arrays
+### TODO: Sorted arrays
 
 Normally, items are added to the end of an array. But an array can be defined as _sorted_, which means the items will be automatically kept in order of increasing value, or _reverse sorted_, which keeps then in order of decreasing value. Tables, whose items are blocks, use lexicographical (dictionary) ordering, where the first column is the most significant. Thus
 ```
@@ -759,7 +762,7 @@ A `such-that` block will remove from the source array any items which the follow
 
 ```
 test {
-  l = array{0} & 1 & 2 & 3
+  l = array{###} & 1 & 2 & 3
 
   // update each item with result of block on it
   l for-all{+ 1} =! (array{0} & 2 & 3 & 4)
@@ -775,18 +778,34 @@ test {
 }
 ```
 
+### Accumulating
+
+An `accumulate` block is used to accumulate a result by scanning an array.
+```
+array{###} & 1 & 2
+accumulate {
+  item: []
+  sum: 0
+  item + sum
+}
+check =? 3
+```
+An `accumulate` block must define two input items. The block will be executed repeatedly, like a `for-all`, feeding items from the input array into the first input item. The first item (named `item` in this example) must be an input referencing the template value with `[]`. The second input (`sum`) acts as an accumulator. On the first call it defaults to the defined value (0). On the second and subsequent calls, `sum` becomes the result of the previous call. This example is equivalent to the built-in `sum()` function that sums an array of numbers. An `accumulate` is  like a conventional _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `sum(100)` starts the accumulator at 100).
+
+> If an item is rejected, should it be skipped, or stop the accumulation?
+
 ### Queries
 
 A _query_ is a formula that calculates an array from one or more other other arrays. This includes the `for-all` and `such-that` functions, which operate on a single array. Queries get more complicated when we want to combine multiple tables.  For example, take these two tables:
 
 ```
 customers: do{
-  table{customer-id: 0, name: ''}
+  table{customer-id: ###, name: ''}
   &{.customer-id:= 1, .name := 'John'}
   &{.customer-id:= 2, .name := 'Jane}
 }
 orders: do{
-  table{order-id: 0, customer-id: 0, item: ''}
+  table{order-id: ###, customer-id: ###, item: ''}
   &{.order-id:= 1, .customer-id:= 1, .item := 'widget}
   &{.order-id:= 2, .customer-id:= 1, .item := 'fidget}
 }
@@ -803,8 +822,8 @@ The new feature used here is the `extend`block, which takes a record (a `custome
 
 The result of this query is equal to:
 ```
-table{customer-id: 0, name: '', their-orders = 
-  table{order-id: 0, customer-id: 0, item: ''}
+table{customer-id: ###, name: '', their-orders = 
+  table{order-id: ###, customer-id: ###, item: ''}
 }
 &{.customer-id:= 1, .name := 'John', their-orders := 
   &{.order-id:= 1, .customer-id:= 1, .item := 'widget}
@@ -817,32 +836,26 @@ table{customer-id: 0, name: '', their-orders =
 
 Note that this query does not use a _join_ as in a relational database. Joins multiply tables together to produce a table each of whose rows contains fields from the input tables in multiple possible combinations. This can get confusing because data gets duplicated throughout the result, but it is hard to see exactly what is a duplicate of what. Tracking these duplications is the subject of the theory of _Functional Dependencies_, which you don’t want to have to understand. Subtext takes a different approach, combining tables by nesting them inside each other, reducing the amount of duplication, and making the necessary duplication explicit. This also allows the results to be updated: see _Updatable Queries_.
 
-The above example shows how to combine tables when they have fields that relate to each other, called a _foreign key_. Data imported from relational datrabases typically uses foreign keys, but Subtext offers are more convenient way to relate tables: see _Selectors_.
+The above example shows how to combine tables when they have fields that relate to each other, called a _foreign key_. Foreign keys often are found in data imported from external sources. For data defined inside a Subtext, there are better alternatives. See _Selectors_ for a better alternative to foreign keys. Often the simplest solution is to just define nested tables, for example:
+
+```
+customers: table{
+  customer-id: ###
+  name: ''
+  orders: tracked table{
+    order-id: ###
+    item: ''}}
+```
+Here the orders of a customer are created inside the customer record. This explicitly defines the structure implied by the foreign keys, which needed to be computed by a query.
 
 > Queries are a central research problem (especially making them updatable), but they may become a specialized advanced feature given selectors and the ability to refactor foreign keys into selectors
-
-### Accumulating
-
-An `accumulate` block is used to accumulate a result by scanning an array.
-```
-array{0} & 1 & 2
-accumulate {
-  item: []
-  sum: 0
-  item + sum
-}
-check =? 3
-```
-An `accumulate` block must define two input items. The block will be executed repeatedly, like a `for-all`, feeding items from the input array into the first input item. The first item (named `item` in this example) must be an input referencing the template value with `[]`. The second input (`sum`) acts as an accumulator. On the first call it defaults to the defined value (0). On the second and subsequent calls, `sum` becomes the result of the previous call. This example is equivalent to the built-in `sum()` function that sums an array of numbers. An `accumulate` is  like a conventional _fold_ function, except that the accumulator value is defaulted in the definition instead of being supplied explicitly by the caller (though that is still possible, for example `sum(100)` starts the accumulator at 100).
-
-> If an item is rejected, should it be skipped, or stop the accumulation?
 
 
 ### Tracked arrays
 
 An array can be _tracked_ by prefixing its definition with `tracked`, as in
 ```
-tracked array{text}
+tracked array{###}
 tracked table{name: '', address: ''}
 ```
 
@@ -852,13 +865,71 @@ A tracked array automatically assigns a unique ID to each item when it is create
 2. A tracked array can be versioned and merged, similar to version control systems like git, except more precisely. See Merging.
 3. A query over tracked arrays can be updated, with the changes feeding back into the source arrays. This is called an _updatable view_ in databases. See Query update.
 
-Two tracked arrays are equal if their items are not only equal but also were created in the same relative order, including all items that were deleted. Tracked equality means that the arrays not only have the same current state but also the same history of inserts and deletes.
+Tracked tables eliminate the need for the ubiquitous “id” fields in relational databases. The example used in the prior section on queries can be defined simply as:
+```
+customers: table{name: '', orders: tracked table{item: ''}}
+```
 
-Text is an an untracked array of characters. Two texts are equal if they have the same characters in the same order, regardless of their change histories.
+Two tracked arrays are equal if their items are not only equal but also were created in the same relative order, including all items that were deleted. Tracked equality means that the arrays not only have the same current state but also the same history of inserts and deletes.
 
 > Tracked arrays could offer sorting by creation time, and creation-time could be used to order duplicates in an array sorted by value.
 
 > The IDs in a tracked array are implemented as monotonically increasing serial numbers within the array, as in an _auto-increment_ item in a relational database. The serial number is not exposed to the user or programmer, so that merging may automatically renumber items.
+
+### Selectors
+
+Selectors allow one or more items in a tracked array to be chosen by the user or a program. They replace the use of _pointers_ and _references_ in conventional programming languages. For example:
+```
+customers: tracked table{name: ''}
+prime-customers: select-from customers
+```
+
+
+, and the use of _foreign keys_ in relational databases. Often selectors are stored in the fields of a table to establish a relationship with another table. 
+
+
+### `in` links
+
+The fields `order-id` and `product-id` in `order-lines` are called _foreign keys_ in a relational database. This means their value refers to a matching value in the _primary key_ field of a table, which in this case are the `id` fields in `products` and `orders`. In Subtext we call foreign keys an `in` link and define them like this:
+
+```
+order-lines: table {
+  order: in orders
+  product: ''
+  quantity: 1
+}
+```
+
+The definition `order: in orders` says that the `order` field must contain a value that is present in the first field of the `orders` table in exactly one row.  If the value of `order` does not meet that constraint it is flagged in the UI as an invalid value. _It may also prevent a transaction from being committed — See Constraints_.
+
+The UI will display an `in` link using a “combo box” control that can edits it by opening a view of the `orders` table and allowing one row to be picked with a checkbox. The UI will also provide an affordance in the table header that allows the `order` column to expand to show the entire corresponding record from the `orders` table.
+
+Code can “follow” an `in` link with the metadata reference `.order^lookup?`. The metadata field `^lookup?` contains the corresponding record from the `orders` table. Thus for example the customer name could be accesses as `.order^lookup?.customer`. If the `order` is invalid, meaning there are no or multiple matching orders, then the access is rejected, signified  by the question mark in `^lookup?`. As usual the constraint can be asserted by using `^lookup!`.
+
+> Note that for simplicity we require that the primary key be the first field, which is the standard convention. We also require that multiple-field “compound keys” be defined as a record in the first field.
+
+### `from` links
+
+To find all the `order-lines` in an order, we want to follow the link “backwards”. This is done by defining a `from` link on the opposite side of the `in` link, as follows:
+
+```
+orders: table {
+  id: ###
+  customer: ''
+  order-lines = from order-lines.order
+}
+order-lines: table {
+  order: in orders
+  product: ''
+  quantity: 1
+}
+```
+
+The `from` link is defined inside the `orders` table as `order-lines = from order-line.order`. Following `from` must be a reference to a field of a table that defines an `in` link which points back to the containing table (`orders`). The value of the `order-lines` field in an order is a table of all the `order-lines` rows for that order. Note that Subtext allows fields of a table to be tables themselves, which is disallowed in relational databases. The benefit is there is no longer any need to write a query to find the order-lines in each order: they are automatically shown inside the `order-lines` field of each order.
+
+Every `from` link must match an `in` link, but `in` links do not require a matching `from` link. However it will likely be good practice to pair them up. The UI will offer to create the matching `from` link for an `in` link, and may do so automatically.
+
+
 
 ## Feedback
 
@@ -1165,84 +1236,7 @@ I hope not. Open source works best for software used by other programmers, becau
 
 
 
-## Relationships and queries
-
-
-### TODO: rename link -\> selector
-Should links be based on address of source table or static origin? That would allow arbitrary exprs instead of just refs
-
-### `in` links
-
-The fields `order-id` and `product-id` in `order-lines` are called _foreign keys_ in a relational database. This means their value refers to a matching value in the _primary key_ field of a table, which in this case are the `id` fields in `products` and `orders`. In Subtext we call foreign keys an `in` link and define them like this:
-
-```
-order-lines: table {
-  order: in orders
-  product: ''
-  quantity: 1
-}
-```
-
-The definition `order: in orders` says that the `order` field must contain a value that is present in the first field of the `orders` table in exactly one row.  If the value of `order` does not meet that constraint it is flagged in the UI as an invalid value. _It may also prevent a transaction from being committed — See Constraints_.
-
-The UI will display an `in` link using a “combo box” control that can edits it by opening a view of the `orders` table and allowing one row to be picked with a checkbox. The UI will also provide an affordance in the table header that allows the `order` column to expand to show the entire corresponding record from the `orders` table.
-
-Code can “follow” an `in` link with the metadata reference `.order^lookup?`. The metadata field `^lookup?` contains the corresponding record from the `orders` table. Thus for example the customer name could be accesses as `.order^lookup?.customer`. If the `order` is invalid, meaning there are no or multiple matching orders, then the access is rejected, signified  by the question mark in `^lookup?`. As usual the constraint can be asserted by using `^lookup!`.
-
-> Note that for simplicity we require that the primary key be the first field, which is the standard convention. We also require that multiple-field “compound keys” be defined as a record in the first field.
-
-### `from` links
-
-To find all the `order-lines` in an order, we want to follow the link “backwards”. This is done by defining a `from` link on the opposite side of the `in` link, as follows:
-
-```
-orders: table {
-  id: ###
-  customer: ''
-  order-lines = from order-lines.order
-}
-order-lines: table {
-  order: in orders
-  product: ''
-  quantity: 1
-}
-```
-
-The `from` link is defined inside the `orders` table as `order-lines = from order-line.order`. Following `from` must be a reference to a field of a table that defines an `in` link which points back to the containing table (`orders`). The value of the `order-lines` field in an order is a table of all the `order-lines` rows for that order. Note that Subtext allows fields of a table to be tables themselves, which is disallowed in relational databases. The benefit is there is no longer any need to write a query to find the order-lines in each order: they are automatically shown inside the `order-lines` field of each order.
-
-Every `from` link must match an `in` link, but `in` links do not require a matching `from` link. However it will likely be good practice to pair them up. The UI will offer to create the matching `from` link for an `in` link, and may do so automatically.
-
-### Nested tables
-
-The preceding example is typical in relational databases, but is a bit silly in Subtext. Since Subtext allows nested tables, the most natural thing is to just nest order-lines inside orders:
-
-```
-orders: table {
-  id: ###
-  customer: ''
-  lines: table {
-    product: ''
-    quantity: 1
-  }
-}
-```
-
-The UI will provide refactorings that convert between this and the previous linked form.
-
-The `id` field might also be dispensed with by using a _tracked_ table instead (See Tracking):
-
-```
-orders: tracked table {
-  customer: ''
-  lines: table {
-    product: ''
-    quantity: 1
-  }
-}
-```
-
-
-## Parsing
+# Parsing
 
 It is common to need to find and operate on patterns in text. The traditional solutions involve specialized languages with radically different syntax and semantics, such as _regular expressions_ or _parser generators_. Subtext provides these capabilities without the need to learn a specialized sub-language.
 
@@ -1700,6 +1694,7 @@ Value :=
 	| 'maybe' Block
 	| 'array' Block
 	| 'table' Block
+	| 'select' (Path | 'any' 'array' Block | 'any 'table' Block)
 
 BaseValue :=
 	| string				// single-quoted JS string literal

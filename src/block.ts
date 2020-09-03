@@ -111,7 +111,7 @@ export class Field<I extends FieldID = FieldID, V extends Value = Value> extends
 /** space-unique ID of a Field. Immutable and interned */
 export class FieldID {
 
-  /** space serial # of field */
+  /** space serial # of field. Negative #'s for predefined IDs */
   readonly serial: number;
 
   /** name of field, without trailing ?. undefined if unnamed */
@@ -123,6 +123,23 @@ export class FieldID {
   constructor(serial: number) {
     this.serial = serial;
   }
+
+  /** predefine FieldIDs with negative serial #s */
+  private static predefine(names: string[]): Dictionary<FieldID> {
+    let dict: Dictionary<FieldID> = {};
+    let serial = 0;
+    names.forEach(name => {
+      let id = new FieldID(--serial)
+      id.name = name;
+      dict[name] = id;
+    })
+    return dict;
+  }
+  static predefined: Dictionary<FieldID> = FieldID.predefine([
+    'selected',   // selector filtering of backing array
+    'backing',    // selector backing array
+    'item',       // single selected backing item
+  ]);
 
   toString() {
     return this.name ?? this.serial.toString();

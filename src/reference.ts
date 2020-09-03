@@ -1,4 +1,4 @@
-import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice, _Array, FieldID } from "./exports";
+import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice, _Array, FieldID, Selector } from "./exports";
 
 /** Guard on an ID in a reference */
 export type Guard = '?' | '!' | undefined;
@@ -56,8 +56,8 @@ export class Reference extends Base {
       return;
     }
 
-    // References only exist in metadata
-    assert(this.id instanceof MetaID);
+    // Naked References only exist in metadata
+    assert(this.id instanceof MetaID || this instanceof Selector);
     // Reference is dependent to base item
     let from = this.containingItem.container.containingItem;
 
@@ -123,7 +123,7 @@ export class Reference extends Base {
   }
 
   // bind reference during analysis
-  private bind(from: Item) {
+  bind(from: Item) {
     const inHistoryFormula = this.containingItem.inHistoryFormula;
     assert(this.workspace.analyzing || inHistoryFormula);
     assert(this.tokens && this.tokens.length);
@@ -294,10 +294,15 @@ export class Reference extends Base {
         let prevTarget = target; // for debugging
         if (name === '[]') {
           // template access
-          if (!(target.value instanceof _Array)) {
-            throw new StaticError(token, 'template only defined on arrays')
+          if (target.value instanceof _Array) {
+            target = target.value.template;
+          } else if (target.value instanceof Selector) {
+            // template of backing array of selector
+            target = target.value.backing.template
+          } else {
+            throw new StaticError(token,
+              '[] only defined on array and selector')
           }
-          target = target.value.template;
         } else {
           // regular name
           target = target.getMaybe(name);

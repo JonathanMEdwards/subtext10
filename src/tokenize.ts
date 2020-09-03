@@ -14,7 +14,7 @@ export type TokenType = (
   | 'nil' | 'try' | 'check' | 'not' | 'else' | 'reject' | 'let' | 'export'
   | 'that' | 'include' | 'with' | 'find?' | 'find!' | 'tracked'
   | 'for-all' | 'such-that' | 'all?' | 'all!' | 'none?' | 'none!' | 'accumulate'
-  | 'extend'
+  | 'extend' | 'select-from' | 'any' | 'selecting'
 )
 
 export class Token {
@@ -53,6 +53,7 @@ export class Token {
       case '<':
       case '>':
       case '&':
+      case '&&':
         return true;
 
       default:
@@ -161,6 +162,7 @@ export function tokenize(source: string): Token[] {
     if (match('+')) return 'name';
     if (match('*')) return 'name';
     if (match('/')) return 'name';
+    if (match('&&')) return 'name';
     if (match('&')) return 'name';
     if (match('=?')) return 'name';
     if (match('>?')) return 'name';
@@ -259,6 +261,7 @@ export function tokenize(source: string): Token[] {
         case 'find!':
         case 'for-all':
         case 'such-that':
+        case 'selecting':
         case 'all?':
         case 'all!':
         case 'none?':
@@ -268,6 +271,8 @@ export function tokenize(source: string): Token[] {
         case 'updatable':
         case 'write':
         case 'extend':
+        case 'select-from':
+        case 'any':
 
           return name;
       }

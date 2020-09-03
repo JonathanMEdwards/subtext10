@@ -1,4 +1,4 @@
-import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement, builtinValue, FieldID, Record, Field, Do, cast, Reference, Crash, _Number, StaticError, assertDefined, arrayLast } from "./exports";
+import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement, builtinValue, FieldID, Record, Field, Do, cast, Reference, Crash, _Number, StaticError, assertDefined, arrayLast, arrayEquals } from "./exports";
 
 /** A _Array contains a variable-sized sequence of items of a fixed type. The
  * items are called entries and have numeric IDs, which are ordinal numbers in
@@ -287,126 +287,6 @@ export class Text extends _Array<Character> {
 }
 
 
-export const arrayBuiltinDefinitions = `
-& = do{in: array{anything}; value: in[]; builtin &; export index = 0}
-length = do{in: array{anything}; builtin length}
-delete? = do{in: array{anything}; index: 0; builtin delete?}
-followed-by = do{in: array{anything}; from: in; builtin followed-by}
-at? = do{in: array{anything}; index: 0; builtin at?}
-at-or-template = do{in: array{anything}; index: 0; builtin at-or-template}
-update? = do{in: array{anything}; index: 0; value: in at-or-template index; builtin update?}
-skip-white = do{in: ''; builtin skip-white}
-`
-
-/** & array add */
-builtins['&'] = (s: Statement, array: _Array, value: builtinValue) => {
-  let copy = array.copy(array.containingItem.path, s.path);
-  s.setValue(copy);
-  if (s.workspace.analyzing) {
-    // during analysis just increment serial # to break copying detection
-    ++copy.serial;
-    s.exportFrom(0);
-    return;
-  }
-
-  let entry = new Entry;
-  // add to end
-  copy.add(entry);
-  entry.io = 'input';
-  entry.formulaType = 'none';
-  if (array.tracked) {
-    // assign new serial number
-    entry.id = ++copy.serial;
-  } else {
-    // assign ordinal number
-    entry.id = copy.items.length;
-  }
-  entry.setFrom(value);
-  // export index
-  s.exportFrom(entry.container.items.indexOf(entry) + 1);
-}
-
-/** concatenate */
-builtins['followed-by'] = (s: Statement, a: _Array, b: _Array) => {
-  let copy = a.copy(a.containingItem.path, s.path);
-  s.setValue(copy);
-  if (s.workspace.analyzing) {
-    // during analysis just increment serial # to break copying detection
-    ++copy.serial;
-    return;
-  }
-
-  b.items.forEach((item, i) => {
-    // renumner id of copy if untracked
-    let id = a.tracked ? item.id : a.items.length + i + 1;
-    let copiedItem = item.copy(item.path, s.path.down(id));
-    copiedItem.id = id;
-    copy.add(copiedItem);
-  })
-}
-
-/** array length */
-builtins['length'] = (s: Statement, array: _Array) => {
-  s.setFrom(array.items.length);
-}
-
-/** delete at index */
-builtins['delete?'] = (s: Statement, array: _Array, index: number) => {
-  let accepted = 0 < index && index <= array.items.length;
-  s.setAccepted(accepted);
-  let copy = array.copy(array.containingItem.path, s.path);
-  s.setValue(copy);
-  if (s.workspace.analyzing) {
-    // during analysis just increment serial # to break copying detection
-    ++copy.serial;
-    return;
-  }
-
-  if (accepted) {
-    copy.items.splice(index - 1, 1);
-    if (!array.tracked) {
-      // renumber if untracked
-      copy.items.slice(index - 1).forEach(item => {
-        item.id--;
-      })
-    }
-  }
-}
-
-/** array indexing */
-builtins['at?'] = (s: Statement, array: _Array, index: number) => {
-  let accepted = 0 < index && index <= array.items.length;
-  s.setAccepted(accepted);
-  s.setFrom(accepted ? array.items[index - 1] : array.template);
-}
-
-/** array indexing with failure to template */
-builtins['at-or-template'] = (s: Statement, array: _Array, index: number) => {
-  s.setFrom(array.items[index - 1] ?? array.template);
-}
-
-/** array update */
-builtins['update?'] = (
-  s: Statement, array: _Array, index: number, value: builtinValue
-) => {
-  let accepted = 0 < index && index <= array.items.length;
-  s.setAccepted(accepted);
-  let copy = array.copy(array.containingItem.path, s.path);
-  s.setValue(copy);
-  if (s.workspace.analyzing) {
-    // force change during analysis
-    s.uncopy();
-  }
-  if (accepted) {
-    let item = copy.items[index - 1];
-    item.detachValue();
-    item.setFrom(value);
-  }
-}
-
-builtins['skip-white'] = (s: Statement, a: _Array) => {
-  s.setFrom(a.asString().trimStart());
-}
 
 
 /** A Loop iterates a do-block over the input array */
@@ -414,7 +294,7 @@ export class Loop extends _Array<Do> {
 
   /** type of loop */
   loopType!: 'find?' | 'find!' | 'for-all' | 'such-that' | 'all?' | 'all!'
-    | 'none?' | 'none!' | 'accumulate';
+    | 'none?' | 'none!' | 'accumulate' | 'selecting';
 
   /** input array, set on eval */
   input!: _Array;
@@ -604,6 +484,38 @@ export class Loop extends _Array<Do> {
       }
 
 
+      // selection
+      case 'selecting': {
+
+        if (!templateBlock.conditional) {
+          throw new StaticError(templateBlock.token,
+            'block must be conditional');
+        }
+
+        // copy result from source selector
+        // get source selector from input array, which is selector.backing
+        let selector = this.input.containingItem.container;
+        if (!(selector instanceof Selector)) {
+          throw new StaticError(statement,
+            'selecting block requires a selector');
+        }
+        statement.setFrom(selector);
+        let result = statement.value as Selector;
+        result.ids = [];
+
+        // select unrejected array items
+        this.items.forEach((iteration, i) => {
+          let iterationBlock = assertDefined(iteration.value);
+          if (iterationBlock.rejected) {
+            // skip rejections
+            return;
+          }
+          result.ids.push(iteration.id);
+        })
+        return;
+      }
+
+
       // test filtering
       case 'all?':
       case 'all!':
@@ -661,3 +573,350 @@ export class Loop extends _Array<Do> {
     return to;
   }
 }
+
+/** selector subclasses Reference to the backing array */
+export class Selector extends Reference {
+
+  /** the backing array */
+  get backing() {
+    return this.target!.value as _Array;
+  }
+
+  /** whether this is a generic selector */
+  generic = false;
+
+  /** selected tracking ids in backing array. Sorted numerically. TODO: sort by
+   * position if array reorderable */
+  ids: number[] = [];
+
+  /** 1-based indexes of selected items in base array */
+  get indexes() {
+    return this.ids.map(id =>
+      this.backing.items.findIndex(item => item.id === id) + 1)
+  }
+
+  // select an id
+  select(id: number) {
+    let ids = this.ids;
+    if (ids.indexOf(id) >= 0) {
+      // already selected
+      return;
+    }
+    assert(this.backing.getMaybe(id));
+    // insert in sort order
+    let index = ids.findIndex(existing => existing > id);
+    if (index < 0) {
+      index = ids.length;
+    }
+    ids.splice(index, 0, id);
+  }
+
+  // deselect an id
+  deselect(id: number) {
+    let index = this.ids.indexOf(id);
+    if (index < 0) {
+      // not selected
+      return;
+    }
+    this.ids.splice(index, 1);
+  }
+
+  eval() {
+    // bind array reference
+    super.eval();
+    if (this.conditional) {
+      throw new StaticError(this.containingItem,
+        'select-from reference can not be conditional')
+    }
+    let array = this.target!.value!;
+    if (!(array instanceof _Array)) {
+      throw new StaticError(this.containingItem,
+        'select-from requires an array reference')
+    }
+    if (!array.tracked) {
+      throw new StaticError(this.containingItem,
+        'select-from requires a tracked array')
+    }
+    // auto-delete missing selections
+    this.ids = this.ids.filter(id => array.getMaybe(id))
+  }
+
+  bind() {
+    if (this.generic) {
+      // bind to generic array compiled into ^any
+      this.path = this.containingItem.get('^any').path;
+      this.guards = this.path.ids.map(() => undefined);
+      this.context = this.path.length;
+    } else {
+      // bind reference from selector
+      super.bind(this.containingItem);
+    }
+  }
+
+  /** synthetic fields created on demand. Not copied */
+  fields: Field[] = [];
+
+  /** access synthetic fields */
+  getMaybe(id: ID): Item | undefined {
+
+    if (id === 0) {
+      // access backing array template inside synthetic backing field
+      // so selceting loop can infer the selector
+      return this.getMaybe(FieldID.predefined.backing)!.get(0);
+    }
+
+    if (typeof id === 'number') {
+      return undefined;
+    }
+    if (typeof id === 'string') {
+      // convert string to predefined FieldID
+      id = FieldID.predefined[id];
+      if (!id) {
+        return undefined
+      }
+    }
+    let existing = this.fields.find(field => field.id === id);
+    if (existing) {
+      return existing;
+    }
+
+    // synthesize field
+    const field = new Field;
+    field.id = id;
+    field.container = this as unknown as Container<Field>;
+    field.io = 'output';
+    field.formulaType = 'none';
+    const backing = this.backing;
+
+    switch (id) {
+
+      // selected backing items
+      case FieldID.predefined.selected: {
+        let selected = new _Array;
+        field.setValue(selected);
+        selected.tracked = true;
+        selected.serial = backing.serial;
+        selected.sorted = backing.sorted;
+        selected.createTemplate().setFrom(backing.template);
+        this.ids.forEach(selectedID => {
+          let item = assertDefined(backing.getMaybe(selectedID)) as Entry;
+          let selectedItem = item.copy(
+            backing.containingItem.path, field.path);
+          selected.add(selectedItem);
+        })
+        break;
+      }
+
+      // backing array
+      case FieldID.predefined.backing: {
+        field.copyValue(backing.containingItem);
+        break;
+      }
+
+      // single selected backing item
+      case FieldID.predefined.item: {
+        field.conditional = true;
+        if (this.workspace.analyzing) {
+          // in analysis, conditional copy of template
+          field.rejected = true;
+          field.setFrom(backing.template);
+          break;
+        }
+        if (this.ids.length !== 1) {
+          // not one selection
+          field.rejected = true;
+          break;
+        }
+        // TODO export index
+        field.setFrom(assertDefined(backing.getMaybe(this.ids[0])))
+        break;
+      }
+
+      default:
+        return undefined;
+    }
+    this.fields.push(field);
+    return field;
+  }
+
+  initialize() {
+    super.initialize();
+    this.ids = [];
+    this.fields = [];
+  }
+
+  copy(srcPath: Path, dstPath: Path): this {
+    let to = super.copy(srcPath, dstPath);
+    to.ids = this.ids.slice();
+    to.generic = this.generic;
+    return to;
+  }
+
+  // type compatibility requires same backing array unless generic
+  updatableFrom(from: Value, fromPath?: Path, thisPath?: Path): boolean {
+    if (!(from instanceof Selector)) return false;
+    if (this.generic) {
+      // generic selector requires type-compatible arrays
+      return this.backing.updatableFrom(from.backing, fromPath, thisPath);
+    }
+    return super.updatableFrom(from, fromPath, thisPath);
+  }
+
+  // equality requires backing arrays are the same
+  equals(other: Selector) {
+    return this.backing === other.backing && arrayEquals(this.ids, other.ids);
+  }
+
+  dump(): any {
+    return this.indexes;
+  }
+}
+
+export const arrayBuiltinDefinitions = `
+& = do{in: array{anything}; value: in[]; builtin &; export index = 0}
+length = do{in: array{anything}; builtin length}
+delete? = do{in: array{anything}; index: 0; builtin delete?}
+&& = do{in: array{anything}; from: in; builtin &&}
+at? = do{in: array{anything}; index: 0; builtin at?}
+at-or-template = do{in: array{anything}; index: 0; builtin at-or-template}
+update? = do{in: array{anything}; index: 0; value: in at-or-template index; builtin update?}
+skip-white = do{in: ''; builtin skip-white}
+select? = do{in: select-from any array{anything}; index: 0; builtin select?}
+deselect? = do{in: select-from any array{anything}; index: 0; builtin deselect?}
+`
+
+/** & array add */
+builtins['&'] = (s: Statement, array: _Array, value: builtinValue) => {
+  let copy = array.copy(array.containingItem.path, s.path);
+  s.setValue(copy);
+  if (s.workspace.analyzing) {
+    // during analysis just increment serial # to break copying detection
+    ++copy.serial;
+    s.exportFrom(0);
+    return;
+  }
+
+  let entry = new Entry;
+  // add to end
+  copy.add(entry);
+  entry.io = 'input';
+  entry.formulaType = 'none';
+  if (array.tracked) {
+    // assign new serial number
+    entry.id = ++copy.serial;
+  } else {
+    // assign ordinal number
+    entry.id = copy.items.length;
+  }
+  entry.setFrom(value);
+  // export index
+  s.exportFrom(entry.container.items.indexOf(entry) + 1);
+}
+
+/** concatenate */
+builtins['&&'] = (s: Statement, a: _Array, b: _Array) => {
+  let copy = a.copy(a.containingItem.path, s.path);
+  s.setValue(copy);
+  if (s.workspace.analyzing) {
+    // during analysis just increment serial # to break copying detection
+    ++copy.serial;
+    return;
+  }
+
+  b.items.forEach((item, i) => {
+    // renumner id of copy if untracked
+    let id = a.tracked ? item.id : a.items.length + i + 1;
+    let copiedItem = item.copy(item.path, s.path.down(id));
+    copiedItem.id = id;
+    copy.add(copiedItem);
+  })
+}
+
+/** array length */
+builtins['length'] = (s: Statement, array: _Array) => {
+  s.setFrom(array.items.length);
+}
+
+/** delete at index */
+builtins['delete?'] = (s: Statement, array: _Array, index: number) => {
+  let accepted = 0 < index && index <= array.items.length;
+  s.setAccepted(accepted);
+  let copy = array.copy(array.containingItem.path, s.path);
+  s.setValue(copy);
+  if (s.workspace.analyzing) {
+    // during analysis just increment serial # to break copying detection
+    ++copy.serial;
+    return;
+  }
+
+  if (accepted) {
+    copy.items.splice(index - 1, 1);
+    if (!array.tracked) {
+      // renumber if untracked
+      copy.items.slice(index - 1).forEach(item => {
+        item.id--;
+      })
+    }
+  }
+}
+
+/** array indexing */
+builtins['at?'] = (s: Statement, array: _Array, index: number) => {
+  let accepted = 0 < index && index <= array.items.length;
+  s.setAccepted(accepted);
+  s.setFrom(accepted ? array.items[index - 1] : array.template);
+}
+
+/** array indexing with failure to template */
+builtins['at-or-template'] = (s: Statement, array: _Array, index: number) => {
+  s.setFrom(array.items[index - 1] ?? array.template);
+}
+
+/** array update */
+builtins['update?'] = (
+  s: Statement, array: _Array, index: number, value: builtinValue
+) => {
+  let accepted = 0 < index && index <= array.items.length;
+  s.setAccepted(accepted);
+  let copy = array.copy(array.containingItem.path, s.path);
+  s.setValue(copy);
+  if (s.workspace.analyzing) {
+    // force change during analysis
+    s.uncopy();
+  }
+  if (accepted) {
+    let item = copy.items[index - 1];
+    item.detachValue();
+    item.setFrom(value);
+  }
+}
+
+builtins['skip-white'] = (s: Statement, a: _Array) => {
+  s.setFrom(a.asString().trimStart());
+}
+
+/** selectors */
+builtins['select?'] = (s: Statement, sel: Selector, index: number) => {
+  let item = sel.backing.items[index - 1];
+  s.setAccepted(!!item);
+  // modify selector
+  let result = sel.copy(sel.containingItem.path, s.path);
+  s.setFrom(result);
+  result.eval();
+  if (item) {
+    result.select(item.id);
+  }
+}
+
+builtins['deselect?'] = (s: Statement, sel: Selector, index: number) => {
+  let item = sel.backing.items[index - 1];
+  s.setAccepted(!!item);
+  // modify selector
+  let result = sel.copy(sel.containingItem.path, s.path);
+  s.setFrom(result);
+  result.eval();
+  if (item) {
+    result.deselect(item.id);
+  }
+}
+

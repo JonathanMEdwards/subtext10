@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character, OptionReference, OnUpdate, Updatable, Version, Container, Item, _Boolean } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character, OptionReference, OnUpdate, Updatable, Version, Container, Item, _Boolean, Selector } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -311,6 +311,9 @@ export class Parser {
 
     // literal value
     let literal = this.parseLiteral();
+    if (!literal && this.matchToken('select-from')) {
+      literal = new Selector();
+    }
     if (literal) {
       if (field.io === 'input' && literal instanceof Base) {
         // literal input is stored as formula to allow reset
@@ -319,9 +322,32 @@ export class Parser {
       } else {
         // non-base inputs and literal outputs stored directly in value of field
         field.formulaType = 'none';
-        field.value = literal;
-        literal.containingItem = field;
+        field.setValue(literal);
       }
+
+      if (literal instanceof Selector) {
+        // parse selector
+        if (this.matchToken('any')) {
+          // generic selector
+          let generic = this.parseLiteral();
+          if (!(generic instanceof _Array)) {
+            throw this.setError('select-from any requires an array or table')
+          }
+          generic.tracked = true;
+          // store the generic array in ^any
+          literal.containingItem.setMeta('^any', generic);
+          literal.generic = true;
+          literal.tokens = [generic.token!]; // fake token path
+        } else {
+          // non-generic selector
+          let ref = this.parseReference();
+          if (!ref || ref.dependent) {
+            throw this.setError('select-from requires an array reference')
+          }
+          literal.tokens = ref.tokens;
+        }
+      }
+
       return true;
     }
 
@@ -680,7 +706,7 @@ export class Parser {
   parseLoop(): Loop | undefined {
     let token = this.parseToken(
       'find?', 'find!', 'for-all', 'such-that','all?', 'all!',
-      'none?', 'none!', 'accumulate'
+      'none?', 'none!', 'accumulate', 'selecting'
     );
     if (!token) return undefined;
     let loop = new Loop;
@@ -695,6 +721,7 @@ export class Parser {
       case 'none?':
       case 'none!':
       case 'accumulate':
+      case 'selecting':
         loop.loopType = token.text;
         break;
       default: trap();
