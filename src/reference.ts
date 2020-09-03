@@ -1,4 +1,4 @@
-import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice, _Array, FieldID, Selector } from "./exports";
+import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice, _Array, FieldID, Selection } from "./exports";
 
 /** Guard on an ID in a reference */
 export type Guard = '?' | '!' | undefined;
@@ -57,7 +57,7 @@ export class Reference extends Base {
     }
 
     // Naked References only exist in metadata
-    assert(this.id instanceof MetaID || this instanceof Selector);
+    assert(this.id instanceof MetaID || this instanceof Selection);
     // Reference is dependent to base item
     let from = this.containingItem.container.containingItem;
 
@@ -296,12 +296,12 @@ export class Reference extends Base {
           // template access
           if (target.value instanceof _Array) {
             target = target.value.template;
-          } else if (target.value instanceof Selector) {
-            // template of backing array of selector
+          } else if (target.value instanceof Selection) {
+            // template of backing array of selection
             target = target.value.backing.template
           } else {
             throw new StaticError(token,
-              '[] only defined on array and selector')
+              '[] only defined on array and selection')
           }
         } else {
           // regular name

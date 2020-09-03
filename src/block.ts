@@ -136,8 +136,8 @@ export class FieldID {
     return dict;
   }
   static predefined: Dictionary<FieldID> = FieldID.predefine([
-    'selected',   // selector filtering of backing array
-    'backing',    // selector backing array
+    'selected',   // selection filtering of backing array
+    'backing',    // selection backing array
     'item',       // single selected backing item
   ]);
 

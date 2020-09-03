@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character, OptionReference, OnUpdate, Updatable, Version, Container, Item, _Boolean, Selector } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character, OptionReference, OnUpdate, Updatable, Version, Container, Item, _Boolean, Selection } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -311,8 +311,8 @@ export class Parser {
 
     // literal value
     let literal = this.parseLiteral();
-    if (!literal && this.matchToken('select-from')) {
-      literal = new Selector();
+    if (!literal && this.matchToken('selection')) {
+      literal = new Selection();
     }
     if (literal) {
       if (field.io === 'input' && literal instanceof Base) {
@@ -325,13 +325,14 @@ export class Parser {
         field.setValue(literal);
       }
 
-      if (literal instanceof Selector) {
-        // parse selector
+      if (literal instanceof Selection) {
+        this.requireToken('{')
+        // parse selection
         if (this.matchToken('any')) {
-          // generic selector
+          // generic selection
           let generic = this.parseLiteral();
           if (!(generic instanceof _Array)) {
-            throw this.setError('select-from any requires an array or table')
+            throw this.setError('selection any requires an array or table')
           }
           generic.tracked = true;
           // store the generic array in ^any
@@ -339,13 +340,14 @@ export class Parser {
           literal.generic = true;
           literal.tokens = [generic.token!]; // fake token path
         } else {
-          // non-generic selector
+          // non-generic selection
           let ref = this.parseReference();
           if (!ref || ref.dependent) {
-            throw this.setError('select-from requires an array reference')
+            throw this.setError('selection requires an array reference')
           }
           literal.tokens = ref.tokens;
         }
+        this.requireToken('}')
       }
 
       return true;

@@ -101,20 +101,39 @@ test('update', () => {
     .toEqual({ a: {x: 0, y: 0}, b: {x: 1, y: 0}});
   expectDump("a = record{x: 0, y : 0}, b = a with{.x := 1}")
     .toEqual({ a: {x: 0, y: 0}, b: {x: 1, y: 0}});
-  expectCompiling("a = record{x = 0, y : 0}, b = .x := 1")
-    .toThrow('not updatable');
-  expectCompiling("a = record{x: 0, y : 0}, b = .x := 'foo'")
-    .toThrow('changing type');
   expectDump(`
   a = record{x: 0, y : record{i: 0, j: 0}}
   b = .y := with{.i := 1}
   `)
-    .toEqual({ a: { x: 0, y: { i: 0, j: 0 } }, b: { x: 0, y: {i: 1, j: 0}}});
+    .toEqual({
+      a: { x: 0, y: { i: 0, j: 0 } },
+      b: { x: 0, y: { i: 1, j: 0 } }
+    });
   expectDump(`
   a = record{x: 0, y : record{i: 0, j: 0}}
   b = .y := with{.i := + 1}
   `)
-    .toEqual({ a: { x: 0, y: { i: 0, j: 0 } }, b: { x: 0, y: {i: 1, j: 0}}});
+    .toEqual({
+      a: { x: 0, y: { i: 0, j: 0 } },
+      b: { x: 0, y: { i: 1, j: 0 } },
+    });
+  expectCompiling("a = record{x = 0, y : 0}, b = .x := 1")
+    .toThrow('not updatable');
+  expectCompiling("a = record{x: 0, y : 0}, b = .x := 'foo'")
+    .toThrow('changing type');
+});
+
+test('update reference translation', () => {
+  expectDump(`
+  a = record{x: 0, y : record{i: 0, j = x}}
+  b = .y := with{.i := + 1}
+  c = .x := 1
+  `)
+    .toEqual({
+      a: { x: 0, y: { i: 0, j: 0 } },
+      b: { x: 0, y: { i: 1, j: 0 } },
+      c: { x: 1, y: { i: 1, j: 1 } }
+    });
 });
 
 test('call', () => {

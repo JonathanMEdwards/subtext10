@@ -492,15 +492,15 @@ export class Loop extends _Array<Do> {
             'block must be conditional');
         }
 
-        // copy result from source selector
-        // get source selector from input array, which is selector.backing
-        let selector = this.input.containingItem.container;
-        if (!(selector instanceof Selector)) {
+        // copy result from source selection
+        // get source selection from input array, which is selection.backing
+        let selection = this.input.containingItem.container;
+        if (!(selection instanceof Selection)) {
           throw new StaticError(statement,
-            'selecting block requires a selector');
+            'selecting block requires a selection');
         }
-        statement.setFrom(selector);
-        let result = statement.value as Selector;
+        statement.setFrom(selection);
+        let result = statement.value as Selection;
         result.ids = [];
 
         // select unrejected array items
@@ -574,15 +574,15 @@ export class Loop extends _Array<Do> {
   }
 }
 
-/** selector subclasses Reference to the backing array */
-export class Selector extends Reference {
+/** Selection subclasses Reference to the backing array */
+export class Selection extends Reference {
 
   /** the backing array */
   get backing() {
     return this.target!.value as _Array;
   }
 
-  /** whether this is a generic selector */
+  /** whether this is a generic selection */
   generic = false;
 
   /** selected tracking ids in backing array. Sorted numerically. TODO: sort by
@@ -626,16 +626,16 @@ export class Selector extends Reference {
     super.eval();
     if (this.conditional) {
       throw new StaticError(this.containingItem,
-        'select-from reference can not be conditional')
+        'selection reference can not be conditional')
     }
     let array = this.target!.value!;
     if (!(array instanceof _Array)) {
       throw new StaticError(this.containingItem,
-        'select-from requires an array reference')
+        'selection requires an array reference')
     }
     if (!array.tracked) {
       throw new StaticError(this.containingItem,
-        'select-from requires a tracked array')
+        'selection requires a tracked array')
     }
     // auto-delete missing selections
     this.ids = this.ids.filter(id => array.getMaybe(id))
@@ -648,8 +648,16 @@ export class Selector extends Reference {
       this.guards = this.path.ids.map(() => undefined);
       this.context = this.path.length;
     } else {
-      // bind reference from selector
+      // bind reference from selection
       super.bind(this.containingItem);
+      // disallow nested selections
+      this.path.ids.slice(
+        this.path.lub(this.containingItem.path).ids.length
+      ).forEach(id => {
+        if (typeof id === 'number') {
+          throw new StaticError(this.containingItem, 'selection in nested table not yet supported')
+        }
+      })
     }
   }
 
@@ -661,7 +669,7 @@ export class Selector extends Reference {
 
     if (id === 0) {
       // access backing array template inside synthetic backing field
-      // so selceting loop can infer the selector
+      // so selceting loop can infer the selection
       return this.getMaybe(FieldID.predefined.backing)!.get(0);
     }
 
@@ -754,16 +762,16 @@ export class Selector extends Reference {
 
   // type compatibility requires same backing array unless generic
   updatableFrom(from: Value, fromPath?: Path, thisPath?: Path): boolean {
-    if (!(from instanceof Selector)) return false;
+    if (!(from instanceof Selection)) return false;
     if (this.generic) {
-      // generic selector requires type-compatible arrays
+      // generic selection requires type-compatible arrays
       return this.backing.updatableFrom(from.backing, fromPath, thisPath);
     }
     return super.updatableFrom(from, fromPath, thisPath);
   }
 
   // equality requires backing arrays are the same
-  equals(other: Selector) {
+  equals(other: Selection) {
     return this.backing === other.backing && arrayEquals(this.ids, other.ids);
   }
 
@@ -781,8 +789,8 @@ at? = do{in: array{anything}; index: 0; builtin at?}
 at-or-template = do{in: array{anything}; index: 0; builtin at-or-template}
 update? = do{in: array{anything}; index: 0; value: in at-or-template index; builtin update?}
 skip-white = do{in: ''; builtin skip-white}
-select? = do{in: select-from any array{anything}; index: 0; builtin select?}
-deselect? = do{in: select-from any array{anything}; index: 0; builtin deselect?}
+select? = do{in: selection{any array{anything}}; index: 0; builtin select?}
+deselect? = do{in: selection{any array{anything}}; index: 0; builtin deselect?}
 `
 
 /** & array add */
@@ -895,11 +903,11 @@ builtins['skip-white'] = (s: Statement, a: _Array) => {
   s.setFrom(a.asString().trimStart());
 }
 
-/** selectors */
-builtins['select?'] = (s: Statement, sel: Selector, index: number) => {
+/** selections */
+builtins['select?'] = (s: Statement, sel: Selection, index: number) => {
   let item = sel.backing.items[index - 1];
   s.setAccepted(!!item);
-  // modify selector
+  // modify selection
   let result = sel.copy(sel.containingItem.path, s.path);
   s.setFrom(result);
   result.eval();
@@ -908,10 +916,10 @@ builtins['select?'] = (s: Statement, sel: Selector, index: number) => {
   }
 }
 
-builtins['deselect?'] = (s: Statement, sel: Selector, index: number) => {
+builtins['deselect?'] = (s: Statement, sel: Selection, index: number) => {
   let item = sel.backing.items[index - 1];
   s.setAccepted(!!item);
-  // modify selector
+  // modify selection
   let result = sel.copy(sel.containingItem.path, s.path);
   s.setFrom(result);
   result.eval();

@@ -99,6 +99,6 @@ export class MetaID extends FieldID {
     '^writeValue',    // Formula before ->
     '^delta',         // Pending change in DeltaContainer
     '^extend',        // record extension
-    '^any',           // generic select-from
+    '^any',           // generic selection
   ]);
 }

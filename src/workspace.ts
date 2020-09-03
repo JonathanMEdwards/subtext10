@@ -209,6 +209,15 @@ export class Workspace extends Item<never, History> {
     this.updateAt(path, 'delete! ' + index);
   }
 
+  /** add a selection */
+  selectAt(path: string, index: number) {
+    this.updateAt(path, 'select! ' + index);
+  }
+
+/** remove a selection */
+  deselectAt(path: string, index: number) {
+    this.updateAt(path, 'deselect! ' + index);
+  }
 
   // FIXME: eliminate this when change choosing to be a formula
   /** Make a choice. */

@@ -154,43 +154,46 @@ test('accumulate', () => {
 })
 
 
-test('selector', () => {
-  expectDump('a: tracked array{###} & 1 & 2; s: select-from a')
+test('selection', () => {
+  expectDump('a: tracked array{###} & 1 & 2; s: selection{a}')
     .toEqual({ a: [1, 2], s: [] });
-  expectDump('a: tracked array{###} & 1 & 2; s: select-from a select! 1')
+  expectDump('a: tracked array{###} & 1 & 2; s: selection{a} select! 1')
+    .toEqual({ a: [1, 2], s: [1] });
+  // forward selection
+  expectDump(' s: selection{a} select! 1; a: tracked array{###} & 1 & 2')
     .toEqual({ a: [1, 2], s: [1] });
   expectDump(`
   a: tracked array{###} & 1 & 2
-  s: select-from a select! 1 select! 2 deselect! 1
+  s: selection{a} select! 1 select! 2 deselect! 1
   `)
     .toEqual({ a: [1, 2], s: [2] });
   expectDump(`
   a: tracked array{###}
-  s = select-from a
-  t = select-from a
+  s = selection{a}
+  t = selection{a}
   e? = s =? t
   `)
     .toEqual({ a: [], s: [], t: [], e: [] });
   expectDump(`
   a: tracked array{###} & 1
-  s = select-from a select! 1
-  t = select-from a
+  s = selection{a} select! 1
+  t = selection{a}
   e? = s =? t
   `)
     .toEqual({ a: [1], s: [1], t: [], e: false });
   expectCompiling(`
   a: tracked array{###}
   b: tracked array{###}
-  s = select-from a
-  t = select-from b
+  s = selection{a}
+  t = selection{b}
   e? = s =? t
   `).toThrow('changing type of value')
 })
 
-test('selector synthetics', () => {
+test('selection synthetics', () => {
   expectDump(`
   a: tracked array{###} & 1 & 2 & 3
-  s: select-from a select! 2
+  s: selection{a} select! 2
   t = s.selected
   u = s.backing
   i? = s.item?
@@ -201,8 +204,20 @@ test('selector synthetics', () => {
 test('selecting block', () => {
   expectDump(`
   a: tracked array{###} & 1 & 2 & 3
-  s: select-from a
+  s: selection{a}
   t = s selecting{>? 2}
   `)
     .toEqual({ a: [1, 2, 3], s: [], t: [3]});
 });
+
+test('selection deletion', () => {
+  let w = compile(`
+  a: tracked array{###} & 1 & 2 & 3
+  s: selection{a}
+  `)
+  w.selectAt('s', 1);
+  w.selectAt('s', 3);
+  expect(w.dump()).toEqual({a: [1, 2, 3], s: [1, 3]})
+  w.deleteAt('a', 1);
+  expect(w.dump()).toEqual({a: [2, 3], s: [2]})
+})

@@ -693,10 +693,25 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
     this.copyValue(context);
     for (let write of groundedWrites) {
-      // follow path within delta context
+      // replace value at path within context
       let target = this.down(write.path.ids.slice(ref.context));
       target.detachValue();
       target.copyValue(assertDefined(write.deltaField));
+
+      // translate references from inside value to context
+      // Note this wouldn't be necessary if we only copied over input vaalues
+      const translate = (value?: Value) => {
+        if (value instanceof Reference && context.path.contains(value.path)) {
+          value.path = value.path.translate(context.path, this.path);
+        }
+      }
+      if (target.value instanceof Container) {
+        for (let item of target.value.visit()) {
+          translate(item.value);
+        }
+      } else {
+        translate(target.value);
+      }
     }
 
 
@@ -838,8 +853,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
     while (pendingWrites.length) {
       const write = pendingWrites.pop()!;
-      const delta = assertDefined(write.deltaField);
       write.eval();
+      const delta = assertDefined(write.deltaField);
+      delta.eval();
 
       // discard equi-writes
       if (this.workspace.analyzing) {

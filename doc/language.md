@@ -296,7 +296,7 @@ y = x with {
     .city := 'Springfield'}}
 ```
 
-Updates cannot be done on output items (those defined with `=`), only inputs (defined with `:`) and interfaces (defined with `=|>` — see Feedback).  
+Updates cannot be done on output items (those defined with `=`), only inputs (defined with `:`) and interfaces (defined with `=|>` — see Feedback).
 
 Recall that `:=` is also used when supplying the third or later inputs when calling a function. This is not a coincidence. For example:
 ```
@@ -754,9 +754,9 @@ A `find-last?` does the same thing as `find?` except that it scans the table bac
 
 ### Iterating
 
-A `for-all` block will evaluate a `do` block on each item of an array in order, resulting in an unsorted array of the results. The block cannot be conditional. This is like the _map_ function of functional programming languages. 
+A `for-all` block will evaluate a `do` block on each item of an array in order, resulting in an unsorted array of the results. The block cannot be conditional. This is like the _map_ function of functional programming languages.
 
-A `such-that` block will remove from the source array any items which the following conditional block rejects. The result will be the same type as the source and maintain its sorting. This is like the _filter_ function of functional programming languages. 
+A `such-that` block will remove from the source array any items which the following conditional block rejects. The result will be the same type as the source and maintain its sorting. This is like the _filter_ function of functional programming languages.
 
 `all?` and `all!` are like `such-that` except that if one of the array items is rejected they will reject or crash respectively. `none?` and `none!` check that all of the items are rejected. Both `all` and `none` result in the source array if they succeed.
 
@@ -822,10 +822,10 @@ The new feature used here is the `extend`block, which takes a record (a `custome
 
 The result of this query is equal to:
 ```
-table{customer-id: ###, name: '', their-orders = 
+table{customer-id: ###, name: '', their-orders =
   table{order-id: ###, customer-id: ###, item: ''}
 }
-&{.customer-id:= 1, .name := 'John', their-orders := 
+&{.customer-id:= 1, .name := 'John', their-orders :=
   &{.order-id:= 1, .customer-id:= 1, .item := 'widget}
   &{.order-id:= 2, .customer-id:= 1, .item := 'fidget}
 }
@@ -836,19 +836,19 @@ table{customer-id: ###, name: '', their-orders =
 
 Note that this query does not use a _join_ as in a relational database. Joins multiply tables together to produce a table each of whose rows contains fields from the input tables in multiple possible combinations. This can get confusing because data gets duplicated throughout the result, but it is hard to see exactly what is a duplicate of what. Tracking these duplications is the subject of the theory of _Functional Dependencies_, which you don’t want to have to understand. Subtext takes a different approach, combining tables by nesting them inside each other, reducing the amount of duplication, and making the necessary duplication explicit. This also allows the results to be updated: see _Updatable Queries_.
 
-The above example shows how to combine tables when they have fields that relate to each other, called a _foreign key_. Foreign keys often are found in data imported from external sources. For data defined inside a Subtext, there are better alternatives. See _Selectors_ for a better alternative to foreign keys. Often the simplest solution is to just define nested tables, for example:
+The above example shows how to combine tables when they have fields that relate to each other, called a _foreign key_. Foreign keys often are found in data imported from external sources. For data defined inside a Subtext, there are better alternatives. See _Selections_ for a better alternative to foreign keys. Often the simplest solution is to just define nested tables, for example:
 
 ```
 customers: table{
   customer-id: ###
   name: ''
-  orders: tracked table{
+  orders: table{
     order-id: ###
     item: ''}}
 ```
 Here the orders of a customer are created inside the customer record. This explicitly defines the structure implied by the foreign keys, which needed to be computed by a query.
 
-> Queries are a central research problem (especially making them updatable), but they may become a specialized advanced feature given selectors and the ability to refactor foreign keys into selectors
+> Queries are a central research problem (especially making them updatable), but they may become a specialized advanced feature given selections and the ability to refactor foreign keys into selections
 
 
 ### Tracked arrays
@@ -876,37 +876,47 @@ Two tracked arrays are equal if their items are not only equal but also were cre
 
 > The IDs in a tracked array are implemented as monotonically increasing serial numbers within the array, as in an _auto-increment_ item in a relational database. The serial number is not exposed to the user or programmer, so that merging may automatically renumber items.
 
-### Selectors
+### Selections
 
-Selectors allow one or more items in a tracked array to be chosen by the user or a program. They replace the use of _pointers_ and _references_ in conventional programming languages. For example:
+Selections allow one or more items in a tracked array or table to be chosen by the user or a program. They replace the use of _pointers_ and _references_  and _sets_ in conventional programming languages. For example:
+
+```
+customers: tracked table{name: '', age: ###}
+prime-customers: selection{customers}
+top-customer: one selection{customers}
+```
+
+The field `prime-customers` can select 0 or more customers. The UI will show a selection as a list of customer names, with a drop-down arrow to present a menu of  customer names with check-boxes next to them to change the selection. The field `top-customer` is limited to selecting just one customer, so the UI will  instead use “radio buttons” that enforce this constraint. For more details on this and other selection constraints see _Selection constraints_.
+
+When a selection is defined, as in `selection{customers}`, the curly brackets must contain a reference to an array. That array is called the selection’s _backing array_.  Two selections are equal if they have the same backing array and select the same items in it. The backing array of a selection can not be changed: it is fixed at compile time. Selections on different backing arrays are incompatible, so it is a static error to compare them or update one with the other.
+
+Programs can change selections with the `select?` and `deselect?` functions, which take as input a selection and produce a selection that adds or removes the indicated item. Their argument is an index in the backing array, and they reject if that is an invalid. The `selecting` block is like a `such-that` block, except that it takes a selection as input and produces a selection on the same backing array selecting those items not rejected by the code block, for example:
+```
+selection{customers} selecting{.age >? 21}
+```
+
+Selections define several fields. The `.selected` field will contain an array of the selected items from the backing array, as in `prime-customers.selected`. The `.item?` field is useful for single selections like `top-customer`, as it returns the single selected item, and rejects if there is not exactly one selected item. The `.indexes` field is a sorted array of the indexes of the selected items in the backing array. The `.backing` field is a copy of the backing array, so `prime-customers.backing` will be a copy of `customers`. Note that the items in `.selected` `.item?` and `backing` are updatable (see _Updating via selections_)
+
+Selections are only for tracked arrays, so they track the selected items through changes to the backing array. Modifying, inserting, or reordering items will not change which items are selected. Deleting an item from an array will remove it from all selections, but not affect the selections of other items.
+
+When a selection is inside a table it allows each row of the table to pick one or more rows of some other table. This replaces the the use of _primary keys_ and _foreign keys_ in relational databases to establish such relationships. Recall the example in _Queries_:
+```
+customers: table{customer-id: ###, name: ''}
+orders: table{order-id: ###, customer-id: ###, item: ''}
+```
+ the keys can be replaced with a selection between tracked tables:
 ```
 customers: tracked table{name: ''}
-prime-customers: select-from customers
+orders: tracked table{customer: one selection{customers}, item: ''}
 ```
+ 
 
 
-, and the use of _foreign keys_ in relational databases. Often selectors are stored in the fields of a table to establish a relationship with another table. 
+
+#### selection constraints
 
 
-### `in` links
 
-The fields `order-id` and `product-id` in `order-lines` are called _foreign keys_ in a relational database. This means their value refers to a matching value in the _primary key_ field of a table, which in this case are the `id` fields in `products` and `orders`. In Subtext we call foreign keys an `in` link and define them like this:
-
-```
-order-lines: table {
-  order: in orders
-  product: ''
-  quantity: 1
-}
-```
-
-The definition `order: in orders` says that the `order` field must contain a value that is present in the first field of the `orders` table in exactly one row.  If the value of `order` does not meet that constraint it is flagged in the UI as an invalid value. _It may also prevent a transaction from being committed — See Constraints_.
-
-The UI will display an `in` link using a “combo box” control that can edits it by opening a view of the `orders` table and allowing one row to be picked with a checkbox. The UI will also provide an affordance in the table header that allows the `order` column to expand to show the entire corresponding record from the `orders` table.
-
-Code can “follow” an `in` link with the metadata reference `.order^lookup?`. The metadata field `^lookup?` contains the corresponding record from the `orders` table. Thus for example the customer name could be accesses as `.order^lookup?.customer`. If the `order` is invalid, meaning there are no or multiple matching orders, then the access is rejected, signified  by the question mark in `^lookup?`. As usual the constraint can be asserted by using `^lookup!`.
-
-> Note that for simplicity we require that the primary key be the first field, which is the standard convention. We also require that multiple-field “compound keys” be defined as a record in the first field.
 
 ### `from` links
 
@@ -949,7 +959,7 @@ f =|> c * 1.8 + 32 on-update{write - 32 / 1.8 -> c}
 ```
 When the interface `f` is updated, the `on-update` block is evaluated instead of trying to run the formula backwards. The updated value of `f` is passed into the `on-update` block, which then executes a `write` statement, which can only be used inside `on-update` blocks. The `write` statement evaluates `- 32 / 1.8` starting with the updated value of `f`, and then updates `c` with the result.  Since the update formula is equivalent to running the output formula backwards, we get the same effect on `c`.
 
-Note that an `on-update` block looks like a _callback_ in many conventional languages, but it is quite different because it is _static_: it is fixed in the definition of the formula and therefore known at compile time. There is no way to dynamically associate callbacks with interfaces at runtime. 
+Note that an `on-update` block looks like a _callback_ in many conventional languages, but it is quite different because it is _static_: it is fixed in the definition of the formula and therefore known at compile time. There is no way to dynamically associate callbacks with interfaces at runtime.
 
 Also note that a `write` looks like _pointer assignment_ in many conventional languages, but it is actually highly restricted in order to know at compile time what it does. Subtext does not have dynamic pointer values as in standard imperative languages. The target of a `write` is static: it must be a reference to a writable location that is fixed at compile time, allowing only variability of indexing within an array. Another way of stating this restriction is that the target of a write can only vary dynamically between array siblings and cousins within the worskspace tree. This restrtiction lets us know at compile time the possible effects of a write more precisely than with conventional pointers. There are additonal major restrictions on the effects of a write that will be explained below.
 
@@ -967,7 +977,7 @@ which will react to any change to `f` by setting `c` to `0` which then makes `f`
 count: 0
 button =|> false on-update{write count <- + 1}
 ```
-The `button` interface is a boolean value set to false. Boolean values are represented in the UI as clickable buttons. Clicking the button changes the value from false to true, and also executes the `on-update` block, which increments `count`. The `button` interface is unstable because oit always reverts back to `false`, making it a “push button” that pops back out when pressed. 
+The `button` interface is a boolean value set to false. Boolean values are represented in the UI as clickable buttons. Clicking the button changes the value from false to true, and also executes the `on-update` block, which increments `count`. The `button` interface is unstable because oit always reverts back to `false`, making it a “push button” that pops back out when pressed.
 
 ### Change is unequal
 
@@ -984,7 +994,7 @@ The benefit of this approach is that we don’t need a special language feature 
 
 ### Feedback is interactive
 
-Our examples so far have all been triggered by user actions. In general, change comes from the world external to the workspace, in the form of user actions, incoming network packets, or clock ticks. _There will be one exception to this rule: free-running processes called tasks._  Subtext records all external events as changes to the value of an input or interface. Changes to an interface propagate to other interfaces and inputs either by executing formulas in reverse or `on-update` blocks. The entire process of responding to external changes, called _feedback_, is governed by a number of rules. One of these rules is that feedback is quick — you can not perform large computations during feedback, as that would make the workspace unresponsive. Another rule is that feedback is _transactional_ : if one of several kinds of error occurs (to be discussed later) then the workspace is left unchanged. 
+Our examples so far have all been triggered by user actions. In general, change comes from the world external to the workspace, in the form of user actions, incoming network packets, or clock ticks. _There will be one exception to this rule: free-running processes called tasks._  Subtext records all external events as changes to the value of an input or interface. Changes to an interface propagate to other interfaces and inputs either by executing formulas in reverse or `on-update` blocks. The entire process of responding to external changes, called _feedback_, is governed by a number of rules. One of these rules is that feedback is quick — you can not perform large computations during feedback, as that would make the workspace unresponsive. Another rule is that feedback is _transactional_ : if one of several kinds of error occurs (to be discussed later) then the workspace is left unchanged.
 
 ### Feedback is definite
 
@@ -995,7 +1005,7 @@ button =|> false on-update{
   write count <- * 2
 }
 ```
-If we want to make a sequence of changes like this we must instead chain the formulas into a single write statement like `write count <- + 1 * 2`. 
+If we want to make a sequence of changes like this we must instead chain the formulas into a single write statement like `write count <- + 1 * 2`.
 
 A more interesting case is this:
 ```
@@ -1071,8 +1081,8 @@ When an interface does not have an `on-update` block then changes to the interfa
 ```
 c: 0
 f =|> do {
-  c 
-  * 1.8 
+  c
+  * 1.8
   + 32
 }
 ```
@@ -1084,13 +1094,13 @@ plus = do{
   source + and
   on-update {
     change: that
-    write source <- change - and  
+    write source <- change - and
   }
 }
 ```
 Note that this simply does the inverse of addition, which is subtraction. In the case of the call `plus 32` what happens is that the changed value has 32 subtracted from it and is written back to the source of the call. The source of the call is the previous statement in the original formula: `* 1.8` which will likewise divide the value by `1.8` and write it to the previous statement, which is a reference to `c`, which writes the change to `c`.
 
-Updatable functions always write back to their source (except for a few special cases to be noted). Updatable functions treat their other arguments as read-only, and see their values as of the start of the feedback transaction. So feedback proceeds through a formula from bottom-up and right-to-left, the reverse of its execution order. Indeed one of the reasons for choosing chained infix operations in Subtext was that it defines a clear reverse order of execution. 
+Updatable functions always write back to their source (except for a few special cases to be noted). Updatable functions treat their other arguments as read-only, and see their values as of the start of the feedback transaction. So feedback proceeds through a formula from bottom-up and right-to-left, the reverse of its execution order. Indeed one of the reasons for choosing chained infix operations in Subtext was that it defines a clear reverse order of execution.
 
 A `try` block executes in reverse following the same rules. A write to the result of a try block is written to the result of the clause that produced it: the first satisfied clause. The choice made by a try clause remains frozen in its state prior to the feedback transaction, the same as all the formulas inside it.
 
@@ -1101,7 +1111,7 @@ r: record{
   x: ''
   y: 0
 }
-t =|> r with {.x := s} 
+t =|> r with {.x := s}
 ```
 Any change made to the interface `t` will feedback into the update expression `.x := s`. Say the user modified the field `t.x` to be `'bar'`. Then `'bar'` will get written back to `s`, where it came from. But if the user had modified `t.y` the change will pass through to `r.x`, where it came from. Thus `:=` can feedback changes in two directions.
 
@@ -1110,7 +1120,7 @@ Queries are arrays constructed with the `for-all` and `such-that` functions. Que
 
 The `such-that` function removes some items from the source array. The items that make it through into the result can be updated, with the updates feeding back into the original items in the source array. Likewise items in the result can be created and deleted, feeding back into the same operations on the source array. Note `such-that` is not stable: an item might be changed in a way that removes it from the result afterwards.
 
-The `for-all` function produces an array whose items are the result of applying a code block to each source item. Updates to the result items are feed back through the same code block instances that derived them. These code blocks respond to changes as described above: if there is an `on-update` block it will be executed, otherwise the code block is executed in reverse. Either way, a change can only feedback to the source item — any attempt to write outside of it is a static error. Deleting an item in the result of a `for-all` just deletes the corresponding item in the source. A `for-all` is stable if its code block is stable. 
+The `for-all` function produces an array whose items are the result of applying a code block to each source item. Updates to the result items are feed back through the same code block instances that derived them. These code blocks respond to changes as described above: if there is an `on-update` block it will be executed, otherwise the code block is executed in reverse. Either way, a change can only feedback to the source item — any attempt to write outside of it is a static error. Deleting an item in the result of a `for-all` just deletes the corresponding item in the source. A `for-all` is stable if its code block is stable.
 
 Creating an item in the result of a `for-all` is a little more complicated: an item is created in the source array and a new instance of the code block is executed on it. If the result of this code block is different from the new item in the result, then the change is feed back through the code block as described above to change the new source item appropriately. _TODO: example_
 
@@ -1127,6 +1137,10 @@ query =|> customers for-all{
 ```
 
 Now `query` can be updated as if it was an input table, with the changes sent back to the `customers` and `orders` tables. Remember that it is not possible for changes outside the source to leak from a `for-all` — so how do changes escape to the `orders` table? The trick here is the way the `extend` block works: the definition of the `their-orders` field becomes part of the result records. Any changes inside the `their-orders` field in the results will get fed back directly through that definition, containing a `such-that` and then onward to `orders`. These changes get rerouted into `orders` before the `for-all` gets a chance to see them. Only the change to the fields inherited from `customers` feed back into the `for-all` and hence to `customers` without breaking the rules.
+
+
+### Updating via selections
+
 
 
 ### Internal feedback
@@ -1146,10 +1160,10 @@ current = record {
 changed = current with{.button := true}
 ```
 
-Here is the magic trick: feedback is a feature of the `:=` update operation. Normally we use `:=` to override input fields as data state or as arguments to a function. But when `:=` writes to an interface field, it internally runs a complete feedback transaction. At the end of the transaction, the final set of writes to input fields determine the final result of the update. 
+Here is the magic trick: feedback is a feature of the `:=` update operation. Normally we use `:=` to override input fields as data state or as arguments to a function. But when `:=` writes to an interface field, it internally runs a complete feedback transaction. At the end of the transaction, the final set of writes to input fields determine the final result of the update.
 
 > TODO: useful as escape to allow writes to overwrite
->  
+> 
 Because all interactions between a workspace and the external world are encoded as value changes, we get universal testability. The `test` block make this convenient by passing the initial state of the containing workspace into a code block, and reports a test failure if the block rejects. For example:
 
 ```
@@ -1175,7 +1189,7 @@ sub-state = record {
 new-state = sub-state with{ .button := true}
 ```
 
-Here the internal write to the `button` interface attempts to write `c`, which is outside the source of the update operation `sub-state`. This is a compile-time error. 
+Here the internal write to the `button` interface attempts to write `c`, which is outside the source of the update operation `sub-state`. This is a compile-time error.
 
 > Note that it might be possible to allow escaping writes by holding them pending inside the result of the update, allowing it to be executed later. You could say `write sub-state <- new-state` to execute those pending writes. This is theoretically interesting but it is not yet clear how useful it would be.
 
@@ -1191,7 +1205,7 @@ feeedback errors and transactions
 # Appendix: FAQs
 
 ## why are you reinventing the wheel?
-Because the standard wheels are square. 
+Because the standard wheels are square.
 Everywhere you look in the world of programming, from the grandest architectures to the tiniest details, is riddled with design mistakes, anachronisms, and historical accidents. Essentially we have never fixed or thrown anything away, and just added extra layers to workaround the defects.
 Subtext is an experiment to see how much we can simplify programming by starting with a clean slate.
 
