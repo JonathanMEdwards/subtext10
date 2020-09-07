@@ -876,7 +876,7 @@ Two tracked arrays are equal if their items are not only equal but also were cre
 
 > The IDs in a tracked array are implemented as monotonically increasing serial numbers within the array, as in an _auto-increment_ item in a relational database. The serial number is not exposed to the user or programmer, so that merging may automatically renumber items.
 
-### Selections
+### Selections and links
 
 Selections allow one or more items in a tracked array or table to be chosen by the user or a program. They replace the use of _pointers_ and _references_  and _sets_ in conventional programming languages. For example:
 
@@ -895,11 +895,18 @@ Programs can change selections with the `select?` and `deselect?` functions, whi
 selection{customers} selecting{.age >? 21}
 ```
 
-Selections define several fields. The `.selected` field will contain an array of the selected items from the backing array, as in `prime-customers.selected`. The `.item?` field is useful for single selections like `top-customer`, as it returns the single selected item, and rejects if there is not exactly one selected item. The `.indexes` field is a sorted array of the indexes of the selected items in the backing array. The `.backing` field is a copy of the backing array, so `prime-customers.backing` will be a copy of `customers`. Note that the items in `.selected` `.item?` and `backing` are updatable (see _Updating via selections_)
+Selections define several fields. 
 
-Selections are only for tracked arrays, so they track the selected items through changes to the backing array. Modifying, inserting, or reordering items will not change which items are selected. Deleting an item from an array will remove it from all selections, but not affect the selections of other items.
+1. The `.selections` field contains an array of the selected items from the backing array, as in `prime-customers.selections`. 
+2. The `.at?` field is useful for single selections like `top-customer`, as it returns the single selected item, and rejects if there is not exactly one selected item. 
+3. The `.indexes` field is a sorted array of the indexes of the selected items in the backing array. 
+4. The `.backing` field is a copy of the backing array, so `prime-customers.backing` will be a copy of `customers`. 
+5. 
+Note that `.selections`, `.at?` and `backing` are updatable (see _Updating selections_)
 
-When a selection is inside a table it allows each row of the table to pick one or more rows of some other table. This replaces the the use of _primary keys_ and _foreign keys_ in relational databases to establish such relationships. Recall the example in _Queries_:
+Selections are only for tracked arrays, so they can track the selected items through changes to the backing array. Modifying, inserting, or reordering items will not change which items are selected. Deleting an item from an array will remove it from all selections, but not affect the selections of other items.
+
+When a selection is inside a table it allows each row of the table to pick one or more rows of some other table. This replaces the use of _primary keys_ and _foreign keys_ in relational databases to establish such relationships. Recall the example in _Queries_:
 ```
 customers: table{customer-id: ###, name: ''}
 orders: table{order-id: ###, customer-id: ###, item: ''}
@@ -907,37 +914,27 @@ orders: table{order-id: ###, customer-id: ###, item: ''}
  the keys can be replaced with a selection between tracked tables:
 ```
 customers: tracked table{name: ''}
-orders: tracked table{customer: one selection{customers}, item: ''}
+orders: tracked table{customer: selection{customers}, item: ''}
 ```
+
+Often when there are relationships between tables we want to see them from both sides: not just the customer of an order, but also all the orders of a customer. Relational databases offer us queries to answer that question. Instead Subtext lets you define selections on both sides that mirror each other, called _links_. For example:
  
-
-
-
-#### selection constraints
-
-
-
-
-### `from` links
-
-To find all the `order-lines` in an order, we want to follow the link “backwards”. This is done by defining a `from` link on the opposite side of the `in` link, as follows:
-
 ```
-orders: table {
-  id: ###
-  customer: ''
-  order-lines = from order-lines.order
-}
-order-lines: table {
-  order: in orders
-  product: ''
-  quantity: 1
-}
+customers: tracked table{
+  name: ''
+  their-orders: link{orders via customer}}
+orders: tracked table{
+  customer: link{customers via their-orders}
+  item: ''}
 ```
 
-The `from` link is defined inside the `orders` table as `order-lines = from order-line.order`. Following `from` must be a reference to a field of a table that defines an `in` link which points back to the containing table (`orders`). The value of the `order-lines` field in an order is a table of all the `order-lines` rows for that order. Note that Subtext allows fields of a table to be tables themselves, which is disallowed in relational databases. The benefit is there is no longer any need to write a query to find the order-lines in each order: they are automatically shown inside the `order-lines` field of each order.
+Links are selections that are defined in matching pairs as fields of tracked tables. Each defines the table and field of the other, and each link automatically mirrors the selections of the other. So for example, when the `their-orders` link selects a row of `orders`, the `customer` link will automatically select that customer. On the other hand, if the `customer` link in an order selects a customer, the `their-orders` field of the customer will select that order. Thus there is no need to do a query to find all the orders for a customer: it is provided as a table in `their-orders.selections`
 
-Every `from` link must match an `in` link, but `in` links do not require a matching `from` link. However it will likely be good practice to pair them up. The UI will offer to create the matching `from` link for an `in` link, and may do so automatically.
+
+#### TODO: selection constraints
+
+Note that since `customer` has a `one` rule, selecting a different customer will de-select the previous customer, which in turn deselects the order from that customer’s `their-orders` link. … `complete`
+
 
 
 
@@ -1115,6 +1112,12 @@ t =|> r with {.x := s}
 ```
 Any change made to the interface `t` will feedback into the update expression `.x := s`. Say the user modified the field `t.x` to be `'bar'`. Then `'bar'` will get written back to `s`, where it came from. But if the user had modified `t.y` the change will pass through to `r.x`, where it came from. Thus `:=` can feedback changes in two directions.
 
+### Updating selections and links
+
+Selections and link provide views of their backing array in the fields `.backing`, `.selections`, and `.at?`, containing respectively the entire backing array, an array of the selected backing items, and the single selected backing item. All three of these views can be updated, with the updates feeding back into the backing array.
+
+Links are mirrored pairs of selections between tables: updating a link on one side will update links on the other side.
+
 ### Updatable queries
 Queries are arrays constructed with the `for-all` and `such-that` functions. Queries on tracked arrays can be updated, with the changes feeding back into the source arrays. Databases call this an _updatable view_. Queries on untracked arrays are not updatable.
 
@@ -1138,8 +1141,6 @@ query =|> customers for-all{
 
 Now `query` can be updated as if it was an input table, with the changes sent back to the `customers` and `orders` tables. Remember that it is not possible for changes outside the source to leak from a `for-all` — so how do changes escape to the `orders` table? The trick here is the way the `extend` block works: the definition of the `their-orders` field becomes part of the result records. Any changes inside the `their-orders` field in the results will get fed back directly through that definition, containing a `such-that` and then onward to `orders`. These changes get rerouted into `orders` before the `for-all` gets a chance to see them. Only the change to the fields inherited from `customers` feed back into the `for-all` and hence to `customers` without breaking the rules.
 
-
-### Updating via selections
 
 
 

@@ -706,14 +706,14 @@ export class Selection extends Reference {
     const field = new Field;
     field.id = id;
     field.container = this as unknown as Container<Field>;
-    field.io = 'output';
+    field.io = 'interface'; // make field updatable
     field.formulaType = 'none';
     const backing = this.backing;
 
     switch (id) {
 
       // selected backing items
-      case FieldID.predefined.selected: {
+      case FieldID.predefined.selections: {
         let selected = new _Array;
         field.setValue(selected);
         selected.tracked = true;
@@ -736,7 +736,7 @@ export class Selection extends Reference {
       }
 
       // single selected backing item
-      case FieldID.predefined.item: {
+      case FieldID.predefined.at: {
         field.conditional = true;
         if (this.workspace.analyzing) {
           // in analysis, conditional copy of template
@@ -747,6 +747,7 @@ export class Selection extends Reference {
         if (this.selected.length !== 1) {
           // not one selection
           field.rejected = true;
+          field.evaluated = true;
           break;
         }
         // TODO export index

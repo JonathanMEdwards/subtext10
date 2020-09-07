@@ -194,9 +194,9 @@ test('selection synthetics', () => {
   expectDump(`
   a: tracked array{###} & 1 & 2 & 3
   s: selection{a} select! 2
-  t = s.selected
+  t = s.selections
   u = s.backing
-  i? = s.item?
+  i? = s.at?
   `)
     .toEqual({ a: [1, 2, 3], s: [2], t: [2], u: [1, 2, 3], i: 2 });
 });
@@ -326,3 +326,19 @@ test('link errors', () => {
   b: tracked table{foo: 0, as: link{a via bs}}
   `).toThrow('Opposite link does not match');
 })
+
+test('selection backing update', () => {
+  let w = compile(`
+  a: tracked array{###} & 1 & 2 & 3
+  s: selection{a}
+  i? =|> s.at?
+  `)
+  w.selectAt('s', 2);
+  w.writeAt('s.selections.1', 10)
+  expect(w.dump()).toEqual({ a: [1, 10, 3], s: [2], i: 10 })
+  w.writeAt('s.at', 20)
+  expect(w.dump()).toEqual({ a: [1, 20, 3], s: [2], i: 20 })
+  w.writeAt('i', 30)
+  expect(w.dump()).toEqual({ a: [1, 30, 3], s: [2], i: 30 })
+})
+

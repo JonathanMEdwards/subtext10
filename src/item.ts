@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer, _Boolean, arrayReverse, _Array, arrayRemove, Entry, Record, Link} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, Selection, Metafield, _Number, Nil, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer, _Boolean, arrayReverse, _Array, arrayRemove, Entry, Record, Link, FieldID} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -739,7 +739,49 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   writeSelection(write: Item, from?: Item): Item[] {
     const link = write.value;
     if (!(link instanceof Link) || link.primary) {
-      // FIXME: can only maintain link uniqueness if writing in table context
+      // not a secondary link change
+
+      // forward through containing synthetic selection field into backing array
+      for (
+        let selectionField = write;
+        selectionField !== this;
+        selectionField = selectionField.container.containingItem
+      ) {
+        let selection = selectionField.container;
+        if (selection instanceof Selection) {
+          // synthetic selection field - forward to backing array
+          switch (selectionField.id) {
+            case FieldID.predefined.at:
+            case FieldID.predefined.backing:
+            case FieldID.predefined.selections:
+              if (selectionField === write && selectionField.id === FieldID.predefined.selections) {
+                // writing whole selected array
+                // must merge with backing array, detecting inserts and deletes
+                trap();
+              }
+              // target is inside backing array at corresponding path
+              let backingItem = selection.backing.containingItem;
+              if (selectionField.id === FieldID.predefined.at) {
+                // target selected item
+                let id = this.workspace.analyzing ? 0 : selection.selected[0];
+                backingItem = backingItem.get(id);
+              }
+              if (!this.contains(backingItem)) {
+                // write leaving feedback context
+                throw new StaticError(write, 'write outside context of update')
+              }
+              let target = backingItem.down(write.path.ids.slice(selectionField.path.length));
+              if (from && from.comesBefore(backingItem)) {
+                throw new StaticError(write, 'write to link goes forwards');
+              }
+              target.setDelta(write.deltaField);
+              return [target];
+          }
+          continue;
+        }
+      }
+
+      // pass through write
       return [write];
     }
 
@@ -757,8 +799,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       // write leaving feedback context
       throw new StaticError(write, 'write outside context of update')
     }
-    if (from && !from.comesBefore(backing.containingItem)) {
-      throw new StaticError(write, 'write to link goes backwards');
+    if (from && from.comesBefore(backing.containingItem)) {
+      throw new StaticError(write, 'write to link goes forwards');
     }
 
     if (this.workspace.analyzing) {
