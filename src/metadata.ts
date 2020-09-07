@@ -49,7 +49,7 @@ export class Metafield extends Field<MetaID> {
     if (this.id === MetaID.ids['^payload']) {
       // previous value of payload is the target
       let ref = cast(
-        assertDefined(this.container.getMaybe('^target')).value,
+        this.container.get('^target').value,
         Reference);
       // should already have been dereferenced
       let target = assertDefined(ref.target);

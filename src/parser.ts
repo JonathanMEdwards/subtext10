@@ -1,4 +1,4 @@
-import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character, OptionReference, OnUpdate, Updatable, Version, Container, Item, _Boolean, Selection } from "./exports";
+import { assert, Block, Choice, Code, Field, FieldID, Head, _Number, stringUnescape, SyntaxError, Text, Token, tokenize, TokenType, Value, Nil, Anything, Record, Workspace, Reference, Do, trap, Call, arrayLast, Try, Statement, With, Base, Entry, _Array, Loop, arrayRemove, MetaID, Character, OptionReference, OnUpdate, Updatable, Version, Container, Item, _Boolean, Selection, Link } from "./exports";
 
 /**
  * Recursive descent parser.
@@ -314,8 +314,16 @@ export class Parser {
     if (!literal && this.matchToken('selection')) {
       literal = new Selection();
     }
+    if (!literal && this.matchToken('link')) {
+      literal = new Link();
+    }
     if (literal) {
-      if (field.io === 'input' && literal instanceof Base) {
+      if (
+        field.io === 'input'
+        && literal instanceof Base
+        && !(literal instanceof Nil)
+        && !(literal instanceof Anything)
+      ) {
         // literal input is stored as formula to allow reset
         field.formulaType = 'literal';
         field.setMeta('^literal', literal);
@@ -330,6 +338,9 @@ export class Parser {
         // parse selection
         if (this.matchToken('any')) {
           // generic selection
+          if (literal instanceof Link) {
+            throw this.setError('link cannot be generic')
+          }
           let generic = this.parseLiteral();
           if (!(generic instanceof _Array)) {
             throw this.setError('selection any requires an array or table')
@@ -343,10 +354,16 @@ export class Parser {
           // non-generic selection
           let ref = this.parseReference();
           if (!ref || ref.dependent) {
-            throw this.setError('selection requires an array reference')
+            throw this.setError(
+              'selection requires a structural array reference')
           }
           literal.tokens = ref.tokens;
         }
+        if (literal instanceof Link) {
+          this.requireToken('via');
+          literal.oppositeFieldName = this.requireToken('name');
+        }
+
         this.requireToken('}')
       }
 
@@ -848,6 +865,7 @@ export class Parser {
         continue;
       } else if (this.matchToken('[]')) {
         tokens.push(this.prevToken);
+        continue;
       } else if (this.peekToken('name') && this.cursorToken.text[0] === '^') {
         // metadata
         tokens.push(this.cursorToken);

@@ -1,4 +1,4 @@
-import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement, builtinValue, FieldID, Record, Field, Do, cast, Reference, Crash, _Number, StaticError, assertDefined, arrayLast, arrayEquals } from "./exports";
+import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement, builtinValue, FieldID, Record, Field, Do, cast, Reference, Crash, _Number, StaticError, assertDefined, arrayLast, arrayEquals, Token } from "./exports";
 
 /** A _Array contains a variable-sized sequence of items of a fixed type. The
  * items are called entries and have numeric IDs, which are ordinal numbers in
@@ -501,7 +501,7 @@ export class Loop extends _Array<Do> {
         }
         statement.setFrom(selection);
         let result = statement.value as Selection;
-        result.ids = [];
+        result.selected = [];
 
         // select unrejected array items
         this.items.forEach((iteration, i) => {
@@ -510,7 +510,7 @@ export class Loop extends _Array<Do> {
             // skip rejections
             return;
           }
-          result.ids.push(iteration.id);
+          result.selected.push(iteration.id);
         })
         return;
       }
@@ -584,41 +584,46 @@ export class Selection extends Reference {
 
   /** whether this is a generic selection */
   generic = false;
+  get isGeneric() {
+    return this.generic;
+  }
 
   /** selected tracking ids in backing array. Sorted numerically. TODO: sort by
    * position if array reorderable */
-  ids: number[] = [];
+  selected: number[] = [];
 
   /** 1-based indexes of selected items in base array */
   get indexes() {
-    return this.ids.map(id =>
+    return this.selected.map(id =>
       this.backing.items.findIndex(item => item.id === id) + 1)
   }
 
   // select an id
   select(id: number) {
-    let ids = this.ids;
-    if (ids.indexOf(id) >= 0) {
+    this.eval()
+    let selected = this.selected;
+    if (selected.indexOf(id) >= 0) {
       // already selected
       return;
     }
     assert(this.backing.getMaybe(id));
     // insert in sort order
-    let index = ids.findIndex(existing => existing > id);
+    let index = selected.findIndex(existing => existing > id);
     if (index < 0) {
-      index = ids.length;
+      index = selected.length;
     }
-    ids.splice(index, 0, id);
+    selected.splice(index, 0, id);
   }
 
   // deselect an id
   deselect(id: number) {
-    let index = this.ids.indexOf(id);
+    this.eval()
+    let index = this.selected.indexOf(id);
     if (index < 0) {
       // not selected
       return;
     }
-    this.ids.splice(index, 1);
+    this.selected.splice(index, 1);
   }
 
   eval() {
@@ -628,17 +633,26 @@ export class Selection extends Reference {
       throw new StaticError(this.containingItem,
         'selection reference can not be conditional')
     }
+    this.postEval();
+  }
+
+  // eval for Selection
+  protected postEval() {
     let array = this.target!.value!;
-    if (!(array instanceof _Array)) {
-      throw new StaticError(this.containingItem,
-        'selection requires an array reference')
+    if (this.workspace.analyzing) {
+      if (!(array instanceof _Array)) {
+        throw new StaticError(this.containingItem,
+          'selection requires an array reference')
+      }
+      if (!array.tracked) {
+        throw new StaticError(this.containingItem,
+          'selection requires a tracked array')
+      }
     }
-    if (!array.tracked) {
-      throw new StaticError(this.containingItem,
-        'selection requires a tracked array')
+    // auto-delete missing selections in an input field
+    if (this.containingItem.io === 'input') {
+      this.selected = this.selected.filter(id => array.getMaybe(id))
     }
-    // auto-delete missing selections
-    this.ids = this.ids.filter(id => array.getMaybe(id))
   }
 
   bind() {
@@ -670,7 +684,7 @@ export class Selection extends Reference {
     if (id === 0) {
       // access backing array template inside synthetic backing field
       // so selceting loop can infer the selection
-      return this.getMaybe(FieldID.predefined.backing)!.get(0);
+      return this.get(FieldID.predefined.backing).get(0);
     }
 
     if (typeof id === 'number') {
@@ -706,8 +720,8 @@ export class Selection extends Reference {
         selected.serial = backing.serial;
         selected.sorted = backing.sorted;
         selected.createTemplate().setFrom(backing.template);
-        this.ids.forEach(selectedID => {
-          let item = assertDefined(backing.getMaybe(selectedID)) as Entry;
+        this.selected.forEach(selectedID => {
+          let item = backing.get(selectedID) as Entry;
           let selectedItem = item.copy(
             backing.containingItem.path, field.path);
           selected.add(selectedItem);
@@ -730,13 +744,13 @@ export class Selection extends Reference {
           field.setFrom(backing.template);
           break;
         }
-        if (this.ids.length !== 1) {
+        if (this.selected.length !== 1) {
           // not one selection
           field.rejected = true;
           break;
         }
         // TODO export index
-        field.setFrom(assertDefined(backing.getMaybe(this.ids[0])))
+        field.setFrom(backing.get(this.selected[0]))
         break;
       }
 
@@ -749,13 +763,13 @@ export class Selection extends Reference {
 
   initialize() {
     super.initialize();
-    this.ids = [];
+    this.selected = [];
     this.fields = [];
   }
 
   copy(srcPath: Path, dstPath: Path): this {
     let to = super.copy(srcPath, dstPath);
-    to.ids = this.ids.slice();
+    to.selected = this.selected.slice();
     to.generic = this.generic;
     return to;
   }
@@ -767,18 +781,146 @@ export class Selection extends Reference {
       // generic selection requires type-compatible arrays
       return this.backing.updatableFrom(from.backing, fromPath, thisPath);
     }
+    if (this instanceof Link !== from instanceof Link) {
+      // TODO: implicitly convert a link into a selection
+      return false;
+    }
     return super.updatableFrom(from, fromPath, thisPath);
   }
 
   // equality requires backing arrays are the same
   equals(other: Selection) {
-    return this.backing === other.backing && arrayEquals(this.ids, other.ids);
+    return this.backing === other.backing && arrayEquals(this.selected, other.selected);
   }
 
   dump(): any {
     return this.indexes;
   }
 }
+
+/** bidirectional selections between table fields */
+export class Link extends Selection {
+
+  /** whether primary link of pair. The primary comes first in the tree. The
+   * primary stores the selection state, and the secondary derives it */
+  primary!: boolean;
+
+  /** Field name of opposite link in backing array */
+  // TODO: allow a path
+  oppositeFieldName!: Token;
+
+  /** FieldID of opposite link in backing array */
+  oppositeFieldID!: FieldID;
+
+  /** whether at the defining location of the link (and hence updatable) or a
+   * copy. Copies can have arbitrary selections set by select?/deselect?
+   * functions */
+  get atHome() {
+    // test without evaluating the opposite link
+    const oppositeLink =
+      cast(this.backing.template.get(this.oppositeFieldID).value, Link);
+    return oppositeLink.path.equals(this.containingItem.path.up(2));
+  }
+
+  // eval Link
+  protected postEval() {
+    if (this.workspace.analyzing && this.containingItem.io === 'input') {
+      // Link must be a tracked table field
+      let template = this.containingItem.container;
+      let thisArray = template.containingItem.container;
+      if (
+        !(template instanceof Record)
+        || template.containingItem.id !== 0
+        || !(thisArray instanceof _Array)
+        || !thisArray.tracked
+      ) {
+        throw new StaticError(this.containingItem,
+          'link must be a field of a tracked table')
+      }
+      let thisFieldID = cast(this.containingItem.id, FieldID);
+
+      let oppositeArray = this.target!.value!;
+      if (
+        !(oppositeArray instanceof _Array)
+        || !oppositeArray.tracked
+        || !(oppositeArray.template.value instanceof Record)
+      ) {
+        throw new StaticError(this.containingItem,
+          'link requires a tracked table')
+      }
+      let oppositeField =
+        oppositeArray.template.getMaybe(this.oppositeFieldName.text);
+      if (!oppositeField) {
+        throw new StaticError(this.oppositeFieldName,
+          'Opposite link not defined')
+      }
+      this.oppositeFieldID = oppositeField.id as FieldID;
+      oppositeField.eval();
+      let oppositeLink = oppositeField.value;
+      if (
+        !(oppositeLink instanceof Link)
+        || oppositeLink.backing !== thisArray
+        || oppositeLink.oppositeFieldID !== thisFieldID
+      ) {
+        throw new StaticError(this.oppositeFieldName,
+          'Opposite link does not match')
+      }
+      // first link in tree is primary
+      this.primary = this.containingItem.comesBefore(oppositeField)
+      return;
+    }
+
+    if (!this.atHome) {
+      // temp copies of link can have arbitrary selections
+      return;
+    }
+
+    let array = this.backing;
+    if (this.primary) {
+      // auto-delete missing selections in an input field
+      if (this.containingItem.io === 'input') {
+        this.selected = this.selected.filter(id => array.getMaybe(id));
+      }
+      return;
+    }
+
+    // secondary link derives selection by querying primary links
+    this.selected = [];
+    const thisID = this.containingItem.container.containingItem.id as number;
+    if (thisID === 0) {
+      // selections in template are empty
+      return;
+    }
+    array.items.forEach(item => {
+      let oppositeLink = cast(item.get(this.oppositeFieldID).value, Link);
+      oppositeLink.eval();
+      if (oppositeLink.selected.includes(thisID)) {
+        // opposite link selects us
+        this.selected.push(item.id);
+      }
+    })
+  }
+
+  // TODO: allow implicit conversion from a compatible Selection
+  updatableFrom(from: Value, fromPath?: Path, thisPath?: Path): boolean {
+    return (
+      from instanceof Link
+      && this.oppositeFieldID === from.oppositeFieldID
+      && super.updatableFrom(from, fromPath, thisPath)
+    );
+  }
+
+  copy(srcPath: Path, dstPath: Path): this {
+    let to = super.copy(srcPath, dstPath);
+    to.primary = this.primary;
+    to.oppositeFieldName = this.oppositeFieldName;
+    to.oppositeFieldID = this.oppositeFieldID;
+    return to;
+  }
+
+
+}
+
 
 export const arrayBuiltinDefinitions = `
 & = do{in: array{anything}; value: in[]; builtin &; export index = 0}

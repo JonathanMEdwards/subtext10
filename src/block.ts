@@ -1,4 +1,4 @@
-import { assert, Container, ID, Item, isNumber, Token, Path, Dictionary, Value, trap, StaticError } from "./exports";
+import { assert, Container, ID, Item, isNumber, Token, Path, Dictionary, Value, trap, StaticError, Link } from "./exports";
 
 /** A Block is a record-like container with a fixed set of items called fields.
  * Each field can have a different type. Each Field has a globally unique

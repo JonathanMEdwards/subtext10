@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer, _Boolean, arrayReverse, _Array, arrayRemove, Entry, Record} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, arrayReplace, Metafield, _Number, Nil, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer, _Boolean, arrayReverse, _Array, arrayRemove, Entry, Record, Link} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -684,7 +684,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       (this.container instanceof Call)
         // don't propagate function argument assignments
         ? [target]
-        : context.feedback(target);
+        : context.feedback(...context.writeSelection(target));
 
 
     // replace grounded deltas in result copied from context
@@ -726,6 +726,81 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
   }
 
+  /**
+   * Write possibly forwarded through a selection. Selection writes are
+   * forwarded immediately because they can go backwards, which is OK so long as
+   * not going backwards from writing location
+   *
+   * @param this bounding context
+   * @param write item to write, ^delta containing value to write
+   * @param from optional backstop on backwards write
+   * @returns array of items to write with ^delta set
+   */
+  writeSelection(write: Item, from?: Item): Item[] {
+    const link = write.value;
+    if (!(link instanceof Link) || link.primary) {
+      // FIXME: can only maintain link uniqueness if writing in table context
+      return [write];
+    }
+
+    // write to secondary link updates primary links
+    if (!link.atHome) {
+      // only allow update within the defining array
+      // FIXME: possibly could allow updates to flow backwards through copies
+      // FIXME: could stage update - home table update would scan for internal
+      // staged changes.
+      // Still need table context to propagate uniqueness changes
+      throw new StaticError(write, 'writing secondary link outside home table');
+    }
+    const backing = link.backing;
+    if (!this.contains(backing.containingItem)) {
+      // write leaving feedback context
+      throw new StaticError(write, 'write outside context of update')
+    }
+    if (from && !from.comesBefore(backing.containingItem)) {
+      throw new StaticError(write, 'write to link goes backwards');
+    }
+
+    if (this.workspace.analyzing) {
+      // in analysis write the opposite template link
+      let oppositeField = backing.template.get(link.oppositeFieldID);
+      let oppositeDelta = oppositeField.setDelta(oppositeField);
+      oppositeDelta.uncopy();
+      return [oppositeField];
+    }
+
+    let writes: Item[] = [];
+    const row = write.container.containingItem as Entry;
+    let oldSelected = link.selected;
+    let newSelected = cast(write.deltaField!.value, Link).selected;
+
+    // add new selections
+    newSelected.forEach(id => {
+      if (oldSelected.includes(id)) {
+        return
+      }
+      // write link with addition of this ID
+      let oppositeField = backing.get(id).get(link.oppositeFieldID);
+      let oppositeDelta = oppositeField.setDelta(oppositeField);
+      cast(oppositeDelta.value, Link).select(row.id);
+      writes.push(oppositeField);
+    })
+
+    // remove old selections
+    oldSelected.forEach(id => {
+      if (newSelected.includes(id)) {
+        return
+      }
+      // write link with addition of this ID
+      let oppositeField = backing.get(id).get(link.oppositeFieldID);
+      let oppositeDelta = oppositeField.setDelta(oppositeField);
+      cast(oppositeDelta.value, Link).deselect(row.id);
+      writes.push(oppositeField);
+    })
+
+    // note writes may be out of order within array, but that is OK
+    return writes;
+  }
 
   /** Feedback propagates writes in reverse tree order until
    * all grounded at inputs. Receiving item is the bounding context of update
@@ -759,7 +834,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             'external write from for-all')
         }
 
-        // TODO: defer changes that leave context by reifying into differnt type
+        // TODO: passivation or lenses
         throw new StaticError(arrayLast(ref.tokens),
           'write outside context of update')
       }
@@ -767,7 +842,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         throw new StaticError(arrayLast(ref.tokens), 'not updatable')
       }
       target.setDelta(value);
-      writePending(target);
+      // forward write through selections
+      this.writeSelection(target, ref.containingItem).forEach(writePending);
     }
 
     /** function to record a write in pendingWrites */
@@ -1181,7 +1257,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
                     continue;
                   }
                   // write changed item to for-all block instance
-                  let instance = loop.getMaybe(resultItem.id)!;
+                  let instance = loop.get(resultItem.id);
                   writeCode(cast(instance.value, Do), deltaItem)
                   continue;
                 }

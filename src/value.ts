@@ -1,4 +1,4 @@
-import { Workspace, Item, trap, ID, Path, another, Token, assert } from "./exports";
+import { Workspace, Item, trap, ID, Path, another, Token, assert, assertDefined } from "./exports";
 
 /** Every Value is contained in an Item */
 export abstract class Value {
@@ -11,6 +11,11 @@ export abstract class Value {
   /** logical container (skipping base field of metadata) */
   get up(): Item {
     return this.containingItem;
+  }
+
+  /** the item with an ID */
+  get(id: ID): Item {
+    return assertDefined(this.getMaybe(id));
   }
 
   /** the item with an ID else undefined */
@@ -68,7 +73,7 @@ export abstract class Value {
   }
 
   /** whether contains an input field with an Anything value */
-  abstract get isGeneric(): boolean;
+  get isGeneric() { return false }
 
   /** dump into a plain JS value for testing */
   abstract dump(): any;

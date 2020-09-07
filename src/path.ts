@@ -27,6 +27,11 @@ export class Path {
     return new Path([...this.ids, id]);
   }
 
+  /** lift path upwards */
+  up(n: number): Path {
+    return new Path(this.ids.slice(0, -n));
+  }
+
   /** path equality */
   equals(other: Path) {
     return (

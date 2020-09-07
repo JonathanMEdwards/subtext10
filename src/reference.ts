@@ -3,8 +3,7 @@ import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, Stat
 /** Guard on an ID in a reference */
 export type Guard = '?' | '!' | undefined;
 
-/** Reference to another item in a formula. Only used in metadata, determining
- * the value of the metadata's base item.
+/** Reference to an item at a path in the workspace
  *
  * References are either structural or dependent. A structural reference is to
  * another item within a container of the base item. The syntax of a structural
@@ -13,7 +12,7 @@ export type Guard = '?' | '!' | undefined;
  * structural path to the previous item is prefixed to a dependent reference.
  * The syntax of a dependent reference starts with a '.', or '~'.
  */
-export class Reference extends Base {
+export class Reference extends Value {
 
   /** Tokens of path in source. May have leading 'that' token. Name tokens have
    * leading ^/~ and trailing ?/!. Special tokens used for binding calls: call,
@@ -108,7 +107,10 @@ export class Reference extends Base {
     })
 
     // evaluate final target deeply
-    target.eval();
+    // Not needed on Selections, which lazily access their target contents
+    if (!(this instanceof Selection)) {
+      target.eval();
+    }
 
     this.target = target;
   }
@@ -354,8 +356,9 @@ export class Reference extends Base {
     }
 
     target.resolve();
-    if (target.evaluated === undefined) {
+    if (target.evaluated === undefined && !(this instanceof Selection)) {
       // cyclic dependency
+      // Allowed for Selections, which only copy the target lazily
       throw new StaticError(arrayLast(this.tokens), 'Circular reference')
     }
 

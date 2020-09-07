@@ -8,8 +8,6 @@ export class Base extends Value {
 
   initialize() { }
 
-  get isGeneric() { return false }
-
   dump() { }
 
   // Validate copy test

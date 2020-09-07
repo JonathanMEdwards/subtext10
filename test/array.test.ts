@@ -221,3 +221,108 @@ test('selection deletion', () => {
   w.deleteAt('a', 1);
   expect(w.dump()).toEqual({a: [2, 3], s: [2]})
 })
+
+test('reflexive selection', () => {
+  let w = compile(`
+  a: tracked table{as: selection{a}}
+  `)
+  w.createAt('a');
+  w.selectAt('a.1.as', 1)
+  expect(w.dump()).toEqual({
+    a: [{ as: [1] }],
+  })
+})
+
+test('cyclic selection', () => {
+  let w = compile(`
+  a: tracked table{bs: selection{b}}
+  b: tracked table{as: selection{a}}
+  `)
+  w.createAt('a');
+  w.createAt('b');
+  w.selectAt('a.1.bs', 1)
+  w.selectAt('b.1.as', 1)
+  expect(w.dump()).toEqual({
+    a: [{bs: [1]}],
+    b: [{as: [1]}],
+  })
+})
+
+test('linking', () => {
+  let w = compile(`
+  a: tracked table{bs: link{b via as}}
+  b: tracked table{as: link{a via bs}}
+  `)
+  w.createAt('a');
+  w.createAt('a');
+  w.createAt('b');
+  w.selectAt('a.1.bs', 1);
+  w.selectAt('a.2.bs', 1);
+  expect(w.dump()).toEqual({
+    a: [{ bs: [1] }, { bs: [1] }],
+    b: [{ as: [1, 2] }],
+  });
+  // update secondary link
+  w.deselectAt('b.1.as', 1);
+  expect(w.dump()).toEqual({
+    a: [{ bs: [] }, { bs: [1] }],
+    b: [{ as: [2] }],
+  });
+})
+
+test('reflexive link', () => {
+  let w = compile(`
+  t: tracked table{
+    a: link{t via b}
+    b: link{t via a}}
+  `)
+  w.createAt('t');
+  w.createAt('t');
+  w.selectAt('t.1.a', 2);
+  expect(w.dump()).toEqual({
+    t: [
+      { a: [2], b: [] },
+      { a: [], b: [1] }
+    ]});
+  // update secondary link
+  w.selectAt('t.1.b', 2);
+  expect(w.dump()).toEqual({
+    t: [
+      { a: [2], b: [2] },
+      { a: [1], b: [1] }
+    ]
+  });
+})
+
+test('link errors', () => {
+  expectCompiling(`
+  a: tracked table{bs: link{b via as}}
+  b: tracked table{as: link{a via bs}}
+  c: a[].bs
+  `).toThrow('link must be a field of a tracked table');
+
+  expectDump(`
+  a: tracked table{bs: link{b via as}}
+  b: tracked table{as: link{a via bs}}
+  c = a[].bs
+  `).toEqual({
+    a: [],
+    b: [],
+    c: []
+  });
+
+  expectCompiling(`
+  a: tracked table{bs: link{b via as}}
+  b: table{as: link{a via bs}}
+  `).toThrow('link requires a tracked table');
+
+  expectCompiling(`
+  a: tracked table{bs: link{b via foo}}
+  b: tracked table{as: link{a via bs}}
+  `).toThrow('Opposite link not defined');
+
+  expectCompiling(`
+  a: tracked table{bs: link{b via foo}}
+  b: tracked table{foo: 0, as: link{a via bs}}
+  `).toThrow('Opposite link does not match');
+})
