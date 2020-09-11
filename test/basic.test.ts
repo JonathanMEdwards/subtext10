@@ -21,13 +21,13 @@ export function expectCompiling(source: string) {
 }
 
 test('literal outputs', () => {
-  expectDump("a = 0, b = '', c = nil, d = record{x = 0, y: 1}")
-    .toEqual({ a: 0, b: '', c: null, d: { x: 0, y: 1 } });
+  expectDump("a = 0, b = 'foo', c = nil, d = record{x = 0, y: 1}")
+    .toEqual({ a: 0, b: 'foo', c: null, d: { x: 0, y: 1 } });
 });
 
 test('literal inputs', () => {
-  expectDump("a: 0, b: '', c: nil, d: record{x = 0, y: 1}")
-    .toEqual({ a: 0, b: '', c: null, d: { x: 0, y: 1 }  });
+  expectDump("a: 0, b: 'foo', c: nil, d: record{x = 0, y: 1}")
+    .toEqual({ a: 0, b: 'foo', c: null, d: { x: 0, y: 1 }  });
 });
 
 test('references', () => {
@@ -193,6 +193,10 @@ test('leading infix operator', () => {
 })
 
 test('conditionals', () => {
+  expectDump("a? = 'foo' =? 'foo'")
+    .toEqual({ a: 'foo' })
+  expectDump("a? = 'foo' =? 'bar'")
+    .toEqual({ a: false })
   expectDump("a? = 1 >? 0")
     .toEqual({ a: 0 })
   expectDump("a? = 0 >? 1")

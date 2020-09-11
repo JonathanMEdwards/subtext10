@@ -219,6 +219,51 @@ export class Entry<V extends Value = Value> extends Item<number, V> {
 /** Text is an untracked array of characters, but is stored as a JS string and
  * expanded into an array on demand */
 export class Text extends _Array<Character> {
+
+  // Workaround in TS 4 to override property with accessor
+  // Really this is perf op so should just eagerly synthesize
+  constructor() {
+    super();
+    Object.defineProperty(this, "template", {
+      // synthesize template on demand
+      get() {
+        if (!this._template) {
+          // template is a space character, the default Character
+          this.createTemplate().setValue(new Character);
+        }
+        return (this as Text)._template!;
+      },
+      set(entry: Entry<Character>) {
+        this._template = entry;
+      }
+    })
+    Object.defineProperty(this, "items", {
+      // synthesize items on demand
+      get() {
+        if (!this._items) {
+          this._items = Array.from(this.value as string).map((char, i) => {
+            let entry = new Entry<Character>();
+            entry.container = this;
+            entry.id = i + 1;
+            entry.io = 'output';
+            entry.formulaType = 'none';
+            let value = new Character;
+            value.value = char;
+            entry.setFrom(value);
+            return entry;
+          })
+        }
+        return (this as Text)._items;
+      },
+      set(value: Entry<Character>[]) {
+        // ignore superclass initialization
+        assert(value.length === 0);
+        trap();
+      }
+    })
+  }
+
+
   tracked = false;
   sorted = false;
 
@@ -230,39 +275,9 @@ export class Text extends _Array<Character> {
 
   // synthesize template on demand
   private _template?: Entry<Character>;
-  set template(entry: Entry<Character>) {
-    this._template = entry;
-  }
-  get template() {
-    if (!this._template) {
-      // template is a space character, the default Character
-      this.createTemplate().setValue(new Character);
-    }
-    return this._template!;
-  }
 
   // synthesize items on demand
   private _items?: Entry<Character>[];
-  set items(value: Entry<Character>[]) {
-    // ignore superclass initialization
-    assert(value.length === 0);
-  }
-  get items() {
-    if (!this._items) {
-      this._items = Array.from(this.value).map((char, i) => {
-        let entry = new Entry<Character>();
-        entry.container = this;
-        entry.id = i + 1;
-        entry.io = 'output';
-        entry.formulaType = 'none';
-        let value = new Character;
-        value.value = char;
-        entry.setFrom(value);
-        return entry;
-      })
-    }
-    return this._items;
-  }
 
   get isGeneric() { return false; }
 
