@@ -1,6 +1,8 @@
 # The Subtext Programming Language
 
-> End-user programming may still be out of reach - reframe goal as small-scale app dev?
+> This is a mix of explanations for the target audience of non-programmers and connections to existing theory for the experts. Reframe as “Subtext for Computer Scientists”: explicitly define the user conceptual model in terms of standard teminology.
+
+> End-user/non-technical programming may still be out of reach - reframe goal as small-scale app dev? Programming in the long tail
 
 Subtext is searching for the missing link between spreadsheets and programming. It is an interactive medium for data processing by people who don’t want to learn how to program.  For example, scientists who want to process data without becoming “data scientists”. Or people who want to build simple custom apps without learning to program. Spreadsheets primarily fill this role, but they have significant limitations. The goal of Subtext is to merge the power of programming with the simplicity of spreadsheets, without inheriting all the complexity of modern programming.  That said, there is indeed a programming language at the foundation of Subtext. This document specifies that language through examples as a way to solicit feedback from other researchers.
 
@@ -498,6 +500,9 @@ The `optionally` block is like a `try` block, except that if none of the clauses
 
 > `try {...} else reject` could be instead `try? {...}`. Likewise `optionally {...}` could be just `try {...}`. To crash on incompleteness, `try! {...}`. This design is more consistent with the way other conditional forms are handled, but it may be too subtle.
 
+> We could generalize rejection to exceptions. A function could throw a specific type of error value when rejecting. We could add `on-error` clauses to `try`. But multiple errors in a block would need to be somehow unioned together. In OO this is done by subclassing Error. Zig has a special error enum that is implicitly defined across the whole-program. We aren’t ready yet to deal with polymorphism, so exceptions are deferred.
+
+
 ### Boolean operations
 Subtext does not use Boolean Algebra like conventional languages do. The standard Boolean operations can be done with `try` blocks instead. Here is the recipe for writing boolean operations:
 ```
@@ -778,6 +783,9 @@ test {
 }
 ```
 
+> We could combine `for-all` and `such-that` into `for-those` that maps and filters at the same time. That initially seemed more elegant, and showed off a benefit of rejection semantics, but was taken out because 1) to filter you must be careful to map the items through unchanged, so the conditional tests need to be done with a `check`, and 2) if the template is rejected, which is normal in filters, we lose the ability to feedback creations
+
+
 ### Accumulating
 
 An `accumulate` block is used to accumulate a result by scanning an array.
@@ -901,7 +909,7 @@ Selections define several fields.
 2. The `.at?` field is useful for single selections like `top-customer`, as it returns the single selected item, and rejects if there is not exactly one selected item. 
 3. The `.indexes` field is a sorted array of the indexes of the selected items in the backing array. 
 4. The `.backing` field is a copy of the backing array, so `prime-customers.backing` will be a copy of `customers`. 
-5. 
+\5. 
 Note that `.selections`, `.at?` and `backing` are updatable (see _Updating selections_)
 
 Selections are only for tracked arrays, so they can track the selected items through changes to the backing array. Modifying, inserting, or reordering items will not change which items are selected. Deleting an item from an array will remove it from all selections, but not affect the selections of other items.
@@ -1140,6 +1148,76 @@ query =|> customers for-all{
 ```
 
 Now `query` can be updated as if it was an input table, with the changes sent back to the `customers` and `orders` tables. Remember that it is not possible for changes outside the source to leak from a `for-all` — so how do changes escape to the `orders` table? The trick here is the way the `extend` block works: the definition of the `their-orders` field becomes part of the result records. Any changes inside the `their-orders` field in the results will get fed back directly through that definition, containing a `such-that` and then onward to `orders`. These changes get rerouted into `orders` before the `for-all` gets a chance to see them. Only the change to the fields inherited from `customers` feed back into the `for-all` and hence to `customers` without breaking the rules.
+
+
+### Registering local state
+
+So far all updates have eventually fed back to global input fields, that is, input fields defined at the top of the workspace, or input fields contained within such top-level inputs. There are cases where this is inconvienent, particularly when constructing views or “user interfaces” that are adaptable. For example, we might want to hide the value of a password unless a button is pressed to reveal it. Pressing the button would have to change an input field that determines whether or not to show the password. We could implement that like this:
+
+```
+hidden-password: hidden 'foo'
+reveal: hidden false
+password = try {
+  check reveal =? true
+  hidden-password
+} else {
+  ''
+}
+show-password =|> false on-update {write reveal <- true}
+```
+
+Note the `hidden` qualifier on `hidden-password` and `reveal`, which hides those fields when in user mode, so that the user only sees the `password` field and `show-password` button. For more on constructing user views see _User Interfaces_
+
+But what if we have more than one hidden password? For each of them we would need to define a corresponding `reveal` field to remember the state of whether or not it is being shown. What if we had an array of such passwords? We would need to define an array of such states, and every time a password is created or deleted we would need to correspondingly adjust the array to keep them consistent. This is a common problem in user interface programming — see for example [React state hooks](https://reactjs.org/docs/hooks-state.html).
+
+To handle this sort of problem, Subtext provides another kind of input field: a _registered field_. A registered field (register for short) can record state inside a formula. Here is how we would handle the prior example:
+
+```
+hidden-password: hidden 'foo'
+password-view = do {
+  reveal: register false
+  record {  
+    password = try {
+      check reveal =? true
+      hidden-password
+    } else {
+      ''
+    }
+	show-password =|> false on-update {write reveal <- true}
+  }
+}
+```
+
+The `password-view` field computes a record with two fields: `password` conditonally revealing the password, and the `show-password` button to reveal it. Pushing that button will set the `reveal-password` field to `true`, revealing the password, like in the previous implemenation. The key difference is that now the `reveal-password` field is defined inside the `do` block as a `register`.  Normally an input field in a `do` block is initialized every time it executes, but declaring it to be a register changes this: instead the value is remembered from the last time the code block executed. Registers thus provide _local state within code_.
+
+Registers are particularly useful when producing views of arrays. Assuming we have an array of passwords, we can produce an array of password-revealing views like this:
+
+```
+passwords: tracked array{''}
+view = passwords for-all {
+  password:[]
+  reveal: register false
+  record {  
+    password = try {
+      check reveal =? true
+      password
+    } else {
+      ''
+    }
+    show-password =|> false on-update {write reveal <- true}
+  }
+}
+```
+
+In this example `view` becomes a table containing a row for each password, with a field conditionally revealing the password, and a field containing a button that reveals it. The revealment state of each password is remembered in the `reveal` registers, which live inside the `for-all` iterations. 
+
+What happens if we delete a password? Registers remember the state they were in when the code last executed. But this code is being repeatedly executed by the `for-all`. Because `passwords` is a tracked array, the iterations of the `for-all` are correspondingly tracked. So each register will remember its state from the previous iteration with the same tracking ID. Thus deleting passwords will not affect the reveal state registered for the other passwords. Likewise reordering passwords will not mix up the reveal states. 
+
+Similarly, creating a new password will not affect the registered reveal states for the other passwords. The `reveal` register for the new password will be initialized to `false` because it had not executed before.
+
+> If `passwords` was untracked then the registers would be remembered based on the order of the passwords, so deleting would shift the later states down. We might want to outlaw untracked registers unless we find some use for them.
+
+> Use text truncation example instead 
 
 
 
@@ -1690,6 +1768,7 @@ Item :=
 	| GuardedName ':' Formula					// input
 	| Dataflow? (GuardedName '=')? Formula		// output
 	| GuardedName '=|>' Formula					// interface
+	| GuardedName ':' 'register' Formula		// register
 
 GuardedName := Name ('?' | '!')?
 Name := Word | Operator

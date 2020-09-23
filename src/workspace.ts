@@ -147,7 +147,7 @@ export class Workspace extends Item<never, History> {
    *   */
   updateAt(path: string, formula: string) {
     let target = this.currentVersion.down(path);
-    if (!this.currentVersion.isWritable(target)) {
+    if (!this.currentVersion.writeSink(target)) {
       throw 'not updatable';
     }
 
@@ -223,7 +223,7 @@ export class Workspace extends Item<never, History> {
   /** Make a choice. */
   chooseAt(path: string, value: string | FieldID) {
     let target = this.currentVersion.down(path);
-    if (!this.currentVersion.isWritable(target)) {
+    if (!this.currentVersion.writeSink(target)) {
       throw 'not updatable';
     }
     assert(target.value instanceof Choice);

@@ -49,8 +49,8 @@ export abstract class Container<I extends Item> extends Value {
       this.items.length === ancestor.items.length
       && this.items.every(
         (item, i) => {
-          // ignore non-input items
-          if (item.io !== 'input') return true;
+          // ignore output items
+          if (item.io === 'output') return true;
           let ancestorItem = ancestor.items[i];
           return (
             item.id === ancestorItem.id

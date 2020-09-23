@@ -53,11 +53,12 @@ export class Code extends Block<Statement> {
     for (let statement of this.statements) {
       statement.eval();
       if (statement.conditional) {
-        if (statement.io === 'input') {
+        if (statement.inputLike) {
           throw new StaticError(statement, 'input fields cannot be conditional')
         }
         this.conditional = true;
       }
+      // FIXME do ? naming check in Item.eval()?
       if (statement.rejected) {
         this.rejected = true
         // execute to completion during analysis

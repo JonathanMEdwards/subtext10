@@ -325,7 +325,7 @@ export class Reference extends Value {
 
         // check conditional access
         let conditional = !!target.conditional;
-        if (target.container instanceof Code && target.io !== 'input') {
+        if (target.container instanceof Code && !target.inputLike) {
           // FIXME: only allow backward references within code
           // FIXME: outside references to outputs are conditionalized on block
           assert(target.container.containingItem.contains(from));

@@ -14,7 +14,7 @@ export type TokenType = (
   | 'nil' | 'try' | 'check' | 'not' | 'else' | 'reject' | 'let' | 'export'
   | 'that' | 'include' | 'with' | 'find?' | 'find!' | 'tracked'
   | 'for-all' | 'such-that' | 'all?' | 'all!' | 'none?' | 'none!' | 'accumulate'
-  | 'extend' | 'selection' | 'any' | 'selecting' | 'link' |'via'
+  | 'extend' | 'selection' | 'any' | 'selecting' | 'link' |'via' | 'register'
 )
 
 export class Token {
@@ -275,6 +275,7 @@ export function tokenize(source: string): Token[] {
         case 'any':
         case 'link':
         case 'via':
+        case 'register':
 
           return name;
       }

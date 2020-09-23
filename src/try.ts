@@ -164,13 +164,13 @@ export class Try extends Code {
           }
           if (
             writeTarget.contains(mergedTarget)
-            && writeTarget.isWritable(mergedTarget)!.io !== 'interface'
+            && writeTarget.writeSink(mergedTarget)!.io !== 'interface'
           ) {
             // drop contained merged write unless within interface
             arrayRemove(mergedWrites, merged);
           } else if (
             mergedTarget.contains(writeTarget)
-            && mergedTarget.isWritable(writeTarget)!.io !== 'interface'
+            && mergedTarget.writeSink(writeTarget)!.io !== 'interface'
           ) {
             // drop contained write unless within interface
             continue writeLoop;

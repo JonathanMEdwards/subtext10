@@ -1,4 +1,4 @@
-import { assert, Container, ID, Item, isNumber, Token, Path, Dictionary, Value, trap, StaticError, Link } from "./exports";
+import { assert, Container, ID, Item, isNumber, Token, Path, Dictionary, Value, trap, StaticError, Link, Reference } from "./exports";
 
 /** A Block is a record-like container with a fixed set of items called fields.
  * Each field can have a different type. Each Field has a globally unique
@@ -43,9 +43,10 @@ export class Block<F extends Field = Field> extends Container<F> {
     this.fields.forEach(field => {
       field.eval();
       if (this.workspace.analyzing) {
-        if (field.io === 'input' && field.conditional) {
+        if (field.inputLike && field.conditional) {
           throw new StaticError(field, 'input fields must be unconditional')
         }
+
         // verify conditional naming
         if (
           field.id.name && field.id.token
@@ -57,6 +58,21 @@ export class Block<F extends Field = Field> extends Container<F> {
               ? 'conditional field name must have suffix ?'
               : 'unconditional field name cannot have suffix ?'
           )
+        }
+
+        // verify reference hygiene on inputs
+        // reference from value into metadata not allowed, because might change
+        if (field.inputLike && field.value instanceof Container) {
+          for (let item of field.value.visit()) {
+            if (
+              item.value instanceof Reference
+              && item.value.path // possible in recursive choice
+              && field.path.metadataContains(item.value.path)
+            ) {
+              throw new StaticError(item, 'input field value referencing its own formula')
+            }
+          }
+
         }
       }
     })

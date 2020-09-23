@@ -175,14 +175,22 @@ export class Parser {
       // named field
       switch (this.prevToken.type) {
         case ':':
-          field.io = 'input';
+          if (this.matchToken('register')) {
+            if (!(block instanceof Code)) {
+              throw this.setError('Register only allowed in code',
+                this.prevToken);
+            }
+            field.io = 'register';
+          } else {
+            field.io = 'input';
+          }
           break;
         case '=':
           field.io = 'output';
           break;
         case '=|>':
           if (block instanceof Code) {
-            throw this.setError('Interface field not allowed in code',
+            throw this.setError('Interface not allowed in code',
               this.prevToken);
           }
           field.io = 'interface';
@@ -191,7 +199,7 @@ export class Parser {
           trap()
       }
       // define field ID
-      this.fieldID(field, this.tokens[this.cursor - 2]);
+      this.fieldID(field, this.tokens[cursor]);
       if (block instanceof Choice) {
         if (field.io !== 'input') {
           throw this.setError('Option must be an input (:)', this.prevToken);
@@ -319,7 +327,7 @@ export class Parser {
     }
     if (literal) {
       if (
-        field.io === 'input'
+        field.inputLike
         && literal instanceof Base
         && !(literal instanceof Nil)
         && !(literal instanceof Anything)

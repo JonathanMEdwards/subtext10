@@ -622,3 +622,88 @@ test('query update context error', () => {
   `)
     .toThrow('write outside context')
 })
+
+test('register', () => {
+  let w = compile(`
+  a: 'foo'
+  v = with{
+    item: that
+    show-state: register true
+    record{
+      value = try {
+        check show-state =? true
+        item
+      } else {
+        ''
+      }
+      show =|> false on-update {write show-state <- flip()}
+    }
+  }
+  `);
+  expect(w.dump()).toEqual({ a: 'foo', v: { value: 'foo', show: false } });
+  w.writeAt('v.show', true);
+  expect(w.dump()).toEqual({ a: 'foo', v: { value: '', show: false } });
+})
+
+test('register iteration', () => {
+  let w = compile(`
+  a: tracked array{''} & 'foo' & 'bar' & 'baz'
+  v = a for-all {
+    item:[]
+    show-state: register true
+    record{
+      value = try {
+        check show-state =? true
+        item
+      } else {
+        ''
+      }
+      show =|> false on-update {write show-state <- flip()}
+    }
+  }
+  `);
+  expect(w.dump()).toEqual({
+    a: ['foo', 'bar', 'baz'],
+    v: [
+      { value: 'foo', show: false },
+      { value: 'bar', show: false },
+      { value: 'baz', show: false },
+    ]
+  });
+  w.writeAt('v.2.show', true);
+  expect(w.dump()).toEqual({
+    a: ['foo', 'bar', 'baz'],
+    v: [
+      { value: 'foo', show: false },
+      { value: '', show: false },
+      { value: 'baz', show: false },
+    ]
+  });
+  w.deleteAt('a', 1);
+  expect(w.dump()).toEqual({
+    a: ['bar', 'baz'],
+    v: [
+      { value: '', show: false },
+      { value: 'baz', show: false },
+    ]
+  });
+});
+
+test('input reference hygiene', () => {
+  expectCompiling(`
+  a: tracked array{''} & 'foo' & 'bar' & 'baz'
+  v: a for-all {
+    item:[]
+    show-state: register true
+    record{
+      value = try {
+        check show-state =? true
+        item
+      } else {
+        ''
+      }
+      show =|> false on-update {write show-state <- flip()}
+    }
+  }
+  `).toThrow('input field value referencing its own formula');
+});

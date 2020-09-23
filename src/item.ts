@@ -112,6 +112,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return target;
   }
 
+  /** The item at a downward path else undefined */
+  downMaybe(ids: ID[]): Item | undefined {
+    let target: Item | undefined = this;
+    for (let id of ids) {
+      target = target.getMaybe(id);
+      if (!target) return undefined;
+    }
+    return target;
+  }
+
   /** the contained item with an ID else trap */
   get(id: ID): Item {
     return this.getMaybe(id) ?? trap(this.path + ': ' + id + ' undefined');
@@ -134,7 +144,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         // synthesize ^initial metadata to access initial value of an input
         // copy base item into ^initial
         // currently only used on options
-        assert(this.io === 'input');
+        assert(this.inputLike);
         this.resolve();
         let copy = this.copy(this.path, this.path.down(MetaID.ids['^initial']));
         let initial = this.setMeta('^initial');
@@ -234,12 +244,18 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   ) = 'none';
 
   /** IO mode of item. Inputs are mutable state and function parameters. Outputs
-   * are read-only formulas. Interfaces are updatable formulas */
-  io: 'input' | 'output' | 'interface' = 'output';
+   * are read-only formulas. Interfaces are updatable formulas. Registers are
+   * inputs in code whose value is retained across updates */
+  io: 'input' | 'output' | 'interface' | 'register' = 'output';
+
+  /** whether an input or register */
+  get inputLike() {
+    return this.io === 'input' || this.io === 'register';
+  }
 
   /** whether value should be rederived on copies */
   get isDerived() {
-    return this.io !== 'input' && this.formulaType !== 'none'
+    return !this.inputLike && this.formulaType !== 'none'
   }
 
   /** whether item can reject having a value. Determined during analysis */
@@ -403,6 +419,33 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       }
     }
 
+    // override register value from update input
+    if (this.io === 'register') {
+      // find containing update result
+      // will be Version for top-level formulas
+      for (let update of this.upwards()) {
+        if (update.formulaType !== 'update') continue;
+
+        // input of update is context of ^target reference
+        const ref = cast(update.get('^target').value, Reference);
+        const context = this.workspace.down(ref.path.ids.slice(0, ref.context));
+        // register at same path within input
+        const inputRegister =
+          context.downMaybe(this.path.ids.slice(update.path.ids.length));
+        if (!inputRegister) {
+          // register doesn't exist in input
+          break;
+        }
+        // if input register was written during update, use that value
+        let delta = inputRegister.deltaField ?? inputRegister;
+
+        // update register with proper contextual copying
+        update.updateValue(context, this, delta);
+        break;
+      }
+    }
+
+
     // evaluate value contents deeply
     // Don't do this on the function bodies in a Call
     // or on-update blocks post analysis
@@ -553,28 +596,38 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 /* --------------------------------- update --------------------------------- */
 
 
-  /** whether a contained item is writable in this context. Must be inputs up to
-   * a containing interface or this (the context). Certain locations are treated
-   * like interfaces: Code statements, and ^payload fields.
-   * If writable up to this context, returns the item, otherwise returns the
-   * containing interface-like location. */
-  isWritable(item: Item): Item | undefined {
+  /** Determines if a contained item is writable in the context of an update on
+   * self. An item will be writable if it is an input field, and its containers
+   * are also input fields all the way up to this context. In this case the item
+   * itself is returned.
+   *
+   * An item is also writable if it is inputs all the way up to a container
+   * which is a "write sink" that will divert the write elsewhere. Write sinks
+   * are interfaces, code statements, registers, and ^payload fields. In this
+   * case the containing sink item is returned.
+   *
+   * Returns undefined if the item is not writable
+   * */
+  writeSink(item: Item): Item | undefined {
     // scan upwards to this
     for (let up = item; up !== this; up = up.container.containingItem) {
-      // interfaces are writable
+      // interface is a sink
       if (up.io === 'interface') return up;
-      // can write into any code block statement
+      // register is a sink
+      if (up.io === 'register') return up;
+      // Code block statement can be a sink (for reverse execution)
       if (up instanceof Statement) return up;
-      // can write into := payload FIXME maybe require `:=|>` to be writable
+      // can write into payload of `:=`
+      // FIXME maybe require`:=|>` to be writable
       if (up.id === MetaID.ids['^payload']) return up;
-      if (up.io !== 'input') return undefined;
+      if (!up.inputLike) return undefined;
     }
     // Inputs all the way up so can write to original item
     return item;
   }
 
 
-  /** Optional container for a ^delta value set during replaces. Kept out of
+  /** Optional container for a ^delta value set during update. Kept out of
    * metadata so as to not affect value semantics. Not copied.
    */
   delta?: DeltaContainer;
@@ -693,37 +746,48 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
     this.copyValue(context);
     for (let write of groundedWrites) {
-      // replace value at path within context
+      if (write.io === 'register') {
+        // register updates are left in the ^delta of input, to be accessed
+        // when the register is evaluated in the result
+        return;
+      }
+      // set value at path within context
       let target = this.down(write.path.ids.slice(ref.context));
-      target.detachValue();
-      target.copyValue(assertDefined(write.deltaField));
-
-      // translate references from inside value to context
-      // Note this wouldn't be necessary if we only copied over input vaalues
-      const translate = (value?: Value) => {
-        if (value instanceof Reference && context.path.contains(value.path)) {
-          value.path = value.path.translate(context.path, this.path);
-        }
-      }
-      if (target.value instanceof Container) {
-        for (let item of target.value.visit()) {
-          translate(item.value);
-        }
-      } else {
-        translate(target.value);
-      }
+      this.updateValue(context, target, assertDefined(write.deltaField));
     }
 
 
     if (this.formulaType === 'updateInput') {
       // initialize call body to recalc arg defaults from input value,
       // preserving primary input value
-      // FIXME: maybe compile this into an explicit initialize oepration?
+      // FIXME: maybe compile this into an explicit initialize operation?
       // But don't want to init primary input.
       cast(this.value, Code).statements.slice(1).forEach(statement =>
         statement.initialize())
     }
 
+  }
+
+  /** Update a value within the result of an update operation. References within
+   * the context are mapped */
+  private updateValue(context: Item, target: Item, delta: Item) {
+    target.detachValue();
+    target.copyValue(delta);
+
+    // translate references from inside value to context
+    // Note this wouldn't be necessary if we only copied over input values
+    const translate = (value?: Value) => {
+      if (value instanceof Reference && context.path.contains(value.path)) {
+        value.path = value.path.translate(context.path, this.path);
+      }
+    };
+    if (target.value instanceof Container) {
+      for (let item of target.value.visit()) {
+        translate(item.value);
+      }
+    } else {
+      translate(target.value);
+    }
   }
 
   /**
@@ -880,7 +944,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         throw new StaticError(arrayLast(ref.tokens),
           'write outside context of update')
       }
-      if (!this.isWritable(target)) {
+      if (!this.writeSink(target)) {
         throw new StaticError(arrayLast(ref.tokens), 'not updatable')
       }
       target.setDelta(value);
@@ -987,27 +1051,27 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         if (write.value!.equals(delta.value!)) continue;
       }
 
-      // lift deltas to containing interface or interface-like item
-      let interfaceWrite = this.isWritable(write);
-      if (!interfaceWrite) {
+      // lift deltas to containing write sink
+      let writeSink = this.writeSink(write);
+      if (!writeSink) {
         // unwritable location
         throw new StaticError(write, 'not updatable');
       }
-      if (interfaceWrite !== write) {
-        // writes within interface are lifted into its ^delta
-        let interfaceDelta: Metafield | undefined;
-        // scan prior writes for conflicts or existing write to interface
+      if (writeSink !== write) {
+        // writes within sink are lifted into its ^delta
+        let sinkDelta: Metafield | undefined;
+        // scan prior writes for conflicts or existing write to sink
         for (let prior of arrayReverse(pendingWrites)) {
-          if (prior === interfaceWrite) {
+          if (prior === writeSink) {
             // existing write
-            interfaceDelta = assertDefined(interfaceWrite.deltaField);
-            if (interfaceDelta.value!.source !== interfaceWrite.value) {
+            sinkDelta = assertDefined(writeSink.deltaField);
+            if (sinkDelta.value!.source !== writeSink.value) {
               // conflict with non-lifted delta
               throw new StaticError(write, 'write conflict');
             }
             break;
           }
-          if (prior.comesBeforeOrContains(interfaceWrite)) {
+          if (prior.comesBeforeOrContains(writeSink)) {
             break;
           }
           if (prior.contains(write)) {
@@ -1015,24 +1079,24 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             throw new StaticError(write, 'write conflict');
           }
         }
-        if (!interfaceDelta) {
-          // initialize interface delta from current value to lift write
-          interfaceDelta = interfaceWrite.setDelta(interfaceWrite);
-          writePending(interfaceWrite);
+        if (!sinkDelta) {
+          // initialize sink delta from current value to lift write
+          sinkDelta = writeSink.setDelta(writeSink);
+          writePending(writeSink);
         }
-        // write into interface at downward path
-        let interfaceTarget =
-          interfaceDelta.down(write.path.ids.slice(interfaceWrite.path.length));
-        assert(interfaceTarget.io === 'input');
-        interfaceTarget.detachValue();
-        interfaceTarget.setFrom(delta);
+        // write into sink at downward path
+        let sinkTarget =
+          sinkDelta.down(write.path.ids.slice(writeSink.path.length));
+        assert(sinkTarget.io === 'input');
+        sinkTarget.detachValue();
+        sinkTarget.setFrom(delta);
         continue;
       }
 
       // changes to inputs
-      if (write.io === 'input') {
-        if (write.container instanceof Code) {
-          // code input
+      if (write.inputLike) {
+        if (write.io === 'input' && write.container instanceof Code) {
+          // code parameter
           if (write.container.items[0] === write
             ) {
             // source input
@@ -1118,7 +1182,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           // pass through remaining changes to context
           const updateContext = this.workspace.down(
             targetRef.path.ids.slice(0, targetRef.context));
-          assert(this.isWritable(updateContext) === updateContext);
+          assert(this.writeSink(updateContext) === updateContext);
           const contextDelta = updateContext.setDelta(delta);
           // mask changes to target region by copying current value
           const contextTarget = contextDelta.down(targetPath);
@@ -1433,7 +1497,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     this.rejected = false;
     if (this.formulaType === 'none') {
       // recurse on predefined values
-      if (this.io === 'input') {
+      if (this.inputLike) {
         // break source connection
         this.value!.source = undefined;
       }
@@ -1588,7 +1652,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   /** break copying provenance so treated as statically different */
   uncopy() {
     for (let item of this.visitBase()) {
-      if (item.io === 'input' && item.value) {
+      if (item.inputLike && item.value) {
         // forget input item source
         item.value.source = undefined;
       }

@@ -47,11 +47,24 @@ export class Path {
       // not in our metadata
       && !(other.ids[this.length] instanceof MetaID)
       // must extend this path
-      && this.ids.every((id, i) => id === other.ids[i]));
+      && this.ids.every((id, i) => id === other.ids[i])
+    );
   }
 
   containsOrEquals(other: Path): boolean {
     return this.equals(other) || this.contains(other);
+  }
+
+  /** Whether other path is in our metadata */
+  metadataContains(other: Path): boolean {
+    return (
+      // must be longer
+      other.length > this.length
+      // in our metadata
+      && other.ids[this.length] instanceof MetaID
+      // must extend this path
+      && this.ids.every((id, i) => id === other.ids[i])
+    );
   }
 
   /** returns least upper bound with another path, which is their shared prefix

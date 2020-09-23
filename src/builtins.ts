@@ -85,6 +85,7 @@ truncate = do{in: 0; builtin truncate; export fraction = 0}
 <=? = do{in: 0, than: 0, builtin <=?}
 =? = do{in: anything, to: in, builtin =?}
 not=? = do{in: anything, to: in, builtin not=?}
+flip = do{in: false, builtin flip}
 `
 
 builtins['+'] = (s: Statement, a: number, b: number) => {
@@ -155,4 +156,9 @@ builtins['not=?'] = (s: Statement, a: builtinValue, b: builtinValue) => {
     s.setAccepted(a !== b);
   }
   s.setFrom(b);
+}
+
+// TODO: generalize to flipping any binary choice
+builtins['flip'] = (s: Statement, a: boolean) => {
+  s.setFrom(!a);
 }

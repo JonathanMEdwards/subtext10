@@ -665,7 +665,7 @@ export class Selection extends Reference {
       }
     }
     // auto-delete missing selections in an input field
-    if (this.containingItem.io === 'input') {
+    if (this.containingItem.inputLike) {
       this.selected = this.selected.filter(id => array.getMaybe(id))
     }
   }
