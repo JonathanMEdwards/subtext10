@@ -69,7 +69,7 @@ export class Reference extends Value {
     let target: Item = from.workspace;
     this.path.ids.forEach((id, i) => {
       // follow paths past rejection during analysis
-      if (this.rejected && !this.workspace.analyzing) return;
+      if (this.rejected && !this.analyzing) return;
 
       target = target.get(id);
 
@@ -99,7 +99,7 @@ export class Reference extends Value {
         ) {
           // reject reference
           this.rejected = true;
-          if (!this.workspace.analyzing && guard === '!') {
+          if (!this.analyzing && guard === '!') {
             throw new Crash(this.tokens[i - this.context], 'assertion failed')
           }
         }
@@ -127,7 +127,7 @@ export class Reference extends Value {
   // bind reference during analysis
   bind(from: Item) {
     const inHistoryFormula = this.containingItem.inHistoryFormula;
-    assert(this.workspace.analyzing || inHistoryFormula);
+    assert(this.analyzing || inHistoryFormula);
     assert(this.tokens && this.tokens.length);
 
     // strip out guards from names
@@ -314,7 +314,7 @@ export class Reference extends Value {
           throw new StaticError(token, 'Undefined name')
         }
         this.evalIfNeeded(target);
-        if (!target.value && this.workspace.analyzing) {
+        if (!target.value && this.analyzing) {
           // cyclic dependency
           let lastToken = arrayLast(this.tokens);
           if (lastToken.type === 'call') {
@@ -452,8 +452,8 @@ export class Reference extends Value {
   /** References are the same type if they reference the same location
    * contextually */
   updatableFrom(from: Value, fromPath?: Path, thisPath?: Path): boolean {
-    if (!fromPath) fromPath = from.containingItem.path;
-    if (!thisPath) thisPath = this.containingItem.path;
+    if (!fromPath) fromPath = from.containingPath;
+    if (!thisPath) thisPath = this.containingPath;
     return (
       from instanceof Reference
       // FIXME: compare translated guards
@@ -472,7 +472,7 @@ export class Reference extends Value {
   // FIXME: add guards
   dump() {
     let ids = this.path.ids;
-    if (ids[0] === this.containingItem.path.ids[0]) {
+    if (ids[0] === this.containingPath.ids[0]) {
       ids = ids.slice(1);
     }
     return ids.join('.');

@@ -26,7 +26,7 @@ export class Choice extends Block {
 
   /** evaluate */
   eval() {
-    if (!this.workspace.analyzing) {
+    if (!this.analyzing) {
       // evaluate choice
       this.choice.eval();
       return;

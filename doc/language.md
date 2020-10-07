@@ -1034,7 +1034,7 @@ button =|> false on-update{
   write a[j] <- 0
 }
 ```
-this is an error because there is no guarantee that `i` and `j` are different. Even if we changed it to `i = 1, j = 2` the language isn’t \_currently\_smart enough to know they are different. One solution would be to sequence the updates as in:
+this is an error because there is no guarantee that `i` and `j` are different. Even if we changed it to `i = 1, j = 2` the language isn’t _currently_smart enough to know they are different. One solution would be to sequence the updates as in:
 `write a <- with{[i] := 1, [j] := 2}`
 which will overwrite the value of `[i]` if `i` = `j`.
 
@@ -1107,6 +1107,8 @@ Note that this simply does the inverse of addition, which is subtraction. In the
 
 Updatable functions always write back to their source (except for a few special cases to be noted). Updatable functions treat their other arguments as read-only, and see their values as of the start of the feedback transaction. So feedback proceeds through a formula from bottom-up and right-to-left, the reverse of its execution order. Indeed one of the reasons for choosing chained infix operations in Subtext was that it defines a clear reverse order of execution.
 
+> example where this breaks: `x * x`. In futuer this will be a static error. Show reversible `square` function.
+
 A `try` block executes in reverse following the same rules. A write to the result of a try block is written to the result of the clause that produced it: the first satisfied clause. The choice made by a try clause remains frozen in its state prior to the feedback transaction, the same as all the formulas inside it.
 
 There is one important case where reverse execution is not strictly linear: the update operator `:=`. For example:
@@ -1150,7 +1152,7 @@ query =|> customers for-all{
 Now `query` can be updated as if it was an input table, with the changes sent back to the `customers` and `orders` tables. Remember that it is not possible for changes outside the source to leak from a `for-all` — so how do changes escape to the `orders` table? The trick here is the way the `extend` block works: the definition of the `their-orders` field becomes part of the result records. Any changes inside the `their-orders` field in the results will get fed back directly through that definition, containing a `such-that` and then onward to `orders`. These changes get rerouted into `orders` before the `for-all` gets a chance to see them. Only the change to the fields inherited from `customers` feed back into the `for-all` and hence to `customers` without breaking the rules.
 
 
-### Registering local state
+### Registering local state in code
 
 So far all updates have eventually fed back to global input fields, that is, input fields defined at the top of the workspace, or input fields contained within such top-level inputs. There are cases where this is inconvienent, particularly when constructing views or “user interfaces” that are adaptable. For example, we might want to hide the value of a password unless a button is pressed to reveal it. Pressing the button would have to change an input field that determines whether or not to show the password. We could implement that like this:
 
@@ -1270,7 +1272,7 @@ new-state = sub-state with{ .button := true}
 
 Here the internal write to the `button` interface attempts to write `c`, which is outside the source of the update operation `sub-state`. This is a compile-time error.
 
-> Note that it might be possible to allow escaping writes by holding them pending inside the result of the update, allowing it to be executed later. You could say `write sub-state <- new-state` to execute those pending writes. This is theoretically interesting but it is not yet clear how useful it would be.
+> Note that it might be possible to allow escaping writes. Possibly by holding them pending inside the result of the update, allowing them to be propagated with a later write. Or using a lens (maybe called a “jig”) to carry context of writes along.
 
 Because feedback can’t escape, Subtext is technically a pure functional language. I/O is simulated by writing a top-level code block, called a _history_, that starts with the initial definition of the workspace, followed by a sequence of update operations producing modified versions of the workspace reacting to inputs. The current state of the workspace is the final result of the history block. Now every functional language use some magic trick like this to encode I/O. What is different about Subtext is that the way input is handled offers some of the freedom of naive imperative programming, where you can write through a reference to change some global state, rather than having to pipe, deconstruct, and reconstruct global states throughout the program. But unlike naive imperative programming, and some of its emulations in functional languages, you don’t need to worry about carefuly ordering writes (performed deep in code thst may be in hidden from you) so that they do not wipe each other out, or reveal partial intermediate states. Subtext restricts the targets of writes and enforces a static ordering on them that avoids these notorious pitfalls.
 

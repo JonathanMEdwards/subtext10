@@ -14,7 +14,7 @@ export class Try extends Code {
       return;
     }
 
-    if (this.workspace.analyzing) {
+    if (this.analyzing) {
 
       // during analysis first clause becomes result, other clauses queued for
       // later analysis to allow recursion
@@ -139,7 +139,7 @@ export class Try extends Code {
 
   /** nested write statements. During analysis merges writes of clauses */
   writeStatements(): Statement[] {
-    if (!this.workspace.analyzing) {
+    if (!this.analyzing) {
       // when not analyzing use only the executed clause
       for (let clause of this.statements) {
         if (!clause.rejected) {

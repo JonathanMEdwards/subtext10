@@ -63,7 +63,7 @@ export class Code extends Block<Statement> {
         this.rejected = true
         // execute to completion during analysis
         // can't complete in all cases because of recursion
-        if (this.workspace.analyzing) {
+        if (this.analyzing) {
           continue;
         }
         this.result = undefined
@@ -138,7 +138,7 @@ export class Code extends Block<Statement> {
       field.copyValue(ex)
 
       // type check export
-      if (this.workspace.analyzing) {
+      if (this.analyzing) {
         this.workspace.exportAnalysisQueue.push(() => {
           let ref = cast(exportType.value, Reference);
           let target = assertDefined(ref.target);
@@ -246,7 +246,7 @@ export class Call extends Code {
    * arguments. The result is taken from the result of the definition.
   */
   eval() {
-    if (!this.workspace.analyzing) {
+    if (!this.analyzing) {
       // execute argument assignments
       super.eval();
       if (!this.rejected) {
@@ -299,7 +299,7 @@ export class Call extends Code {
     def.fields.forEach(field => {
       if (field.io !== 'input') return;
       // copy context is entire definition
-      inputDefs.add(field.copy(def.containingItem.path, first.path))
+      inputDefs.add(field.copy(def.containingPath, first.path))
     })
 
     // analyze argument assignments
@@ -327,7 +327,7 @@ export class OnUpdate extends Code {
     super.eval();
 
     // analyze update
-    if (!this.workspace.analyzing) return;
+    if (!this.analyzing) return;
     let container = this.containingItem.container;
     if (
       !(container instanceof Code)

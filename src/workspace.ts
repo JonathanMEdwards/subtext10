@@ -9,7 +9,8 @@ export class Workspace extends Item<never, History> {
   _workspace = this;
 
   /** whether eval() should do analysis */
-  analyzing: boolean = false;
+  private _analyzing: boolean = false;
+  get analyzing() { return this._analyzing; }
 
   /** serial numbers assigned to FieldIDs */
   private fieldSerial = 0;
@@ -67,7 +68,7 @@ export class Workspace extends Item<never, History> {
     parser.requireHead(head);
 
     // analyze all formulas by evaluating doc
-    ws.analyzing = true;
+    ws._analyzing = true;
     ws.eval();
 
     // execute deffered analysis
@@ -106,7 +107,7 @@ export class Workspace extends Item<never, History> {
     // forced to resolve
 
 
-    ws.analyzing = false;
+    ws._analyzing = false;
 
     // check for unused code statements and validate do/with blocks
     for (let item of ws.visit()) {

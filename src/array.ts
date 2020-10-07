@@ -290,7 +290,7 @@ export class Text extends _Array<Character> {
     let to = another(this);
     to.source = this;
     to.value = this.value;
-    if (this.workspace.analyzing) {
+    if (this.analyzing) {
       // copy template during analysis to track copying
       to.createTemplate().setValue(this.template.value!.copy(srcPath, dstPath));
     }
@@ -334,7 +334,7 @@ export class Loop extends _Array<Do> {
     this.tracked = this.input.tracked;
     this.serial = this.input.serial;
 
-    if (this.loopType === 'accumulate' && this.workspace.analyzing) {
+    if (this.loopType === 'accumulate' && this.analyzing) {
       // TODO: type check accumulator and result
       let accum = templateBlock.items[1];
       let result = templateBlock.result!;
@@ -390,7 +390,7 @@ export class Loop extends _Array<Do> {
           throw new StaticError(templateBlock.token, 'block must be conditional');
         }
         let index = 0;
-        if (!this.workspace.analyzing) {
+        if (!this.analyzing) {
           index =
             this.items.findIndex(iteration => !iteration.value!.rejected) + 1;
           if (!index) {
@@ -488,7 +488,7 @@ export class Loop extends _Array<Do> {
             return;
           }
           let resultItem = this.input.items[i].copy(
-            this.input.containingItem.path, statement.path);
+            this.input.containingPath, statement.path);
           resultArray.add(resultItem);
           if (!resultArray.tracked) {
             // set ordinals if untracked
@@ -547,7 +547,7 @@ export class Loop extends _Array<Do> {
           return all ? rejected : !rejected
         })) {
           statement.rejected = true;
-          if (this.loopType.endsWith('!') && !this.workspace.analyzing) {
+          if (this.loopType.endsWith('!') && !this.analyzing) {
             // failed assertion
             throw new Crash(this.token, 'assertion failed')
           }
@@ -654,7 +654,7 @@ export class Selection extends Reference {
   // eval for Selection
   protected postEval() {
     let array = this.target!.value!;
-    if (this.workspace.analyzing) {
+    if (this.analyzing) {
       if (!(array instanceof _Array)) {
         throw new StaticError(this.containingItem,
           'selection requires an array reference')
@@ -681,7 +681,7 @@ export class Selection extends Reference {
       super.bind(this.containingItem);
       // disallow nested selections
       this.path.ids.slice(
-        this.path.lub(this.containingItem.path).ids.length
+        this.path.lub(this.containingPath).ids.length
       ).forEach(id => {
         if (typeof id === 'number') {
           throw new StaticError(this.containingItem, 'selection in nested table not yet supported')
@@ -738,7 +738,7 @@ export class Selection extends Reference {
         this.selected.forEach(selectedID => {
           let item = backing.get(selectedID) as Entry;
           let selectedItem = item.copy(
-            backing.containingItem.path, field.path);
+            backing.containingPath, field.path);
           selected.add(selectedItem);
         })
         break;
@@ -753,7 +753,7 @@ export class Selection extends Reference {
       // single selected backing item
       case FieldID.predefined.at: {
         field.conditional = true;
-        if (this.workspace.analyzing) {
+        if (this.analyzing) {
           // in analysis, conditional copy of template
           field.rejected = true;
           field.setFrom(backing.template);
@@ -835,12 +835,12 @@ export class Link extends Selection {
     // test without evaluating the opposite link
     const oppositeLink =
       cast(this.backing.template.get(this.oppositeFieldID).value, Link);
-    return oppositeLink.path.equals(this.containingItem.path.up(2));
+    return oppositeLink.path.equals(this.containingPath.up(2));
   }
 
   // eval Link
   protected postEval() {
-    if (this.workspace.analyzing && this.containingItem.io === 'input') {
+    if (this.analyzing && this.containingItem.io === 'input') {
       // Link must be a tracked table field
       let template = this.containingItem.container;
       let thisArray = template.containingItem.container;
@@ -953,9 +953,9 @@ deselect? = do{in: selection{any array{anything}}; index: 0; builtin deselect?}
 
 /** & array add */
 builtins['&'] = (s: Statement, array: _Array, value: builtinValue) => {
-  let copy = array.copy(array.containingItem.path, s.path);
+  let copy = array.copy(array.containingPath, s.path);
   s.setValue(copy);
-  if (s.workspace.analyzing) {
+  if (s.analyzing) {
     // during analysis just increment serial # to break copying detection
     ++copy.serial;
     s.exportFrom(0);
@@ -981,9 +981,9 @@ builtins['&'] = (s: Statement, array: _Array, value: builtinValue) => {
 
 /** concatenate */
 builtins['&&'] = (s: Statement, a: _Array, b: _Array) => {
-  let copy = a.copy(a.containingItem.path, s.path);
+  let copy = a.copy(a.containingPath, s.path);
   s.setValue(copy);
-  if (s.workspace.analyzing) {
+  if (s.analyzing) {
     // during analysis just increment serial # to break copying detection
     ++copy.serial;
     return;
@@ -1007,9 +1007,9 @@ builtins['length'] = (s: Statement, array: _Array) => {
 builtins['delete?'] = (s: Statement, array: _Array, index: number) => {
   let accepted = 0 < index && index <= array.items.length;
   s.setAccepted(accepted);
-  let copy = array.copy(array.containingItem.path, s.path);
+  let copy = array.copy(array.containingPath, s.path);
   s.setValue(copy);
-  if (s.workspace.analyzing) {
+  if (s.analyzing) {
     // during analysis just increment serial # to break copying detection
     ++copy.serial;
     return;
@@ -1044,9 +1044,9 @@ builtins['update?'] = (
 ) => {
   let accepted = 0 < index && index <= array.items.length;
   s.setAccepted(accepted);
-  let copy = array.copy(array.containingItem.path, s.path);
+  let copy = array.copy(array.containingPath, s.path);
   s.setValue(copy);
-  if (s.workspace.analyzing) {
+  if (s.analyzing) {
     // force change during analysis
     s.uncopy();
   }
@@ -1066,7 +1066,7 @@ builtins['select?'] = (s: Statement, sel: Selection, index: number) => {
   let item = sel.backing.items[index - 1];
   s.setAccepted(!!item);
   // modify selection
-  let result = sel.copy(sel.containingItem.path, s.path);
+  let result = sel.copy(sel.containingPath, s.path);
   s.setFrom(result);
   result.eval();
   if (item) {
@@ -1078,7 +1078,7 @@ builtins['deselect?'] = (s: Statement, sel: Selection, index: number) => {
   let item = sel.backing.items[index - 1];
   s.setAccepted(!!item);
   // modify selection
-  let result = sel.copy(sel.containingItem.path, s.path);
+  let result = sel.copy(sel.containingPath, s.path);
   s.setFrom(result);
   result.eval();
   if (item) {

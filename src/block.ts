@@ -42,7 +42,7 @@ export class Block<F extends Field = Field> extends Container<F> {
   eval() {
     this.fields.forEach(field => {
       field.eval();
-      if (this.workspace.analyzing) {
+      if (this.analyzing) {
         if (field.inputLike && field.conditional) {
           throw new StaticError(field, 'input fields must be unconditional')
         }

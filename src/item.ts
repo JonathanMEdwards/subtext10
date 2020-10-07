@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, Selection, Metafield, _Number, Nil, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer, _Boolean, arrayReverse, _Array, arrayRemove, Entry, Record, Link, FieldID} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, Selection, Metafield, _Number, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer, _Boolean, arrayReverse, _Array, arrayRemove, Entry, Record, Link, FieldID} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -21,6 +21,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return this._workspace;
   }
 
+  /** whether workspace is analyzing */
+  get analyzing() { return this.workspace.analyzing; }
+
   /** ID of the item within its container */
   id!: I;
 
@@ -28,7 +31,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   _path?: Path;
   get path(): Path {
     if (!this._path) {
-      this._path = this.container.containingItem.path.down(this.id);
+      this._path = this.container.containingPath.down(this.id);
     }
     return this._path
   }
@@ -263,7 +266,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
   setConditional(b?: boolean) {
     if (!b) return;
-    if (this.workspace.analyzing) {
+    if (this.analyzing) {
       this.conditional = true;
     } else {
       assert(this.conditional);
@@ -288,7 +291,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   resolve() {
     let deferral = this.deferral;
     if (!deferral) return;
-    assert(!this.isDetached() && this.workspace.analyzing)
+    assert(!this.isDetached() && this.analyzing)
     // set item unevaluated, with deferral to catch cycles
     this.evaluated = false;
     this.deferral = () => {
@@ -372,7 +375,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           assert(this instanceof Statement);
           const writeValue =
             this.getMaybe('^writeValue') || this.get('^payload');
-          if (this.workspace.analyzing) {
+          if (this.analyzing) {
             // must be inside an on-update block
             for (let up of this.upwards()) {
               if (up.value instanceof OnUpdate) break;
@@ -455,7 +458,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // evalIfNeeded was another workaround
     if (this.value
       && !(this.container instanceof Call)
-      && !(this.value instanceof OnUpdate && !this.workspace.analyzing)) {
+      && !(this.value instanceof OnUpdate && !this.analyzing)) {
       this.value.eval();
     }
 
@@ -530,7 +533,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // should only be used during analysis to bind references
     // because if previous value is in outer container, copies of this item need
     // to capture the reference
-    assert(this.workspace.analyzing || this.inHistoryFormula);
+    assert(this.analyzing || this.inHistoryFormula);
     this.usesPrevious = true;
     let container = this.container;
     let itemIndex = container.items.indexOf(this);
@@ -560,7 +563,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   private extend() {
     let extending = cast(this.get('^extend').value, Record);
     let ref = cast(this.get('^reference').value, Reference);
-    if (this.workspace.analyzing && !ref.target) {
+    if (this.analyzing && !ref.target) {
       // first binding
       ref.eval();
       // inject source fields into record for proper lexical binding
@@ -571,7 +574,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       for (let field of arrayReverse(source.fields)) {
         // copy in context of record
         let copy = field.copy(
-          source.containingItem.path, extending.containingItem.path);
+          source.containingPath, extending.containingPath);
         extending.fields.splice(0, 0, copy)
         copy.container = extending;
       }
@@ -587,7 +590,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     for (let i = value.fields.length; i < extending.fields.length; i++) {
       let field = extending.fields[i];
       // copy with record context
-      let copy = field.copy(extending.containingItem.path, this.path);
+      let copy = field.copy(extending.containingPath, this.path);
       value.fields.push(copy);
       copy.container = value;
     }
@@ -680,7 +683,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     if (ref.rejected) {
       // target reference rejected
       this.rejected = true;
-      if (!this.workspace.analyzing) return;
+      if (!this.analyzing) return;
     }
     const target = ref.target;
     assert(target);
@@ -827,7 +830,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
               let backingItem = selection.backing.containingItem;
               if (selectionField.id === FieldID.predefined.at) {
                 // target selected item
-                let id = this.workspace.analyzing ? 0 : selection.selected[0];
+                let id = this.analyzing ? 0 : selection.selected[0];
                 backingItem = backingItem.get(id);
               }
               if (!this.contains(backingItem)) {
@@ -867,7 +870,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       throw new StaticError(write, 'write to link goes forwards');
     }
 
-    if (this.workspace.analyzing) {
+    if (this.analyzing) {
       // in analysis write the opposite template link
       let oppositeField = backing.template.get(link.oppositeFieldID);
       let oppositeDelta = oppositeField.setDelta(oppositeField);
@@ -933,7 +936,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           if (cast(this.value, Do).items[0].getMaybe('^reference')?.value
             === ref) {
             // the write to the source of the for-all block is ignored
-            assert(this.workspace.analyzing);
+            assert(this.analyzing);
             return;
           }
           throw new StaticError(arrayLast(ref.tokens),
@@ -974,7 +977,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     const writeCode = (code: Code, delta: Item, analyzeForAll = false) => {
       if (arrayLast(code.statements).dataflow !== 'on-update') {
         // no on-update block - write delta onto result of code block
-        if (code instanceof Try && this.workspace.analyzing) {
+        if (code instanceof Try && this.analyzing) {
           // during analysis speculatively update each clause, then merge
           for (let clause of code.statements) {
             //clause.resolve();
@@ -1015,7 +1018,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       assert(input.io === 'input')
       if (input.value) {
         // possible that input got evaluated by deferred analysis
-        assert(this.workspace.analyzing);
+        assert(this.analyzing);
         input.detachValue();
       }
       input.setFrom(delta);
@@ -1040,7 +1043,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       delta.eval();
 
       // discard equi-writes
-      if (this.workspace.analyzing) {
+      if (this.analyzing) {
         // in analysis, error if writing copy, which is static no-op
         if (delta.value!.isCopyOf(write.value!)) {
           throw new StaticError(write, 'writing same value');
@@ -1169,7 +1172,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           // then other changes back into context ref
           // During analysis uses copyOf to test whether to propagate write
           const targetRef = cast(write.get('^target').value, Reference);
-          assert(!targetRef.rejected || this.workspace.analyzing);
+          assert(!targetRef.rejected || this.analyzing);
           // path to target within context
           const targetPath = targetRef.path.ids.slice(targetRef.context);
           const deltaTarget = delta.down(targetPath);
@@ -1270,7 +1273,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
               assert(resultArray instanceof _Array);
               let deltaArray = delta.value;
               assert(deltaArray instanceof _Array);
-              if (this.workspace.analyzing) {
+              if (this.analyzing) {
                 // change everything during analysis
                 sourceDelta.uncopy();
                 if (deltaArray.serial !== resultArray.serial) {
@@ -1333,7 +1336,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
               assert(resultArray instanceof _Array);
               let deltaArray = delta.value;
               assert(deltaArray instanceof _Array);
-              if (this.workspace.analyzing) {
+              if (this.analyzing) {
                 // in analysis: update for-block template
                 let templateBlock = cast(loop.template.value, Do);
                 // write current result back to it
@@ -1564,7 +1567,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       let value = from instanceof Item ? assertDefined(from.value) : from;
       if (value.containingItem) {
         // copy attached value
-        this.setValue(value.copy(value.containingItem.path, this.path));
+        this.setValue(value.copy(value.containingPath, this.path));
       } else {
         // set detached Value
         this.setValue(value);

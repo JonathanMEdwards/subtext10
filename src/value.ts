@@ -5,7 +5,12 @@ export abstract class Value {
 
   /** Item containing this value */
   containingItem!: Item;
+  /** Path of containing item */
+  get containingPath() { return this.containingItem.path; }
+
   get workspace(): Workspace { return this.containingItem.workspace }
+  get analyzing() { return this.workspace.analyzing; }
+
   get id(): ID { return this.containingItem.id }
 
   /** logical container (skipping base field of metadata) */
@@ -61,7 +66,7 @@ export abstract class Value {
   /** whether this value was transitively copied from another Value without any
    * updates. Only used during analysis */
   isCopyOf(ancestor: this): boolean {
-    assert(this.workspace.analyzing);
+    assert(this.analyzing);
     if (!this.source) return false;
     // check if our source is a copy
     return this.source === ancestor || this.source.isCopyOf(ancestor)
@@ -69,7 +74,7 @@ export abstract class Value {
 
   /** static equality check. During analysis uses ifCopyOf, otherwise equals */
   staticEquals(other: this): boolean {
-    return this.workspace.analyzing ? this.isCopyOf(other) : this.equals(other);
+    return this.analyzing ? this.isCopyOf(other) : this.equals(other);
   }
 
   /** whether contains an input field with an Anything value */
