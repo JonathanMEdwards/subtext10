@@ -565,20 +565,14 @@ The names of the options have a question mark, because accessing them is conditi
 
 Choices are made with the _choice operation_ `#`. For example:
 ```Txt
-a-literal = expr #literal 1
+a-literal = expr #literal(1)
 ```
-This pronounced “a-literal equals expr choosing literal one”. The `#` expects a choice value on its left (`expr`) and to its right the name of an option without the question mark (`literal`), followed by a formula resulting in a value for the option. The right hand formula can be left out, which will change the option to its default value (0 in the case of `literal`):
+This pronounced “a-literal equals expr choosing literal one”. The `#` expects a choice value on its left (`expr`) and to its right the name of an option without the question mark (`literal`), followed by a parenthesized formula resulting in a value for the option. The value can be just `()` to use the default value of the options (0 in the case of `literal`):
 ```Txt
-a-literal = expr #literal
+a-literal = expr #literal()
 ```
 
-The choice operation `#` is similar to the update operation `:=`, except that it doesn’t require a dependent path on the left (one starting with `.`). However `#` can also be used with a dependent path, which is useful when chaining nested choices:
-```Txt
-a-plus = expr #plus with{.left #literal 2; .right #literal 2}
-```
-Note how, like a `:=`, the result of `.left #literal 2` is the containing `plus` term, not the `left` term. That allows chaining the subsequent `.right #literal 2` statement.
-
-Note that `#` always initializes the chosen option to its originally defined value, even if it was already chose and had a different value. Likewise, the optional expression to the right of the option will be given a previous value that is the initially defined value of the option. Thus for example `# literal + 1` will always result in 1. This is useful when function arguments are choices, for example `f(#red)` will choose the initial value of the `red` option of a choice argument.
+Note that `#` always initializes the chosen option to its originally defined value, even if it was already chosen and had a different value. Likewise, the optional expression to the right of the option will be given a source value that is the initially defined value of the option. Thus for example `# literal(+ 1)` will always result in 1. This is useful when function arguments are choices, for example `f(#red())` will choose the initial value of the `red` option of a choice argument.
 
 Sometimes there is no value of interest to associate with an option — we want it to indicate just that we made the choice. This is called an _enumeration_ in many languages. We use the special value `nil` in this case:
 ```Txt
@@ -588,9 +582,9 @@ color: choice {
   green?: nil
 }
 ```
-The value `nil` is called a _unit value_ in some languages: it contains no information, and is the sole value within its datatype. As such `nil` options can be chosen without supplying a value:
+The value `nil` is called a _unit value_ in some languages: it contains no information, and is the sole value within its datatype. As such `nil` options are chosen without supplying a value:
 ```Txt
-color #red
+color #red()
 ```
 
 > Maybe when a choice is input to a `try` we should force the clauses to test each option. Then we can easily statically detect exhaustiveness, and also automatically add cases when needed.
@@ -1034,7 +1028,7 @@ button =|> false on-update{
   write a[j] <- 0
 }
 ```
-this is an error because there is no guarantee that `i` and `j` are different. Even if we changed it to `i = 1, j = 2` the language isn’t _currently_smart enough to know they are different. One solution would be to sequence the updates as in:
+this is an error because there is no guarantee that `i` and `j` are different. Even if we changed it to `i = 1, j = 2` the language isn’t \_currently\_smart enough to know they are different. One solution would be to sequence the updates as in:
 `write a <- with{[i] := 1, [j] := 2}`
 which will overwrite the value of `[i]` if `i` = `j`.
 
@@ -1807,7 +1801,7 @@ Op :=
 	| Path Arguments				// function call
 	| 'continue' Arguments			// tail call
 	| RelPath ':=' Formula			// update
-	| RelPath '#' Name Formula?		// choose
+	| '#' Name '(' Formula? ')'		// choose
 	| 'write' Formula? '->' Path	// write
 	| 'write' Path '<-' Formula		// updating write
 	| RelPath						// navigate

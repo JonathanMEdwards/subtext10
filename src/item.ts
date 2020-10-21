@@ -231,7 +231,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    * write: formula in ^writeValue or ^payload, structural reference in ^target
    *
-   * choose: dependent optionReference in ^target, optional formula in ^payload
+   * choose: OptionReference in ^target, optional formula in ^payload
    *
    * call: Call block in ^call, starting with reference to function followed by
    * updates on the arguments
@@ -367,8 +367,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
         case 'update':
         case 'updateInput':
-        case 'choose':
           this.update();
+          break;
+
+        case 'choose':
+          this.choose();
           break;
 
         case 'write':
@@ -559,6 +562,36 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return container.containingItem.previous();
   }
 
+  private choose() {
+    // target and payload in metadata already evaluated
+    const ref = cast(this.get('^target').value, Reference);
+    assert(ref instanceof OptionReference);
+    // copy source choice to our value
+    this.copyValue(ref.target)
+    let choice = cast(this.value, Choice);
+    // set choice
+    let option = choice.setChoice(choice.items.findIndex(
+      option => option.id === ref.optionID));
+    // resolve deferred analysis of the option
+    option.resolve();
+
+    // set option from payload
+    const payload = this.getMaybe('^payload');
+    if (payload) {
+      this.setConditional(payload.conditional);
+      if (payload.rejected) this.rejected = true;
+      assert(payload.value);
+      // replace target value with payload value
+      option.eval();
+      if (!option.value!.updatableFrom(payload.value!)) {
+        throw new StaticError(arrayLast(ref.tokens), 'changing type of value')
+      }
+      option.detachValue();
+      option.copyValue(payload);
+    }
+  }
+
+
   /** evaluate a record extension */
   private extend() {
     let extending = cast(this.get('^extend').value, Record);
@@ -661,7 +694,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
 
 
-  /** evaluate update/choose operation
+  /** evaluate update operation
    *
    * Output updates are handled by explicit on-update blocks and
    * implicit reverse execution of code blocks. These are executed in strict
@@ -698,42 +731,14 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       assert(payload.value);
     }
 
-    if (this.formulaType === 'choose') {
-      // choose
-      assert(ref instanceof OptionReference);
-      // copy change from current value
-      let delta = target.setDelta(target);
-      let choice = cast(delta.value, Choice);
-      // set choice
-      choice.setChoice(choice.items.findIndex(
-        option => option.id === ref.optionID));
-      let option = choice.choice;
-      // resolve deferred analysis of the option
-      option.resolve();
-      if (payload) {
-        // replace target value with payload value
-        option.eval();
-        if (!option.value!.updatableFrom(payload.value!)) {
-          throw new StaticError(arrayLast(ref.tokens), 'changing type of value')
-        }
-        option.detachValue();
-        option.copyValue(payload);
-      }
-      if (target === context) {
-        // replace value of entire context
-        this.copyValue(delta);
-        return;
-      }
-    } else {
-      // replace needs to be within context
-      assert(target !== context);
-      assert(payload);
-      // replace target value with payload value
-      if (!target.value!.updatableFrom(payload.value!)) {
-        throw new StaticError(arrayLast(ref.tokens), 'changing type of value')
-      }
-      target.setDelta(payload);
+    // replace needs to be within context
+    assert(target !== context);
+    assert(payload);
+    // replace target value with payload value
+    if (!target.value!.updatableFrom(payload.value!)) {
+      throw new StaticError(arrayLast(ref.tokens), 'changing type of value')
     }
+    target.setDelta(payload);
 
     // propagate updates within context
     let groundedWrites =

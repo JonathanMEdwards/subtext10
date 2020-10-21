@@ -14,7 +14,7 @@ test('write update', () => {
 
 test('choice update', () => {
   let w = compile("a: choice{x?: 0; y?: 'foo'}");
-  w.chooseAt('a', 'y');
+  w.updateAt('a', '#y()');
   w.writeAt('a.y', 'bar');
   expect(w.dumpAt('a')).toEqual({y: 'bar'});
 });

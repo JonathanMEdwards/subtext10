@@ -485,6 +485,11 @@ export class Reference extends Value {
 }
 
 /** Dependent reference to a choice option on target of # */
+/*
+Inherited from prior design of choose. Could instead be encoded as a path
+leading straight to the option. But then need to avoid rejecting if option not
+chosen.
+*/
 export class OptionReference extends Reference {
 
   /** name token for option */

@@ -114,8 +114,7 @@ export class Try extends Code {
         this.export = this.containingItem.getMaybe('^export');
         if (this.export) {
           let choice = cast(this.export.value, Choice);
-          choice.setChoice(this.fields.indexOf(clause))
-          let option = choice.choice;
+          let option = choice.setChoice(this.fields.indexOf(clause))
           option.detachValue();
           option.copyValue(assertDefined(clause.getMaybe('^export')));
         }

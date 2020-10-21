@@ -344,27 +344,29 @@ test('generics', () => {
 test('choices', () => {
   expectDump("a: choice{x?: 1, y?: ''}")
     .toEqual({ a: { x: 1 } });
+  expectDump("a = choice{x?: 1, y?: ''}; b = #y('foo')")
+    .toEqual({ a: { x: 1 }, b: { y: 'foo' } });
+  expectDump("a = choice{x?: 1, y?: ''}; b = with{#y('foo')}")
+    .toEqual({ a: { x: 1 }, b: { y: 'foo' } });
+  expectDump("a = choice{x?: 1, y?: ''}; b = #y('foo')")
+    .toEqual({ a: { x: 1 }, b: { y: 'foo' } });
+  expectDump("a = choice{x?: 1, y?: ''}; b = a #y('foo')")
+    .toEqual({ a: { x: 1 }, b: { y: 'foo' } });
+  expectDump("a = choice{x?: 1, y?: ''}; b = a #y()")
+    .toEqual({ a: { x: 1 }, b: { y: '' } });
+  expectDump("a = choice{x?: 1, y?: ''}; b = a #x(+ 1); c = b #x()")
+    .toEqual({ a: { x: 1 }, b: { x: 2 }, c: {x: 1} });
+  expectDump("a = choice{x?: 1, y?: ''}; b = a #x(+ 1); c = b #x(+ 1)")
+    .toEqual({ a: { x: 1 }, b: { x: 2 }, c: { x: 2 } });
+  expectDump("a = choice{x?: 1, y?: ''}; b = a #x(+ 1); c = with{.x! := + 1}")
+    .toEqual({ a: { x: 1 }, b: { x: 2 }, c: { x: 3 } });
   expectCompiling("a: choice{x: 1, y?: ''}")
     .toThrow('Option names must end in ?');
   expectCompiling("a: choice{x? = 1, y?: ''}")
     .toThrow('Option must be an input (:)');
-  expectDump("a = choice{x?: 1, y?: ''}; b = that #y 'foo'")
-    .toEqual({ a: { x: 1 }, b: { y: 'foo' } });
-  expectDump("a = choice{x?: 1, y?: ''}; b = with{#y 'foo'}")
-    .toEqual({ a: { x: 1 }, b: { y: 'foo' } });
-  expectDump("a = choice{x?: 1, y?: ''}; b = #y 'foo'")
-    .toEqual({ a: { x: 1 }, b: { y: 'foo' } });
-  expectDump("a = choice{x?: 1, y?: ''}; b = a #y 'foo'")
-    .toEqual({ a: { x: 1 }, b: { y: 'foo' } });
-  expectDump("a = choice{x?: 1, y?: ''}; b = a #y")
-    .toEqual({ a: { x: 1 }, b: { y: '' } });
-  expectDump("a = choice{x?: 1, y?: ''}; b = a #x + 1; c = b #x")
-    .toEqual({ a: { x: 1 }, b: { x: 2 }, c: {x: 1} });
-  expectDump("a = choice{x?: 1, y?: ''}; b = a #x + 1; c = b #x + 1")
-    .toEqual({ a: { x: 1 }, b: { x: 2 }, c: {x: 2} });
-  expectCompiling("a = choice{x?: 1, y?: ''}; b = a #x 'foo'")
+  expectCompiling("a = choice{x?: 1, y?: ''}; b = a #x('foo')")
     .toThrow('changing type of value');
-  expectCompiling("a = choice{x?: 1, y?: ''}; b = a #z 'foo'")
+  expectCompiling("a = choice{x?: 1, y?: ''}; b = a #z('foo')")
     .toThrow('no such option');
   expectDump("a: choice{x?: 1, y?: ''}; b? = a.x?")
     .toEqual({ a: { x: 1 }, b: 1 });
@@ -381,20 +383,20 @@ test('recursive choices', () => {
   .toEqual({ a: { x: 1 } });
   expectCompiling("a: choice{x?: a, y?: 1}")
     .toThrow('Circular reference');
-  expectDump("a: choice{x?: 1, y?: a}; b = a #y")
+  expectDump("a: choice{x?: 1, y?: a}; b = a #y()")
   .toEqual({ a: { x: 1 }, b: { y: { x: 1 }} });
   expectDump("a: choice{x?: 1, y?: b}, b: choice{z?: 1, w?: a}")
     .toEqual({ a: { x: 1 }, b: { z: 1 } });
   expectDump(`
   a: choice{x?: 1, y?: b}
   b: choice{z?: 1, w?: a}
-  c = a # y
+  c = a #y()
   `)
    .toEqual({ a: { x: 1 }, b: { z: 1 }, c: { y: { z: 1 } } });
   expectDump(`
   a: choice{x?: 1, y?: b}
   b: choice{z?: 1, w?: a}
-  c = a # y # w
+  c = a #y(#w())
   `)
     .toEqual({
       a: { x: 1 },
@@ -404,7 +406,7 @@ test('recursive choices', () => {
   expectDump(`
   a: choice{x?: 1, y?: b}
   b: choice{z?: 1, w?: a}
-  c = a # y b
+  c = a #y(b)
   `)
     .toEqual({
       a: { x: 1 },

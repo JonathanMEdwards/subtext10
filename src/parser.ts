@@ -444,38 +444,14 @@ export class Parser {
 
     // reference
     let ref = this.parseReference();
-    if (!ref && this.peekToken('#')) {
-      // implicit 'that' to left of #
-      ref = new Reference;
-      ref.tokens = [Token.fake('that', this.cursorToken)];
-    }
     if (ref) {
-      if (
-        this.matchToken(':=')
-        // treat # after structural path as separate operation
-        || (ref.dependent && this.matchToken('#'))
-      ) {
-        // update/choose operation
+      if (this.matchToken(':=')) {
+        // update operation
         if (!ref.dependent) {
           throw this.setError(`expecting dot-path`, ref.tokens[0]);
         }
-
-        field.formulaType = this.prevToken.type === ':=' ? 'update' : 'choose';
-        if (field.formulaType === 'update') {
-          field.setMeta('^target', ref);
-        } else {
-          // choose
-          let optionRef = new OptionReference;
-          optionRef.optionToken = this.requireToken('name');
-          if (optionRef.optionToken.text.endsWith('?')) {
-            throw this.setError(`option name shouldn't have ?`, optionRef.optionToken)
-          }
-          optionRef.tokens = ref.tokens;
-          field.setMeta('^target', optionRef);
-          // formula is optional
-          if (this.peekTerminator()) return true;
-        }
-
+        field.formulaType = 'update';
+        field.setMeta('^target', ref);
         // parse formula into ^payload
         let payload = field.setMeta('^payload', undefined);
         this.requireFormula(payload);
@@ -501,6 +477,26 @@ export class Parser {
       }
       field.formulaType = 'reference';
       field.setMeta('^reference', ref);
+      return true;
+    }
+
+    // choice
+    if (this.matchToken('#')) {
+      field.formulaType = 'choose';
+      let optionRef = new OptionReference;
+      optionRef.tokens = [Token.fake('that', this.cursorToken)];
+      optionRef.optionToken = this.requireToken('name');
+      if (optionRef.optionToken.text.endsWith('?')) {
+        throw this.setError(`option name shouldn't have ?`, optionRef.optionToken)
+      }
+      field.setMeta('^target', optionRef);
+      this.requireToken('(');
+      if (!this.matchToken(')')) {
+        // optional payload formula
+        let payload = field.setMeta('^payload', undefined);
+        this.requireFormula(payload);
+        this.requireToken(')');
+      }
       return true;
     }
 

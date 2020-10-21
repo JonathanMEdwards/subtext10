@@ -12,11 +12,12 @@ export class Choice extends Block {
     return this.fields[this.choiceIndex];
   }
 
-  /** set choice. Unchoosen options are initialized */
+  /** set choice and initialize option value. Returns the option */
   setChoice(index: number) {
     assert(index >= 0 && index < this.fields.length);
     this.choice.initialize();
     this.choiceIndex = index;
+    return this.fields[index];
   }
 
   /** initialize to first value */
