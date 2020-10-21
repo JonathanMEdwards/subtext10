@@ -66,24 +66,6 @@ export class Character extends Base {
   dump() { return this.value };
 }
 
-/** Boolean value */
-export class _Boolean extends Base {
-  value: boolean = false;
-
-  copy(srcPath: Path, dstPath: Path): this {
-    let to = super.copy(srcPath, dstPath);
-    to.value = this.value;
-    return to;
-  }
-
-  equals(other: any) {
-    return other instanceof _Boolean && this.value === other.value;
-  }
-
-  // dump as boolean
-  dump() { return this.value };
-}
-
 /** Nil is the unit type with one value */
 export class Nil extends Base {
 

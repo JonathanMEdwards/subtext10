@@ -1,4 +1,4 @@
-import { Item, cast, Do, assert, _Number, Character, Text, Dictionary, Value, Statement, arrayLast, Base, assertDefined, Nil, _Array, StaticError, Metafield, _Boolean } from "./exports"
+import { Item, cast, Do, assert, _Number, Character, Text, Dictionary, Value, Statement, arrayLast, Base, assertDefined, Nil, _Array, StaticError, Metafield, Choice, Anything} from "./exports"
 
 // extract input values. Converts a _Number to number
 function inputs(statement: Statement): builtinValue[] {
@@ -10,7 +10,7 @@ function inputs(statement: Statement): builtinValue[] {
         statement.used = true;
         let input = assertDefined(statement.value);
         // convert _Number to number
-        if (input instanceof _Number || input instanceof _Boolean) {
+        if (input instanceof _Number) {
           return input.value;
         }
         return input;
@@ -48,9 +48,7 @@ export function updateBuiltin(statement: Statement, change: Item): Metafield {
   let values = inputs(statement);
   let delta = assertDefined(change.value);
   values.push(
-    delta instanceof _Number || delta instanceof _Boolean
-      ? delta.value
-      : delta
+    delta instanceof _Number ? delta.value : delta
   );
 
   // call update function
@@ -60,8 +58,8 @@ export function updateBuiltin(statement: Statement, change: Item): Metafield {
   return write;
 }
 
-/** builtins operate with JS number, boolean, or Value */
-export type builtinValue = number | boolean | Value;
+/** builtins operate with JS number or Value */
+export type builtinValue = number | Value;
 
 /** dispatch table for builtins */
 export const builtins: Dictionary<(statement: Statement, ...args: any[]) => void>
@@ -85,7 +83,11 @@ truncate = do{in: 0; builtin truncate; export fraction = 0}
 <=? = do{in: 0, than: 0, builtin <=?}
 =? = do{in: anything, to: in, builtin =?}
 not=? = do{in: anything, to: in, builtin not=?}
-flip = do{in: false, builtin flip}
+no = choice{no?: nil, yes?: nil}
+yes = no #yes()
+off = choice{off?: nil, on?: nil}
+on = off #on()
+flip = do{in: anything, builtin flip}
 `
 
 builtins['+'] = (s: Statement, a: number, b: number) => {
@@ -158,7 +160,13 @@ builtins['not=?'] = (s: Statement, a: builtinValue, b: builtinValue) => {
   s.setFrom(b);
 }
 
-// TODO: generalize to flipping any binary choice
-builtins['flip'] = (s: Statement, a: boolean) => {
-  s.setFrom(!a);
+// TODO: Flip any binary choice. Needs a generic choice argument
+builtins['flip'] = (s: Statement, a: Value) => {
+  s.setFrom(a);
+  if (a instanceof Anything) return;
+  if (!(a instanceof Choice) || a.fields.length !== 2) {
+    throw new StaticError(a.token, 'Flip requires a binary choice' )
+  }
+  let choice = cast(s.value, Choice);
+  choice.setChoice(choice.choiceIndex? 0 : 1)
 }

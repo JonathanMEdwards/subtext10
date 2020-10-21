@@ -5,7 +5,7 @@ import { Block, trap, assert, StaticError, Path, Dictionary } from "./exports";
  * has a value and is accessible with a ?-guarded path */
 export class Choice extends Block {
 
-  /** index of choice. defaults to first choice */
+  /** 0-based index of choice. defaults to first choice */
   choiceIndex: number = 0;
 
   get choice() {

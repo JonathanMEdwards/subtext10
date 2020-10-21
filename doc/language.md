@@ -78,12 +78,13 @@ Subtext provides several kinds of values out of which a workspace is built:
 - TODO: infinite precision rationals
 - _Text_: JavaScript string literal using single quotes: `'hello'`
 - _Character_: a unicode character, using a literal of the form `character'a'`
-- _Boolean_: either `true` or `false`
 - `nil`, the unit value, useful in enumerations (see _Choices_)
 - `anything`, the top value used to define generic functions (see _Types_)
 - TODO: fancy text with fonts and formatting
 - TODO: date-times and calendars
 - TODO: media (MIME-typed blobs)
+
+There is no basic Boolean value in Subtext. Instead there is a builtin choice (See _Choices_) that defines global constants `yes` and `no`.
 
 > Of course a language for scientific computing must support units of measure. Except that the popular ones don’t! This is a solved problem, and we should add units as soon as we can.
 
@@ -549,7 +550,7 @@ All `test` blocks in the workspace are executed after programmer edits that coul
 
 ## Choices
 
-A `choice` block defines a set of named input items called _options_, exactly one of which is _chosen_. The options can be different kinds of items, as in all blocks. Choices are like _discriminated unions_ and _sum types_ in conventional languages. Here is an example:
+A `choice` block defines a set of named input items called _options_, exactly one of which is _chosen_. The options can be different kinds of items, as in all blocks. Choices are called _discriminated unions_ and _sum types_ in conventional languages. Here is an example:
 ```Txt
 expr: choice {
   literal?: 0
@@ -587,11 +588,24 @@ The value `nil` is called a _unit value_ in some languages: it contains no infor
 color #red()
 ```
 
+Traditional Boolean values are replaced by a choice defined as:
+```Txt
+no = choice {
+  no?: nil
+  yes?: nil}
+yes = no #yes()
+```
+Thus, for example, if you define `x: no` then you could change it with `x := yes` and can test it with `x ==? yes` or just `x.yes?`.
+
+In the UI, yes/no values are displayed with a checkbox or switch. There is an alternative form of Boolean choice defined with the options `off` and `on` which are displayed as a push button, and are typically used to trigger effects (see _Feedback_).
+
+The function `flip()` will accept any binary choice and flip it’s chosen option.
+
 > Maybe when a choice is input to a `try` we should force the clauses to test each option. Then we can easily statically detect exhaustiveness, and also automatically add cases when needed.
 
 ### Pattern matching
 
-Languages with datatypes like  a choice often also provide specialized syntax for _pattern matching_. A `try` block combines with choices to provide pattern matching without additional syntax and semantics:
+Languages with sum datatypes like `choice` often also provide specialized syntax for _pattern matching_. A `try` block combines with choices to provide pattern matching without additional syntax and semantics:
 ```Txt
 eval-expr = do {
   x: expr
@@ -974,17 +988,17 @@ which will react to any change to `f` by setting `c` to `0` which then makes `f`
 
 ```
 count: 0
-button =|> false on-update{write count <- + 1}
+button =|> off on-update{write count <- + 1}
 ```
-The `button` interface is a boolean value set to false. Boolean values are represented in the UI as clickable buttons. Clicking the button changes the value from false to true, and also executes the `on-update` block, which increments `count`. The `button` interface is unstable because oit always reverts back to `false`, making it a “push button” that pops back out when pressed.
+The `button` interface is set to `off`, which is a builtin binary choice (the other option being `on`) that is represented in the UI as a push button. Clicking the button changes the value to `on`, which triggers the `on-update` block, which increments `count`. The `button` interface is unstable because oit always reverts back to `off`, making it a “push button” that pops back out when pressed.
 
 ### Change is unequal
 
-In the button example above we used a boolean value that can be either true or false, and changed it from false to true to “press” the button. What if we changed it from false to false, as in `write button <- false`? Nothing would happen — the write would be ignored. Changes must change a value, otherwise they are ignored. This is an important principle, because it lets us aggregate changes. For example:
+In the button example above we used a value that can be either `off` or `on`, and changed it from `off` to `on` to “press” the button. What if we changed it from `off` to `off`, as in `write button <- #off()`? Nothing would happen — the write would be ignored. Changes must change a value, otherwise they are ignored. This is an important principle, because it lets us aggregate changes. For example:
 
 ```
 customers table{name: '', phone: ''}
-new-customer =|> false on-update{write customers <- &()}
+new-customer =|> off on-update{write customers <- &()}
 ```
 
 When the `new-customer` button is pressed we create a new item in the `customers` table. The `&()` function takes the current state of the customer table and results in a new table containing a new customer. The `write` then replaces the old value of the entire table with this newer bigger one. But since none of the prior customers were changed, we can safely ignore all those writes, and just add the new customer to the existing table. In fact we know this at compile time, so we can avoid doing any equality comparisons at runtime, and optimize to just performing an insertion. This is more than just a performance issue, because `customers` might have been an interface that would trigger on-update blocks whenever a customer changes (what databases call an _update trigger_).
@@ -999,7 +1013,7 @@ Our examples so far have all been triggered by user actions. In general, change 
 
 Another rule of feedback is that `write` statements can not interfere with each other. When a write is made to some location in the workspace, no other writes can occur at that location during the current feedback transaction. Possibly interfering writes are detected at compile time, and not allowed to execute at all. For example, this is illegal:
 ```
-button =|> false on-update{
+button =|> off on-update{
   write count <- + 1
   write count <- * 2
 }
@@ -1008,11 +1022,11 @@ If we want to make a sequence of changes like this we must instead chain the for
 
 A more interesting case is this:
 ```
-button =|> false on-update{write count <- + 1}
-button2 =|> false on-update{write count <- + 1}
-ganged-button =|> false on-update{
-  write button <- true
-  write button2 <- true
+button =|> off on-update{write count <- + 1}
+button2 =|> off on-update{write count <- + 1}
+ganged-button =|> off on-update{
+  write button <- on
+  write button2 <- on
 }
 ```
 Here `ganged-button` triggers both `button` and `button2`. But they both change `count`, so this is illegal. Note that it is fine to have multiple interfaces that might conflict — it is only an error to change them within the same feedback transaction, as `ganged-button` does. Accordingly the user interface only lets the user push one button at a time.
@@ -1023,7 +1037,7 @@ Writes to array items conflict as if they were writing to the same item. For exa
 a: array{0} & 1 & 2
 i: 1
 j: 2
-button =|> false on-update{
+button =|> off on-update{
   write a[i] <- 0
   write a[j] <- 0
 }
@@ -1041,7 +1055,7 @@ which checks at runtime that there is no conflict, crashing if there is. You can
 Since writes can not conflict, an interface can only be triggered once per feedback transaction, and the set of writes between interfaces forms a directed acyclic graph. To guarantee this property a simple rule is enforced: writes must go backwards. Technically this means backwards in the pre-ordering of the workspace tree structure, but that equates to the simpler rule that writes must refer to something defined earlier in the textual definition of the workspace. So this is illegal:
 
 ```
-button =|> false on-update{write count <- + 1} // forward write error
+button =|> off on-update{write count <- + 1} // forward write error
 count: 0
 ```
 
@@ -1056,17 +1070,17 @@ Feedback starts with a single write to an interface, and can cascade backwards t
 Feedback does not see the consequences of changes, only the state of the workspace at the beginning of the feedback transaction. For example:
 
 ```
-button =|> false on-update{
+button =|> off on-update{
   change: that
-  assert{change =? true}
-  assert{button =? false}
+  assert{change.on?}
+  assert{button.off?}
   let temp = count
   write count <- + 1
   assert{count =? temp}
 }
 ```
 
-The value of `change` must be true, because changes must change the current value and the only other possible value is true. But the `button` field still seen as false. Likewise the write to `count` doesn’t appear to have changed its value. This is because code running in an `on-update` block only sees the state of the workspace as it was at the beginning of the current feedback transaction. External inputs and internal writes are held separate until the succesful completion of the entire feedback. Until then, the only place these changes are visible is where they are passed as the input to an `on-update` block.
+The value of `change` must be `on`, because changes must change the current value and the only other possible value is `on`. But the `button` field still seen in its prior state `off`. Likewise the write to `count` doesn’t appear to have changed its value. This is because code running in an `on-update` block only sees the state of the workspace as it was at the beginning of the current feedback transaction. External inputs and internal writes are held separate until the succesful completion of the entire feedback. Until then, the only place these changes are visible is where they are passed as the input to an `on-update` block.
 
 ### Reverse execution
 Recall the reversible temperature convertor:
@@ -1152,14 +1166,14 @@ So far all updates have eventually fed back to global input fields, that is, inp
 
 ```
 hidden-password: hidden 'foo'
-reveal: hidden false
+reveal: hidden no
 password = try {
-  check reveal =? true
+  check reveal.yes?
   hidden-password
 } else {
   ''
 }
-show-password =|> false on-update {write reveal <- true}
+show-password =|> off on-update {write reveal <- yes}
 ```
 
 Note the `hidden` qualifier on `hidden-password` and `reveal`, which hides those fields when in user mode, so that the user only sees the `password` field and `show-password` button. For more on constructing user views see _User Interfaces_
@@ -1171,20 +1185,20 @@ To handle this sort of problem, Subtext provides another kind of input field: a 
 ```
 hidden-password: hidden 'foo'
 password-view = do {
-  reveal: register false
+  reveal: register no
   record {  
     password = try {
-      check reveal =? true
+      check reveal.yes?
       hidden-password
     } else {
       ''
     }
-	show-password =|> false on-update {write reveal <- true}
+	show-password =|> off on-update {write reveal <- yes}
   }
 }
 ```
 
-The `password-view` field computes a record with two fields: `password` conditonally revealing the password, and the `show-password` button to reveal it. Pushing that button will set the `reveal-password` field to `true`, revealing the password, like in the previous implemenation. The key difference is that now the `reveal-password` field is defined inside the `do` block as a `register`.  Normally an input field in a `do` block is initialized every time it executes, but declaring it to be a register changes this: instead the value is remembered from the last time the code block executed. Registers thus provide _local state within code_.
+The `password-view` field computes a record with two fields: `password` conditonally revealing the password, and the `show-password` button to reveal it. Pushing that button will set the `reveal` field to `yes`, revealing the password, like in the previous implemenation. The key difference is that now the `reveal-password` field is defined inside the `do` block as a `register`.  Normally an input field in a `do` block is initialized every time it executes, but declaring it to be a register changes this: instead the value is remembered from the last time the code block executed. Registers thus provide _local state within code_.
 
 Registers are particularly useful when producing views of arrays. Assuming we have an array of passwords, we can produce an array of password-revealing views like this:
 
@@ -1192,15 +1206,15 @@ Registers are particularly useful when producing views of arrays. Assuming we ha
 passwords: tracked array{''}
 view = passwords for-all {
   password:[]
-  reveal: register false
+  reveal: register no
   record {  
     password = try {
-      check reveal =? true
+      check reveal.yes?
       password
     } else {
       ''
     }
-    show-password =|> false on-update {write reveal <- true}
+    show-password =|> off on-update {write reveal <- yes}
   }
 }
 ```
@@ -1209,12 +1223,11 @@ In this example `view` becomes a table containing a row for each password, with 
 
 What happens if we delete a password? Registers remember the state they were in when the code last executed. But this code is being repeatedly executed by the `for-all`. Because `passwords` is a tracked array, the iterations of the `for-all` are correspondingly tracked. So each register will remember its state from the previous iteration with the same tracking ID. Thus deleting passwords will not affect the reveal state registered for the other passwords. Likewise reordering passwords will not mix up the reveal states. 
 
-Similarly, creating a new password will not affect the registered reveal states for the other passwords. The `reveal` register for the new password will be initialized to `false` because it had not executed before.
+Similarly, creating a new password will not affect the registered reveal states for the other passwords. The `reveal` register for the new password will be initialized to `no` because it had not executed before.
 
 > If `passwords` was untracked then the registers would be remembered based on the order of the passwords, so deleting would shift the later states down. We might want to outlaw untracked registers unless we find some use for them.
 
 > Use text truncation example instead 
-
 
 
 
@@ -1223,32 +1236,32 @@ Similarly, creating a new password will not affect the registered reveal states 
 Feedback is designed to handle external input, so we have been using examples of user actions to trigger changes. Recall the counter example:
 ```
 count: 0
-button =|> false on-update{write count <- + 1}
+button =|> off on-update{write count <- + 1}
 ```
-When the user clicks on the button the value true is writren to the field`button`, triggering the feedback process. This is actually implemented with code like this:
+When the user clicks on the button the value `yes` is written to the field`button`, triggering the feedback process. This is actually implemented with code like this:
 
 ```
 current = record {
   count: 0
-  button =|> false on-update{write count <- + 1}
+  button =|> off on-update{write count <- + 1}
 }
-changed = current with{.button := true}
+changed = current with{.button := on}
 ```
 
 Here is the magic trick: feedback is a feature of the `:=` update operation. Normally we use `:=` to override input fields as data state or as arguments to a function. But when `:=` writes to an interface field, it internally runs a complete feedback transaction. At the end of the transaction, the final set of writes to input fields determine the final result of the update.
 
 > TODO: useful as escape to allow writes to overwrite
-> 
+
 Because all interactions between a workspace and the external world are encoded as value changes, we get universal testability. The `test` block make this convenient by passing the initial state of the containing workspace into a code block, and reports a test failure if the block rejects. For example:
 
 ```
 count: 0
-button =|> false on-update{write count <- + 1}
+button =|> off on-update{write count <- + 1}
 test {
-  .button := true
+  .button := on
   check .count =? 1
-  check .button =? false
-  .button := true
+  check .button.off?
+  .button := on
   check .count =? 2
 }
 ```
@@ -1259,9 +1272,9 @@ There is an important safety restriction on internal feedback: it must stay inte
 ```
 count: 0
 sub-state = record {
-  button =|> false on-update{write count <- + 1}
+  button =|> off on-update{write count <- + 1}
 }
-new-state = sub-state with{ .button := true}
+new-state = sub-state with{ .button := on}
 ```
 
 Here the internal write to the `button` interface attempts to write `c`, which is outside the source of the update operation `sub-state`. This is a compile-time error.
@@ -1535,8 +1548,7 @@ We propose a simple solution for missing values that visualizes naturally in the
 3. The missing value of a block has all its input items missing.
 4. The missing value of a text or array or table is empty.
 5. The missing value of a character is the space character.
-6. The missing value of a boolean is `false`
-7. There is no predefined missing value for choices. However as their first option is the default, it can be defined to be something like `NA?: nil` to serve as a missing value if desired. Also see `maybe` blocks below.
+6. There is no predefined missing value for choices. However as their first option is the default, it can be defined to be something like `NA?: nil` to serve as a missing value if desired. Also see `maybe` blocks below.
 
 The `required` constraint (see _Constraints_) checks that an input item does not contain one of the above missing values.
 
@@ -1791,7 +1803,6 @@ BaseValue :=
 	| 'character' string	// character literal
 	| number				// JS number literal
 	| '###'					// Special missing number
-	| 'true' | 'false'		// Booleans
 	| 'nil'					// unit value
 	| 'anything'			// generic value
 

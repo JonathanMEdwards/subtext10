@@ -1,4 +1,4 @@
-import { compile, expectCompiling, expectDump } from './basic.test';
+import { compile, expectCompiling, off } from './basic.test';
 
 /** @module
  *
@@ -51,8 +51,8 @@ test('interface', () => {
 test('incrementer', () => {
   let w = compile(`
   c: 0
-  button =|> false on-update{write c <- +1}`);
-  w.writeAt('button', true);
+  button =|> off on-update{write c <- +1}`);
+  w.turnOn('button');
   expect(w.dumpAt('c')).toEqual(1);
 });
 
@@ -60,11 +60,11 @@ test('internal incrementer', () => {
   let w = compile(`
   r = record {
     c: 0
-    button =|> false on-update{write c <- + 1}
+    button =|> off on-update{write c <- + 1}
   }
-  s = r with{.button := true}
+  s = r with{.button := #on()}
   `);
-  expect(w.dumpAt('s')).toEqual({c: 1, button: false});
+  expect(w.dumpAt('s')).toEqual({c: 1, button: off});
 });
 
 test('function on-update', () => {
@@ -279,10 +279,10 @@ test('update aggregation 2', () => {
 })
 
 test('moot update', () => {
-  let w = compile("c: 0, f =|> false on-update{write c <- + 1}");
-  w.writeAt('f', true);
+  let w = compile("c: 0, f =|> off on-update{write c <- + 1}");
+  w.turnOn('f');
   expect(w.dumpAt('c')).toEqual(1);
-  w.writeAt('f', false);
+  w.updateAt('f', '#off()');
   expect(w.dumpAt('c')).toEqual(1);
 });
 
@@ -290,7 +290,7 @@ test('equal write', () => {
   expectCompiling(`
   c: 0
   d = record{x = c}
-  f =|> false on-update{write d.x -> c}
+  f =|> off on-update{write d.x -> c}
   `).toThrow('writing same value');
 });
 
@@ -298,9 +298,9 @@ test('try breaks provenance', () => {
   let w = compile(`
   c: 0
   d = try {check 1 =? 1; c} else {c}
-  f =|> false on-update{write c <- d}
+  f =|> off on-update{write c <- d}
   `);
-  w.writeAt('f', true);
+  w.turnOn('f');
   expect(w.dumpAt('c')).toEqual(0);
 });
 
@@ -310,16 +310,16 @@ test('update order', () => {
   f =|> record{x: 0, y: 0} on-update{
     write c <- +(change.x) +(change.y)
   }
-  g =|> false on-update{write 1 -> f.x; write 1 -> f.y}
+  g =|> off on-update{write 1 -> f.x; write 1 -> f.y}
   `);
-  w.writeAt('g', true);
+  w.turnOn('g');
   expect(w.dumpAt('c')).toEqual(2);
 });
 
 test('input write conflict', () => {
   expectCompiling(`
   f: record{x: 0, y: 0}
-  g =|> false on-update{write 1 -> f.x; write f <- with{.y := 1}}
+  g =|> off on-update{write 1 -> f.x; write f <- with{.y := 1}}
   `).toThrow('write conflict')
 });
 
@@ -327,23 +327,23 @@ test('interface write conflict', () => {
   expectCompiling(`
   e: record{x: 0, y: 0}
   f =|> e
-  g =|> false on-update{write 1 -> f.x; write f <- with{.y := 1}}
+  g =|> off on-update{write 1 -> f.x; write f <- with{.y := 1}}
   `).toThrow('write conflict')
 });
 
 test('overwrite', () => {
   expectCompiling(`
   c: 0
-  g =|> false on-update{write 1 -> c; write 2 -> c}
+  g =|> off on-update{write 1 -> c; write 2 -> c}
   `).toThrow('write conflict');
 });
 
 test('forked overwrite', () => {
   expectCompiling(`
     c: 0
-    f =|> false on-update{write c <- 1}
-    g =|> false on-update{write c <- 2}
-    h =|> false on-update{write f <- true, write g <- true}
+    f =|> off on-update{write c <- 1}
+    g =|> off on-update{write c <- 2}
+    h =|> off on-update{write f <- on, write g <- on}
   `).toThrow('write conflict');
 });
 
@@ -628,21 +628,21 @@ test('register', () => {
   a: 'foo'
   v = with{
     item: that
-    show-state: register true
+    show-state: register yes
     record{
       value = try {
-        check show-state =? true
+        check show-state.yes?
         item
       } else {
         ''
       }
-      show =|> false on-update {write show-state <- flip()}
+      show =|> off on-update {write show-state <- flip()}
     }
   }
   `);
-  expect(w.dump()).toEqual({ a: 'foo', v: { value: 'foo', show: false } });
-  w.writeAt('v.show', true);
-  expect(w.dump()).toEqual({ a: 'foo', v: { value: '', show: false } });
+  expect(w.dump()).toEqual({ a: 'foo', v: { value: 'foo', show: off } });
+  w.turnOn('v.show');
+  expect(w.dump()).toEqual({ a: 'foo', v: { value: '', show: off } });
 })
 
 test('register iteration', () => {
@@ -650,41 +650,41 @@ test('register iteration', () => {
   a: tracked array{''} & 'foo' & 'bar' & 'baz'
   v = a for-all {
     item:[]
-    show-state: register true
+    show-state: register yes
     record{
       value = try {
-        check show-state =? true
+        check show-state.yes?
         item
       } else {
         ''
       }
-      show =|> false on-update {write show-state <- flip()}
+      show =|> off on-update {write show-state <- flip()}
     }
   }
   `);
   expect(w.dump()).toEqual({
     a: ['foo', 'bar', 'baz'],
     v: [
-      { value: 'foo', show: false },
-      { value: 'bar', show: false },
-      { value: 'baz', show: false },
+      { value: 'foo', show: off },
+      { value: 'bar', show: off },
+      { value: 'baz', show: off },
     ]
   });
-  w.writeAt('v.2.show', true);
+  w.turnOn('v.2.show');
   expect(w.dump()).toEqual({
     a: ['foo', 'bar', 'baz'],
     v: [
-      { value: 'foo', show: false },
-      { value: '', show: false },
-      { value: 'baz', show: false },
+      { value: 'foo', show: off },
+      { value: '', show: off },
+      { value: 'baz', show: off },
     ]
   });
   w.deleteAt('a', 1);
   expect(w.dump()).toEqual({
     a: ['bar', 'baz'],
     v: [
-      { value: '', show: false },
-      { value: 'baz', show: false },
+      { value: '', show: off },
+      { value: 'baz', show: off },
     ]
   });
 });
@@ -694,15 +694,15 @@ test('input reference hygiene', () => {
   a: tracked array{''} & 'foo' & 'bar' & 'baz'
   v: a for-all {
     item:[]
-    show-state: register true
+    show-state: register on
     record{
       value = try {
-        check show-state =? true
+        check show-state =? on
         item
       } else {
         ''
       }
-      show =|> false on-update {write show-state <- flip()}
+      show =|> off on-update {write show-state <- flip()}
     }
   }
   `).toThrow('input field value referencing its own formula');

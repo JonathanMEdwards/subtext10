@@ -189,8 +189,8 @@ export class Workspace extends Item<never, History> {
     newVersion.eval();
   }
 
-  /** write a JS values to a path */
-  writeAt(path: string, value: number | boolean | string) {
+  /** write a JS value to a path */
+  writeAt(path: string, value: number | string) {
     let formula: string;
     if (typeof value === 'string') {
       formula = "'" + value + "'";
@@ -198,6 +198,11 @@ export class Workspace extends Item<never, History> {
       formula = value.toString();
     }
     this.updateAt(path, formula);
+  }
+
+  /** set a path to `on` */
+  turnOn(path: string) {
+    this.updateAt(path, 'on');
   }
 
   /** create an item in an array */

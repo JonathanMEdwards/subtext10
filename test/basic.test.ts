@@ -5,6 +5,12 @@ import { Workspace} from "../src/exports";
  * Basic tests
  */
 
+// constants for dump of boolean choices
+export const no = { no: null }
+export const yes = { yes: null }
+export const off = { off: null }
+export const on = { on: null }
+
 /** Compile a workspace from source */
 export function compile(source: string) {
   return Workspace.compile(source);
