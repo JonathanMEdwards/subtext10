@@ -48,6 +48,9 @@ export class Reference extends Value {
   /** whether reference was rejected. Derived, not copied */
   rejected = false;
 
+  // references are never blank
+  isBlank() { return false; }
+
   /** Evaluate reference */
   eval() {
     if (this.target || this.rejected) {

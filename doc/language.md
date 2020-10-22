@@ -434,7 +434,7 @@ x do {
 
 > Maybe a not-operator: `\=?` `\=!` that complements semantics: rejects or crashes on success, succeeds on a rejection and returns input value (another reason to make that normal semantics)
 
-Only output items can be conditional, not input items, which would introduce problematic _null_ values. See _Missing values_ for further discussion of alternative techniques.
+Only output items can be conditional, not input items, which would introduce problematic _null_ values. See _Blank values_ for further discussion of alternative techniques.
 
 When a function rejects, what happens depends on the kind of block it is inside. Inside a `do` block (and other function blocks to be introduced later), rejection halts further execution, and causes the whole function block to reject. What happens next depends on the kind of block containing that block — if it is also a `do` block then the rejection continues to propagates into the containing block. This proceeds until the rejection reaches one of several kinds of block that handle rejections, for example the `try` block.  Rejection is like \_exception catching\_ in conventional languages, except that it is the single kind of exception supported, and it carries no extra information visible to the function.
 
@@ -568,13 +568,16 @@ Choices are made with the _choice operation_ `#`. For example:
 ```Txt
 a-literal = expr #literal(1)
 ```
-This pronounced “a-literal equals expr choosing literal one”. The `#` expects a choice value on its left (`expr`) and to its right the name of an option without the question mark (`literal`), followed by a parenthesized formula resulting in a value for the option. The value can be just `()` to use the default value of the options (0 in the case of `literal`):
+This is pronounced “a-literal equals expr choosing literal of one”. The `#` expects a choice value on its left (`expr`) and to its right the name of an option without the question mark (`literal`), followed by a parenthesized formula resulting in a value for the option. The value can be just `()` to use the default value of the options (0 in the case of `literal`):
 ```Txt
 a-literal = expr #literal()
 ```
 
-Note that `#` always initializes the chosen option to its originally defined value, even if it was already chosen and had a different value. Likewise, the optional expression to the right of the option will be given a source value that is the initially defined value of the option. Thus for example `# literal(+ 1)` will always result in 1. This is useful when function arguments are choices, for example `f(#red())` will choose the initial value of the `red` option of a choice argument.
+Note that `#` always initializes the chosen option to its originally defined value, even if it was already chosen and had a different value. Likewise, the optional expression to the right of the option will be given a source value that is that initially defined value of the option. Thus for example `#literal(+ 1)` will always result in 1. 
 
+The fact that `#` expects a choice value means that the type of the choice can be inferred from the context. For example when a function argument is a choice:`background-color(#red())` will choose the initial value of the `red` option of a choice argument. This avoids the need in many languages to redundantly say something like `backgroundColor(Color.red)`.
+
+### Enumerations
 Sometimes there is no value of interest to associate with an option — we want it to indicate just that we made the choice. This is called an _enumeration_ in many languages. We use the special value `nil` in this case:
 ```Txt
 color: choice {
@@ -631,7 +634,7 @@ customers: table {
   address: ''
 }
 ```
-The array `numbers` contain numbers, defaulting to the missing number `###`. The table definition `customers: table {...}` is equivalent to `customers: array {record {...}}`. The table contains columns `name` and `address` defaulting to the empty text. The template of an array is access by using empty square brackets, as in `numbers[]`.
+The array `numbers` contain numbers, defaulting to the blank number `###`. The table definition `customers: table {...}` is equivalent to `customers: array {record {...}}`. The table contains columns `name` and `address` defaulting to the empty text. The template of an array is access by using empty square brackets, as in `numbers[]`.
 
 The `&` function (pronounced “and”) is used to add items to an array. For example:
 ```
@@ -1537,22 +1540,23 @@ combined() =? 'Some snake-people attacking other snake-people'
 ```
 The `replace-selection` replaces the selected part of the left-hand input with the right-hand text. Note that replacing the selection does not affect subsequent matches, which work on the after-part, so replacement can be done “on the fly”. The `combined()` call at the end converts the final selection back into a plain text by concatenating the before, selected, and after parts.
 
-## Missing values
+## Blank values
 
-_Null values_ are a perennial controversy in PL and DB design. The idea is to add a special value Null to all types of values in order to represent a “missing” or “unknown” value. Unfortunately Null adds complexity and more ways for code to break, or more language features to avoid breaking. FP languages avoid Null values by using Option wrappers (like Subtext choices), but at the cost of continually wrapping and unwrapping values.  NULL in SQL is a widely acknowledged disaster. We want to avoid this whole mess if possible.
+_Null values_ are a perennial controversy in PL and DB design. The idea is to add a special value Null to all types of values in order to represent a “missing” or “unknown” value. Unfortunately Null adds complexity and more ways for code to break, or more language features to avoid breaking. FP languages avoid Null values by using Option wrappers (like Subtext choices), but at the cost of continually wrapping and unwrapping values.  NULL in SQL is a widely acknowledged disaster. We want to avoid this whole mess if possible. 
 
-We propose a simple solution for missing values that visualizes naturally in the UI:
+Subtext designates a _blank_ value for each type. These are naturally visualized in the UI with blank fields or empty arrays. Here are all the blank values:
 
-1. There is a special missing number called `###` that corresponds to an empty numeric item in the UI. Numeric functions treat `###` as a special case, as Excel does with empty cells. Unlike IEEE NaN, `###` is equal to itself.
-2. There are predefined missing values for each media type that serve as placeholders.
-3. The missing value of a block has all its input items missing.
-4. The missing value of a text or array or table is empty.
-5. The missing value of a character is the space character.
-6. There is no predefined missing value for choices. However as their first option is the default, it can be defined to be something like `NA?: nil` to serve as a missing value if desired. Also see `maybe` blocks below.
+1. There is a special blank number called `###` that corresponds to an empty numeric item in the UI. Numeric functions treat `###` as a special case, as Excel does with empty cells. Unlike IEEE NaN, `###` is equal to itself.
+2. There are predefined blank values for each media type that serve as placeholders.
+3. A block is blank when all its fields are blank.
+4. A text or array or table is blank when it is empty.
+5. The blank character is the space character.
+6. `nil` is blank
+7. A choice is blank when it is choosing the first option, and that is also blank. Also see `maybe` blocks below.
 
-The `required` constraint (see _Constraints_) checks that an input item does not contain one of the above missing values.
+The `required` constraint (see _Constraints_) checks that an input item is not blank.
 
-Sometimes we really do need to have a special missing value. The `maybe` block converts a conditional formula into a choice, like a conventional Option type. For example `maybe{x?}` produces the choice:
+Sometimes we really do need to have an extra value like NULL to designate a value is missing or unknown. The `maybe` block converts a conditional formula into a choice, like a conventional Option type. For example `maybe{x?}` produces the choice:
 ```Txt
 choice {
   no?: nil
@@ -1632,7 +1636,7 @@ positive     // >? 0
 negative     // <? 0
 non-negative // >=? 0
 non-zero     // not=? 0
-required     // not missing (see Missing Values)
+required     // not blank (see Blank Values)
 ```
 
 ## Tracked links
@@ -1802,7 +1806,7 @@ BaseValue :=
 	| string				// single-quoted JS string literal
 	| 'character' string	// character literal
 	| number				// JS number literal
-	| '###'					// Special missing number
+	| '###'					// Special blank number
 	| 'nil'					// unit value
 	| 'anything'			// generic value
 

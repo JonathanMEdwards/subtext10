@@ -88,6 +88,7 @@ yes = no #yes()
 off = choice{off?: nil, on?: nil}
 on = off #on()
 flip = do{in: anything, builtin flip}
+blank? = do{in: anything, builtin blank?}
 `
 
 builtins['+'] = (s: Statement, a: number, b: number) => {
@@ -170,3 +171,15 @@ builtins['flip'] = (s: Statement, a: Value) => {
   let choice = cast(s.value, Choice);
   choice.setChoice(choice.choiceIndex? 0 : 1)
 }
+
+builtins['blank?'] = (s: Statement, a: builtinValue) => {
+  // pass through source
+  s.setFrom(a);
+  if (a instanceof Value) {
+    s.setAccepted(a.isBlank())
+  } else {
+    s.setAccepted(Number.isNaN(a));
+  }
+}
+// TODO: not-blank?
+// TODO: to-blank

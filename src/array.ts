@@ -133,6 +133,9 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
     this.items.forEach(item => item.eval());
   }
 
+  // array is blank when it is empty
+  isBlank() { return this.items.length === 0 }
+
   initialize() {
     this.template.initialize();
     this.serial = 0;
@@ -606,6 +609,9 @@ export class Selection extends Reference {
   /** selected tracking ids in backing array. Sorted numerically. TODO: sort by
    * position if array reorderable */
   selected: number[] = [];
+
+  // selection is blank when nothing is selected
+  isBlank() { return this.selected.length === 0 }
 
   /** 1-based indexes of selected items in base array */
   get indexes() {

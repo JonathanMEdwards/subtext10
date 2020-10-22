@@ -245,6 +245,13 @@ test('assertions', () => {
     .toThrow('assertion failed: a!')
 })
 
+test('blank', () => {
+  expectDump("a? = '' blank?()")
+    .toEqual({ a: '' });
+  expectDump("a? = 'foo' blank?()")
+    .toEqual({ a: false });
+})
+
 test('try', () => {
   expectDump("a = try {0 >? 1} else {2}")
   .toEqual({a: 2})

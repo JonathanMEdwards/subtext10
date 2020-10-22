@@ -1,7 +1,7 @@
-import { Value, another, Path, escapedString, assert } from "./exports";
+import { Value, Path, assert } from "./exports";
 
 /** Base items contain no other items */
-export class Base extends Value {
+export abstract class Base extends Value {
 
   // base values already evaluated by default
   eval() { }
@@ -24,10 +24,12 @@ export class Base extends Value {
 
 /**
  * A JS number.
- * NaN is the missing number `number` which is equal to itself.
+ * NaN is the blank number `###` which is equal to itself.
  */
 export class _Number extends Base {
   value: number = NaN;
+
+  isBlank() { return Number.isNaN(this.value); }
 
   copy(srcPath: Path, dstPath: Path): this {
     let to = super.copy(srcPath, dstPath);
@@ -40,7 +42,7 @@ export class _Number extends Base {
       other instanceof _Number
       && (
         this.value === other.value
-        || (Number.isNaN(this.value) && Number.isNaN(other.value))));
+        || this.isBlank() && other.isBlank()));
   }
 
   // dump as number
@@ -51,6 +53,9 @@ export class _Number extends Base {
 export class Character extends Base {
   /** value is a single-character string. could be a charCode instead */
   value: string = ' ';
+
+  // space is the blank value
+  isBlank() { return this.value === ' '; }
 
   copy(srcPath: Path, dstPath: Path): this {
     let to = super.copy(srcPath, dstPath);
@@ -69,6 +74,8 @@ export class Character extends Base {
 /** Nil is the unit type with one value */
 export class Nil extends Base {
 
+  isBlank() { return true; }
+
   // JS value is null
   get value() { return null };
 
@@ -82,6 +89,8 @@ export class Nil extends Base {
 
 /** Anything is the top type used in generics */
 export class Anything extends Base {
+
+  isBlank() { return true; }
 
   equals(other: any) {
     return other instanceof Anything;

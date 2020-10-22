@@ -31,6 +31,9 @@ export abstract class Value {
   /** source token where defined */
   token?: Token;
 
+  /** true if this is the designated blank value for the type */
+  abstract isBlank(): boolean;
+
   /** evaluate contents */
   abstract eval(): void;
 

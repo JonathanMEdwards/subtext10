@@ -38,6 +38,11 @@ export class Block<F extends Field = Field> extends Container<F> {
     return this.fields.find(field => field.name === id);
   }
 
+  // block is blank is all fields are blank
+  isBlank() {
+    return this.fields.every(field => field.value!.isBlank())
+  }
+
   /** evaluate all fields */
   eval() {
     this.fields.forEach(field => {

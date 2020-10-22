@@ -25,6 +25,11 @@ export class Choice extends Block {
     this.setChoice(0);
   }
 
+  // Choice is blank if choosing first option which is blank
+  isBlank() {
+    return (this.choiceIndex === 0 && this.choice.value!.isBlank())
+  }
+
   /** evaluate */
   eval() {
     if (!this.analyzing) {
