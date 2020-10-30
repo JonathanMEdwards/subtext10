@@ -33,6 +33,7 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
    * response to creations in the result of a for-all on the array. A
    * corresponding ghost entry will be created in the for-all Loop, which is
    * updated by the creation and feeds back into this array */
+  // FIXME: this smells. Reify conditional/deleted entries?
   ghosts!: Entry<V>[];
 
   createGhost(id: number): Entry<V> {

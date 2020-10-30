@@ -1548,7 +1548,7 @@ Subtext designates a _blank_ value for each type. These are naturally visualized
 
 1. There is a special blank number called `###` that corresponds to an empty numeric item in the UI. Numeric functions treat `###` as a special case, as Excel does with empty cells. Unlike IEEE NaN, `###` is equal to itself.
 2. There are predefined blank values for each media type that serve as placeholders.
-3. A block is blank when all its fields are blank.
+3. A block is blank when all its input fields are blank.
 4. A text or array or table is blank when it is empty.
 5. The blank character is the space character.
 6. `nil` is blank
@@ -1798,9 +1798,13 @@ Value :=
 	| 'record' Block
 	| 'choice' Block
 	| 'maybe' Block
-	| 'array' Block
-	| 'table' Block
+	| ArrayKind* 'array' Block
+	| ArrayKind* 'table' Block
 	| 'select' (Path | 'any' 'array' Block | 'any 'table' Block)
+
+ArrayKind :=
+	| 'tracked'
+	| 'sorted'
 
 BaseValue :=
 	| string				// single-quoted JS string literal
