@@ -22,7 +22,7 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
     let template = new Entry<V>();
     this.template = template;
     template.container = this;
-    template.io = 'input';
+    template.io = 'data';
     template.formulaType = 'none';
     template.id = 0;
     return template;
@@ -50,7 +50,7 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
     }
     this.ghosts.push(entry);
     entry.container = this;
-    entry.io = 'input';
+    entry.io = 'data';
     entry.formulaType = 'none';
     entry.setFrom(this.template);
     return entry;
@@ -85,6 +85,9 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
       let ordinal = Number(id)
       if (Number.isFinite(ordinal)) {
         // convert string to ordinal
+        if (ordinal === 0) {
+          return this.template;
+        }
         return this.items[ordinal - 1];
       }
     }

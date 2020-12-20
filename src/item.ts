@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, Selection, Metafield, _Number, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer, arrayReverse, _Array, arrayRemove, Entry, Record, Link, FieldID} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, Selection, Metafield, _Number, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer, arrayReverse, _Array, arrayRemove, Entry, Record, Link, FieldID, Version, Block} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -12,13 +12,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   /** Physical container */
   container!: Container<this>;
 
-  /** memoized Workspace */
-  _workspace?: Workspace;
-  get workspace(): Workspace {
-    if (!this._workspace) {
-      this._workspace = this.container.workspace;
+  /** memoized Version */
+  _version?: Version;
+  get version(): Version {
+    if (!this._version) {
+      this._version = this.container.version;
     }
-    return this._workspace;
+    return this._version;
+  }
+  get workspace(): Workspace {
+    return this.version.container.containingItem as Workspace
   }
 
   /** whether workspace is analyzing */
@@ -213,7 +216,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    * FIXME: this sould be encoded as metadata using standard datatypes.
    * formulaType should become a Choice. Optionality should be made explicit.
    *
-   * none: value is a constant in item.value. Used for literal outputs.
+   * none: value is in item.value. Used for literal outputs and data
+   *
+   * instance: data with type referenced in ^reference
    *
    * literal: value is in ^literal
    *
@@ -240,23 +245,42 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    * builtin: ^builtin contains name of builtin as a Text value
    *
+   * ***********************************************************************
+   * Edit operations start with :: and have a dependent reference in ^target
+   *
+   * ::replace,
+   * literal or relative reference in ^source
+   *
+   *
    *  */
   formulaType: (
     'none' | 'literal' | 'reference' | 'code' | 'update' | 'updateInput'
     | 'write' | 'choose' | 'call' | 'include' | 'builtin' | 'loop' | 'extend'
+    | '::replace' | '::insert' | '::append'
   ) = 'none';
 
   /** IO mode of item. Inputs are mutable state and function parameters. Outputs
    * are read-only formulas. Interfaces are updatable formulas. Registers are
-   * inputs in code whose value is retained across updates */
-  io: 'input' | 'output' | 'interface' | 'register' = 'output';
+   * inputs in code whose value is retained across updates
+   *
+   * input is migrating to data, and output to result.
+   * function parameters are currently inputs, but will become results
+   * data will be denoted with `::` during migration
+   * */
+  io: 'data' | 'input' | 'output' | 'interface' | 'register' = 'output';
 
   /** whether an input or register */
   get inputLike() {
-    return this.io === 'input' || this.io === 'register';
+    return this.io === 'input' || this.io === 'data' || this.io === 'register';
+  }
+
+  /** whether input or data */
+  get dataLike() {
+    return this.io === 'input' || this.io === 'data';
   }
 
   /** whether value should be rederived on copies */
+  // FIXME: change literal outputs to be constant data?
   get isDerived() {
     return !this.inputLike && this.formulaType !== 'none'
   }
@@ -341,6 +365,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
       // evaluate formula
       switch (this.formulaType) {
+
         case 'literal':
           this.copyValue(this.get('^literal'));
           break;
@@ -418,6 +443,13 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
         case 'extend':
           // already evaluated
+          break;
+
+        case '::replace':
+        case '::insert':
+        case '::append':
+          // edits
+          this.edit();
           break;
 
         default:
@@ -1095,7 +1127,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         // write into sink at downward path
         let sinkTarget =
           sinkDelta.down(write.path.ids.slice(writeSink.path.length));
-        assert(sinkTarget.io === 'input');
+        assert(sinkTarget.dataLike);
         sinkTarget.detachValue();
         sinkTarget.setFrom(delta);
         continue;
@@ -1214,7 +1246,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           for (let i = 0; i < origRec.fields.length; i++) {
             let deltaField = deltaRec.fields[i];
             let origField = origRec.fields[i];
-            if (origField.io !== 'input'
+            if (!origField.dataLike
               || deltaField.value!.staticEquals(origField.value!)
             ) {
               // ignore if not input or unchanged
@@ -1444,6 +1476,132 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     }
     return groundedWrites;
   }
+
+
+/* --------------------------------- edit ----------------------------------- */
+
+
+  /** evaluate edit operations */
+  private edit() {
+    // Edits only execute in history
+    assert(this instanceof Version);
+    // get target path in input
+    const targetRef = cast(this.get('^target').value, Reference);
+    assert(targetRef.dependent);
+    // get input version, which is context of reference
+    const input = this.workspace.down(
+      targetRef.path.ids.slice(0, targetRef.context)
+    );
+    // copy input to result value, to be edited as needed
+    this.copyValue(input);
+    const targetPath = targetRef.path.ids.slice(targetRef.context);
+    // get target within result
+    const target = this.down(targetPath)
+    assert(target);
+    // FIXME: only editing data fields for now
+    assert(target.io === 'data');
+
+    /** Iterate edit over nested arrays */
+    function iterateEdit(
+      context: Item,
+      path: ID[],
+      editor: (item: Item) => void
+    ) {
+      // detect if target is inside an array entry or template
+      let index = path.findIndex(id => typeof id === 'number');
+      if (index >= 0) {
+        // recurse on array template and items
+        // MAYBE: require edit to be specified on template?
+        // assert(path[index] === 0);
+        let array = context.down(path.slice(0, index)).value;
+        assert(array instanceof _Array);
+        let arrayPath = path.slice(index + 1);
+        iterateEdit(array.template, arrayPath, editor);
+        array.items.forEach(item => iterateEdit(item, arrayPath, editor));
+        return;
+      }
+      // editor target
+      const target = context.down(path)
+      editor(target);
+    }
+
+    /** Disallow references outside literal value*/
+    // TODO: could literalize references
+    function literalCheck(literal: Item) {
+      for (let item of literal.visit()) {
+        if (item.value instanceof Reference
+          && !literal.contains(item.value.target!)
+        ) {
+          throw new StaticError(item, 'reference escaping literal value');
+        }
+      }
+
+    }
+
+    switch (this.formulaType) {
+
+      case '::replace': {
+        // optional ^source is literal or reference
+        const source = this.get('^source');
+        literalCheck(source);
+        // function to perform edit
+        function editor(target: Item) {
+          if (source.value instanceof Reference) trap();
+          // replace target with a literal value
+          target.detachValue();
+          target.copyValue(source);
+          // FIXME set copy source to template
+        }
+
+        iterateEdit(this, targetPath, editor)
+        break;
+      }
+
+      case '::append':
+      case '::insert': {
+        const append = this.formulaType === '::append';
+        if (append && !(target.value instanceof Record)) {
+          throw new StaticError(target, 'can only append to record')
+        } else if (!append && !(target.container instanceof Record)) {
+          throw new StaticError(target, 'can only insert into record')
+        }
+        // ^source is Record containing field to append/insert
+        const source = cast(this.get('^source').value, Record).fields[0];
+        assert(source);
+        literalCheck(source);
+
+        // function to perform edit
+        function editor(target: Item) {
+          let newField = new Field;
+          if (append) {
+            // append to record
+            cast(target.value, Record).add(newField);
+          } else {
+            // insert before field
+            let record = target.container as Record;
+            newField.container = record;
+            let i = record.fields.indexOf(target as Field);
+            assert(i >= 0);
+            record.fields.splice(i, 0, newField);
+          }
+          newField.id = source.id;
+          newField.io = source.io;
+          newField.formulaType = source.formulaType;
+          if (source.value instanceof Reference) trap();
+          newField.copyValue(source);
+          // FIXME set copy source to template
+        }
+
+        iterateEdit(this, targetPath, editor)
+        break;
+      }
+
+      default:
+        trap();
+    }
+  }
+
+
 
 
 /* -------------------------------------------------------------------------- */

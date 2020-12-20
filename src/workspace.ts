@@ -6,7 +6,6 @@ export class Workspace extends Item<never, History> {
   /** Workspace is at the top of the tree */
   declare container: never;
   _path = Path.empty;
-  _workspace = this;
 
   /** whether eval() should do analysis */
   private _analyzing: boolean = false;
@@ -31,6 +30,18 @@ export class Workspace extends Item<never, History> {
     let id = new VersionID(serial);
     id.name = name;
     return id;
+  }
+
+  /** add a new version to history */
+  private newVersion(): Version {
+    let history = this.value!;
+    let newVersion = new Version;
+    // using time as label
+    newVersion.id = this.newVersionID(new Date().toLocaleString());
+    newVersion.io = 'data';
+    newVersion.formulaType = 'none';
+    history.add(newVersion);
+    return newVersion;
   }
 
   /** current version of workspace */
@@ -147,23 +158,12 @@ export class Workspace extends Item<never, History> {
    * @param formula syntax of formula.
    *   */
   updateAt(path: string, formula: string) {
+    // target is dependent reference to target in previous version
     let target = this.currentVersion.down(path);
     if (!this.currentVersion.writeSink(target)) {
       throw 'not updatable';
     }
-
-    // append new version to history
-    let history = this.value!;
-    let newVersion = new Version;
-    // using time as label
-    newVersion.id = this.newVersionID(new Date().toLocaleString());
-    history.add(newVersion);
-    // new version formula is a update ro choose command
-    newVersion.formulaType = 'update';
-
-    // target is dependent reference to target in previous version
     let targetRef = new Reference;
-    newVersion.setMeta('^target', targetRef);
     targetRef.path = target.path;
     // flag as dependent ref
     targetRef.tokens = [new Token('that', 0, 0, '')];
@@ -178,6 +178,12 @@ export class Workspace extends Item<never, History> {
     ) {
       targetRef.guards.unshift(up.conditional ? '!' : undefined);
     }
+
+    // append new version to history
+    let newVersion = this.newVersion();
+    // new version formula is a update or choose command
+    newVersion.formulaType = 'update';
+    newVersion.setMeta('^target', targetRef);
 
     // compile payload from formula
     let payload = newVersion.setMeta('^payload')
@@ -220,8 +226,50 @@ export class Workspace extends Item<never, History> {
     this.updateAt(path, 'select! ' + index);
   }
 
-/** remove a selection */
+  /** remove a selection */
   deselectAt(path: string, index: number) {
     this.updateAt(path, 'deselect! ' + index);
   }
+
+
+  /** Execute an edit command.
+   * @param path string path without leading .
+   * @param command edit command starting with ::
+   */
+  editAt(path: string, command: string) {
+    // target is dependent reference to target in previous version
+    let target = this.currentVersion.down(path);
+    let targetRef = new Reference;
+    targetRef.path = target.path;
+    // flag as dependent ref
+    targetRef.tokens = [new Token('that', 0, 0, '')];
+    // context of the reference is the previous version
+    targetRef.context = 1;
+    // ignore conditionals
+    targetRef.guards = [];
+    for (
+      let up = target;
+      !!up.container;
+      up = up.container.containingItem
+    ) {
+      targetRef.guards.unshift(undefined);
+    }
+
+    // append new version to history
+    let newVersion = this.newVersion();
+    // new version formula is a update or choose command
+    newVersion.formulaType = 'update';
+    newVersion.setMeta('^target', targetRef);
+
+    // compile command
+    let parser = new Parser(command);
+    parser.space = this;
+    parser.requireEdit(newVersion);
+
+    // evaluate new version
+    newVersion.eval();
+
+  }
+
+
 }

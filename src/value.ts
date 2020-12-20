@@ -1,4 +1,4 @@
-import { Workspace, Item, trap, ID, Path, another, Token, assert, assertDefined } from "./exports";
+import { Workspace, Item, trap, ID, Path, another, Token, assert, assertDefined, Version } from "./exports";
 
 /** Every Value is contained in an Item */
 export abstract class Value {
@@ -8,6 +8,7 @@ export abstract class Value {
   /** Path of containing item */
   get containingPath() { return this.containingItem.path; }
 
+  get version(): Version { return this.containingItem.version}
   get workspace(): Workspace { return this.containingItem.workspace }
   get analyzing() { return this.workspace.analyzing; }
 

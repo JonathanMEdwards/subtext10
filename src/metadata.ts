@@ -89,8 +89,9 @@ export class MetaID extends FieldID {
     '^reference',     // Reference formula
     '^code',          // Code block
     '^loop',          // Loop block
-    '^target',        // target reference of := & ->
+    '^target',        // target reference of := & -> & ::edits
     '^payload',       // Formula after :=
+    '^source',        // Value in edit
     '^call',          // function call
     '^builtin',       // builtin call
     '^initial',       // initial value of item

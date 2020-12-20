@@ -4,7 +4,7 @@ import { arrayLast } from "./exports";
  */
 
 export type TokenType = (
-  ':' | '=' | ':=' | '#' | '.' | ',' | ';' | '{' | '}' | '(' | ')'
+  '::' | ':' | '=' | ':=' | '#' | '.' | ',' | ';' | '{' | '}' | '(' | ')'
   | '=|>' | 'on-update' | 'write' | '->' | '<-' | 'updatable'
   | '[' | ']' | '[]' | 'string' | 'number' | '###'
   | 'name' | 'end' | '\n'
@@ -14,7 +14,8 @@ export type TokenType = (
   | 'nil' | 'try' | 'check' | 'not' | 'else' | 'reject' | 'let' | 'export'
   | 'that' | 'include' | 'with' | 'find?' | 'find!' | 'tracked'
   | 'for-all' | 'such-that' | 'all?' | 'all!' | 'none?' | 'none!' | 'accumulate'
-  | 'extend' | 'selection' | 'any' | 'selecting' | 'link' |'via' | 'register'
+  | 'extend' | 'selection' | 'any' | 'selecting' | 'link' | 'via' | 'register'
+  | '::replace' | '::insert' | '::append'
 )
 
 export class Token {
@@ -180,12 +181,18 @@ export function tokenize(source: string): Token[] {
     // special values
     if (match('###')) return '###';
 
+    // edit operations
+    if (match('::replace')) return '::replace';
+    if (match('::insert')) return '::insert';
+    if (match('::append')) return '::append';
+
     // punctuation
     if (match('.')) return '.';
     if (match(',')) return ',';
     if (match(';')) return ';';
     if (match(':=')) return ':=';
     if (match('#')) return '#';
+    if (match('::')) return '::';
     if (match(':')) return ':';
     if (match('=|>')) return '=|>';
     if (match('=')) return '=';

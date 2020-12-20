@@ -1,8 +1,10 @@
-import { Block, FieldID, Head, Field, arrayLast, assertDefined, Item } from "./exports";
+import { Block, FieldID, Head, Field, arrayLast, Item, Workspace } from "./exports";
 
 /** History is the top value of a Space. The History is a Block whose fields
  * have a VersionID and contain a Head */
 export class History extends Block<Version> {
+  declare containingItem: Workspace;
+  get workspace() { return this.containingItem; }
 
   get versions() {
     return this.items;
@@ -18,6 +20,8 @@ export class History extends Block<Version> {
 
 /** Version is a Field with a VersionID and containing a Head */
 export class Version extends Field<VersionID, Head> {
+  _version = this;
+
   // versions are all outputs
   isInput = false;
 

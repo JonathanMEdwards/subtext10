@@ -10,10 +10,11 @@
       "name": "Chrome",
       "url": "http://localhost:8080",
       "webRoot": "${workspaceFolder}",
+      "smartStep": true,
       "skipFiles": [
-        "<node_internals>/**/*.js",
-        "${workspaceFolder}/node_modules/**/*.js"
-      ]
+        "<node_internals>/**",
+        "${workspaceFolder}/node_modules/**"
+      ],
     },
     {
       "type": "node",
@@ -29,10 +30,11 @@
       "internalConsoleOptions": "neverOpen",
       "disableOptimisticBPs": true,
       "program": "${workspaceFolder}/node_modules/jest/bin/jest",
+      "smartStep": true,
       "skipFiles": [
-        "<node_internals>/**/*.js",
-        "${workspaceFolder}/node_modules/**/*.js"
-      ]
+        "<node_internals>/**",
+        "${workspaceFolder}/node_modules/**"
+      ],
     }
   ]
 }

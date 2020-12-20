@@ -1829,7 +1829,14 @@ Op :=
 	| 'include' Name
 	| 'builtin' Name
     | '&' Block						// &(with{})
+	| RelPath BinaryEdit (Value | RelPath)
+	| RelPath FieldCreate '{'  Name '::' (Value | RelPath) '}'
 
+BinaryEdit :=
+	| '::replace'
+FieldCreate := 
+	| '::insert' | '::append'
+		
 Arguments :=
 	| Value
 	| '(' Formula ')'

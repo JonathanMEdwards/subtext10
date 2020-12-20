@@ -171,9 +171,14 @@ export class Parser {
     }
     // name definition
     const cursor = this.cursor;
-    if (this.parseToken('name') && this.parseToken(':', '=', '=|>')) {
+    if (this.parseToken('name') && this.parseToken('::', ':', '=', '=|>')) {
       // named field
       switch (this.prevToken.type) {
+        case '::':
+          // FIXME: interim syntax while migrating input to data
+          field.io = 'data';
+          break;
+
         case ':':
           if (this.matchToken('register')) {
             if (!(block instanceof Code)) {
@@ -185,9 +190,11 @@ export class Parser {
             field.io = 'input';
           }
           break;
+
         case '=':
           field.io = 'output';
           break;
+
         case '=|>':
           if (block instanceof Code) {
             throw this.setError('Interface not allowed in code',
@@ -195,6 +202,7 @@ export class Parser {
           }
           field.io = 'interface';
           break;
+
         default:
           trap()
       }
@@ -458,6 +466,20 @@ export class Parser {
         return true;
       }
 
+      if (this.cursorToken.text.startsWith('::')) {
+        // edit operation
+        if (!(field instanceof Version)) {
+          throw this.setError(`edits only allowed in a test block`,
+            this.cursorToken);
+        }
+        if (!ref.dependent) {
+          throw this.setError(`expecting dot-path`, ref.tokens[0]);
+        }
+        field.setMeta('^target', ref);
+        this.requireEdit(field);
+        return true;
+      }
+
       // reference may be start of a call
       let call = this.parseCall(ref, first);
       if (call) {
@@ -576,6 +598,46 @@ export class Parser {
     return false;
 
   }
+
+  /** requires an edit command */
+  requireEdit(field: Field) {
+    if (this.matchToken('::replace')) {
+      field.formulaType = '::replace';
+      // parse ^source
+      let source = this.parseLiteral() || this.parseReference();
+      if (!source || (source instanceof Reference && !source.dependent)) {
+        throw this.setError(`expecting literal or dot-path`, this.cursorToken)
+      }
+      field.setMeta('^source', source);
+      return;
+    }
+    if (this.matchToken('::insert', '::append')) {
+      field.formulaType = this.prevToken.text as any;
+      this.requireToken('{');
+      let name = this.requireToken('name');
+      // encode new field in a record
+      let block = new Record;
+      let newField = new Field;
+      field.setMeta('^source', block);
+      block.add(newField);
+      // Allocate field ID from workspace
+      this.fieldID(newField, name);
+      // define data field
+      this.requireToken('::');
+      let source = this.parseLiteral() || this.parseReference();
+      if (!source || (source instanceof Reference && !source.dependent)) {
+        throw this.setError(`expecting literal or dot-path`, this.cursorToken)
+      }
+      newField.io = 'data';
+      newField.formulaType = 'none';
+      newField.setValue(source)
+      this.requireToken('}');
+      return;
+    }
+
+    trap();
+  }
+
 
   /** parse arguments following a reference. Param first rejects
    * syntax 'ref value x' and 'ref value('*/
