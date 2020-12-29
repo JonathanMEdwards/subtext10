@@ -1,17 +1,12 @@
-import { expectCompiling, expectDump, compile } from './basic.test';
-
-/** @module
- *
- * array tests
- */
+import { expectCompiling, expectDump, compile, expectErrors } from "./exports"
 
 test('array definition', () => {
   expectDump("a = array{0}, b? = a[] =? 0")
     .toEqual({ a: [], b: 0 });
   expectDump("a = array{###}, b = array{###}, c? = a =? b")
     .toEqual({ a: [], b: [], c: [] });
-  expectCompiling("a = array{###}, b = array{''}, c? = a =? b")
-    .toThrow('changing type of value');
+  expectErrors("a = array{###}, b = array{''}, c? = a =? b")
+    .toContain('c: type');
 });
 
 test('text', () => {
@@ -28,8 +23,8 @@ test('array add/delete', () => {
     .toEqual({ a: [], b: [1, 2], c: 2, d: 2 });
   expectDump("a = array{###} & 1, b = array{###} & 1, c? = a =? b")
     .toEqual({ a: [1], b: [1], c: [1] });
-  expectCompiling("a = array{0}, b = a & ''")
-    .toThrow('changing type of value');
+  expectErrors("a = array{0}, b = a & ''")
+    .toContain('b: type');
   expectDump("a = array{###} & 1 & 2, b = a delete! 1")
     .toEqual({ a: [1, 2], b: [2] });
   expectDump("a = array{###} & 1 & 2, b? = a delete? 0")
@@ -181,13 +176,13 @@ test('selection', () => {
   e? = s =? t
   `)
     .toEqual({ a: [1], s: [1], t: [], e: false });
-  expectCompiling(`
+  expectErrors(`
   a: tracked array{###}
   b: tracked array{###}
   s = selection{a}
   t = selection{b}
   e? = s =? t
-  `).toThrow('changing type of value')
+  `).toContain('e: type')
 })
 
 test('selection synthetics', () => {

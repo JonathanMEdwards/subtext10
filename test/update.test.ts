@@ -1,15 +1,10 @@
-import { compile, expectCompiling, off } from './basic.test';
-
-/** @module
- *
- * update tests
- */
+import { compile, expectCompiling, expectErrors, off } from './exports';
 
 test('write update', () => {
   let w = compile("a: 0");
   w.writeAt('a', 1);
   expect(w.dumpAt('a')).toEqual(1);
-  expect(() => { w.writeAt('a', 'foo') }).toThrow('changing type of value')
+  expect(() => { w.writeAt('a', 'foo') }).toThrow('edit error: type')
 });
 
 test('choice update', () => {
@@ -38,7 +33,7 @@ test('update readonly', () => {
 
 test('update type check', () => {
   let w = compile("a: 0");
-  expect(() => { w.writeAt('a', 'foo') }).toThrow('changing type of value')
+  expect(() => { w.writeAt('a', 'foo') }).toThrow('edit error: type')
 });
 
 test('interface', () => {
@@ -56,6 +51,13 @@ test('incrementer', () => {
   expect(w.dumpAt('c')).toEqual(1);
 });
 
+test('update error', () => {
+  let w = compile(`
+  c: 0
+  button =|> off on-update{write c <- ''}`);
+  expect(()=>w.turnOn('button')).toThrow('edit error: type')
+});
+
 test('internal incrementer', () => {
   let w = compile(`
   r = record {
@@ -65,6 +67,16 @@ test('internal incrementer', () => {
   s = r with{.button := #on()}
   `);
   expect(w.dumpAt('s')).toEqual({c: 1, button: off});
+});
+
+test('internal update error', () => {
+  expectErrors(`
+  r = record {
+    c: 0
+    button =|> off on-update{write c <- ''}
+  }
+  s = r with{.button := #on()}
+  `).toContain('s: type')
 });
 
 test('function on-update', () => {
@@ -125,8 +137,8 @@ test('internal reverse formula', () => {
 });
 
 test('write type check', () => {
-  expectCompiling("c: 0, f =|> c on-update{write 'foo' -> c}")
-    .toThrow('write changing type');
+  expectErrors("c: 0, f =|> c on-update{write 'foo' -> c}")
+    .toContain('f.^code.5.6: type');
 });
 
 test('write order check', () => {

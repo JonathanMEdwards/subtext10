@@ -1,4 +1,4 @@
-import { Block, trap, assert, StaticError, Path, Dictionary } from "./exports";
+import { Block, trap, assert, CompileError, Path, Dictionary } from "./exports";
 
 /** A Choice is a sum (discriminated union). It is a block where all the fields
  * (called options) are inputs, and exactly one of them is "chosen", meaning it
@@ -15,15 +15,15 @@ export class Choice extends Block {
   /** set choice and initialize option value. Returns the option */
   setChoice(index: number) {
     assert(index >= 0 && index < this.fields.length);
-    this.choice.initialize();
+    this.choice.uneval();
     this.choiceIndex = index;
     return this.fields[index];
   }
 
   /** initialize to first value */
-  initialize() {
-    this.setChoice(0);
-  }
+  // uneval() {
+  //   this.setChoice(0);
+  // }
 
   // Choice is blank if choosing first option which is blank
   isBlank() {

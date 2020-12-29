@@ -1,4 +1,4 @@
-import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions, Code, Statement, StaticError, Try, Call, Do, With, assert, Value, Reference, Choice, assertDefined, OptionReference, Container, Field, _Array, Entry  } from "./exports";
+import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions, Code, Statement, CompileError, Try, Call, Do, With, assert, Value, Reference, Choice, assertDefined, OptionReference, Container, Field, _Array, Entry  } from "./exports";
 
 /** A subtext workspace */
 export class Workspace extends Item<never, History> {
@@ -78,16 +78,29 @@ export class Workspace extends Item<never, History> {
     let parser = new Parser(source);
     parser.requireHead(head);
 
-    // analyze all formulas by evaluating doc
-    ws._analyzing = true;
-    ws.eval();
+    // analyze
+    ws.analyze(version);
+
+    version.evaluated = true;
+    return ws;
+  }
+
+  /** analyze a version. Sets Item.editError for errors that can occur during
+   * editing. Throws exceptions on errors that only occur in compiling */
+  analyze(version: Version) {
+    const head = assertDefined(version.value);
+
+    // set global analyzing flag and evaluate to do analysis
+    // assumes currently unevaluated
+    this._analyzing = true;
+    head.eval();
 
     // execute deffered analysis
-    while (ws.analysisQueue.length) {
-      ws.analysisQueue.shift()!.resolve();
+    while (this.analysisQueue.length) {
+      this.analysisQueue.shift()!.resolve();
     }
-    while (ws.exportAnalysisQueue.length) {
-      ws.exportAnalysisQueue.shift()!();
+    while (this.exportAnalysisQueue.length) {
+      this.exportAnalysisQueue.shift()!();
     }
 
     // analyze updates of visible interfaces
@@ -100,47 +113,45 @@ export class Workspace extends Item<never, History> {
           let delta = item.setDelta(item);
           // uncopy value so treated as different
           delta.uncopy();
-          version.feedback(item);
+          version.feedback(version, item);
         } else if (item.io === 'input' && item.value instanceof Container) {
           // drill into input containers
           analyzeUpdates(item.value);
         }
       }
-    }
+    };
     analyzeUpdates(head);
 
-    // initialize to force recalc after analysis
-    ws.initialize();
+    // unevaluate to discard analysis computations
+    head.uneval();
 
     // Item.resolve() calls might have triggered evaluation.
     // Signature is throwing 'unused value: index: 0'
     // this was happening on a try inside a on-update, but now those are being
     // forced to resolve
 
-
-    ws._analyzing = false;
+    // clear analyzing flag
+    this._analyzing = false;
 
     // check for unused code statements and validate do/with blocks
-    for (let item of ws.visit()) {
-      if (
-        item instanceof Statement &&
+    for (let item of version.visit()) {
+      if (item instanceof Statement &&
         !item.used
         && (item.dataflow === undefined || item.dataflow === 'let')
         && !(item.container instanceof Try)
-        && !(item.container instanceof Call)
-      ) {
-        throw new StaticError(item, 'unused value')
+        && !(item.container instanceof Call)) {
+        throw new CompileError(item, 'unused value');
       }
       if (item.value instanceof Do && item.usesPrevious) {
-        throw new StaticError(item, 'do-block cannot use previous value')
+        throw new CompileError(item, 'do-block cannot use previous value');
       }
       if (item.value instanceof With && !item.usesPrevious) {
-        throw new StaticError(item, 'with-block must use previous value')
+        throw new CompileError(item, 'with-block must use previous value');
       }
     }
-    ws.eval();
 
-    return ws;
+    // evaluate version
+    head.eval();
   }
 
   /** dump item at string path in current version */
@@ -193,6 +204,11 @@ export class Workspace extends Item<never, History> {
 
     // evaluate new version
     newVersion.eval();
+
+    // Throw edit error
+    if (newVersion.editError) {
+      throw 'edit error: ' + newVersion.originalEditError;
+    }
   }
 
   /** write a JS value to a path */
@@ -268,8 +284,15 @@ export class Workspace extends Item<never, History> {
 
     // evaluate new version
     newVersion.eval();
-
   }
 
+  /** array of items in current version with edit errors */
+  get editErrors(): Item[] {
+    return this.currentVersion.editErrors;
+  }
 
+  /** Array of edit error messages in current version */
+  get editErrorMessages(): string[] {
+    return this.currentVersion.editErrorMessages;
+  }
 }

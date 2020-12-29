@@ -1,4 +1,4 @@
-import { assert, Item, Value, another, Path, MetaID } from "./exports";
+import { assert, Item, Value, Path, MetaID } from "./exports";
 
 /** superclass of Block and _Array, the two kinds of containers. */
 export abstract class Container<I extends Item> extends Value {
@@ -19,6 +19,12 @@ export abstract class Container<I extends Item> extends Value {
     item.container = this;
     this.items.push(item);
   }
+
+  /** unevaluate all items */
+  uneval() {
+    this.items.forEach(item => item.uneval());
+  }
+
 
   /** make copy, bottom up, translating paths contextually */
   copy(srcPath: Path, Path: Path): this {

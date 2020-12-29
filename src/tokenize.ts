@@ -15,7 +15,7 @@ export type TokenType = (
   | 'that' | 'include' | 'with' | 'find?' | 'find!' | 'tracked'
   | 'for-all' | 'such-that' | 'all?' | 'all!' | 'none?' | 'none!' | 'accumulate'
   | 'extend' | 'selection' | 'any' | 'selecting' | 'link' | 'via' | 'register'
-  | '::replace' | '::insert' | '::append'
+  | '::replace' | '::insert' | '::append' | '::convert'
 )
 
 export class Token {
@@ -185,6 +185,7 @@ export function tokenize(source: string): Token[] {
     if (match('::replace')) return '::replace';
     if (match('::insert')) return '::insert';
     if (match('::append')) return '::append';
+    if (match('::convert')) return '::convert';
 
     // punctuation
     if (match('.')) return '.';

@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, Selection, Metafield, _Number, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer, arrayReverse, _Array, arrayRemove, Entry, Record, Link, FieldID, Version, Block} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, Selection, Metafield, _Number, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer, arrayReverse, _Array, arrayRemove, Entry, Record, Link, FieldID, Version, Block, Nil, Base, Character} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -175,8 +175,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return this.value?.getMaybe(id);
   }
 
-  /** set a metadata field by name. Must not already exist. Value can be
-   * undefined */
+  /** set a metadata field by name. Must not already exist. Value must be
+   * detached or undefined */
   setMeta(name: string, value?: Value): Metafield {
     if (!this.metadata) {
       // allocate metadata block
@@ -256,7 +256,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   formulaType: (
     'none' | 'literal' | 'reference' | 'code' | 'update' | 'updateInput'
     | 'write' | 'choose' | 'call' | 'include' | 'builtin' | 'loop' | 'extend'
-    | '::replace' | '::insert' | '::append'
+    | '::replace' | '::insert' | '::append' | '::convert'
   ) = 'none';
 
   /** IO mode of item. Inputs are mutable state and function parameters. Outputs
@@ -283,6 +283,38 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   // FIXME: change literal outputs to be constant data?
   get isDerived() {
     return !this.inputLike && this.formulaType !== 'none'
+  }
+
+  /** error caused by editing. String literal indicates kind of error in
+   * non-derived items. Pointer to Item containing error for a derived item.
+   *
+   * There will still be a defined value even when there is an error. Copied on
+   * non-derived items  */
+  // TODO: array of multiple Items with errors
+  editError: undefined | Item | 'conversion' | 'type' | 'reference';
+
+  /** propagate error from another Item or its Value. Does nothing if already an error */
+  propagateError(from: Item | Value ) {
+    if (this.editError) {
+      // already an error
+      return;
+    }
+    if (from instanceof Value) {
+      // use contianing item of value
+      from = from.containingItem;
+    }
+    if (from.editError) {
+      // link to error source
+      this.editError = from;
+    }
+  }
+
+  /** track down derived errors */
+  get originalEditError(): undefined | string {
+    if (this.editError instanceof Item) {
+      return this.editError.originalEditError;
+    }
+    return this.editError;
   }
 
   /** whether item can reject having a value. Determined during analysis */
@@ -319,7 +351,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // set item unevaluated, with deferral to catch cycles
     this.evaluated = false;
     this.deferral = () => {
-      throw new StaticError(this, 'circular dependency')
+      throw new CompileError(this, 'circular dependency')
     }
     // execute thunk
     deferral();
@@ -375,6 +407,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           this.setConditional(ref.conditional);
           this.rejected = ref.rejected;
           this.copyValue(ref.target);
+          this.propagateError(ref.target!);
           break;
 
         case 'code':
@@ -403,29 +436,33 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           assert(this instanceof Statement);
           const writeValue =
             this.getMaybe('^writeValue') || this.get('^payload');
+          let targetRef = cast(this.get('^target').value, Reference);
+          let target = assertDefined(targetRef.target);
           if (this.analyzing) {
             // must be inside an on-update block
             for (let up of this.upwards()) {
               if (up.value instanceof OnUpdate) break;
               if (up instanceof Workspace) {
-                throw new StaticError(this, 'write must be in on-update block');
+                throw new CompileError(this, 'write must be in on-update block');
               }
             }
             // check target and type of writes
-            let targetRef = cast(this.get('^target').value, Reference);
-            let target = targetRef.target!;
-            if (!target.value!.updatableFrom(writeValue.value!)) {
-              throw new StaticError(this, 'write changing type')
-            }
             if (!target.comesBefore(writeValue)) {
-              throw new StaticError(arrayLast(targetRef.tokens), 'write must go backwards')
+              throw new CompileError(arrayLast(targetRef.tokens), 'write must go backwards')
             }
             if (target.io === 'output') {
-              throw new StaticError(arrayLast(targetRef.tokens),
+              throw new CompileError(arrayLast(targetRef.tokens),
                 'not updatable');
               // note contextual writability of target is checked in update
             }
           }
+
+          if (!target.value!.updatableFrom(writeValue.value!)) {
+            // type error - will infect triggering update operation
+            // throw new StaticError(this, 'write changing type')
+            this.editError = 'type';
+          }
+
           // write is actually performed in triggering update operation
           // target and writeValue in metadata already evaluated
           // copy value of writeValue
@@ -448,6 +485,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         case '::replace':
         case '::insert':
         case '::append':
+        case '::convert':
           // edits
           this.edit();
           break;
@@ -543,6 +581,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   private result(code: Code) {
     this.setConditional(code.conditional);
     this.rejected = code.rejected;
+    this.propagateError(code);
     this.copyValue(code.result);
 
     if (code.export) {
@@ -616,7 +655,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       // replace target value with payload value
       option.eval();
       if (!option.value!.updatableFrom(payload.value!)) {
-        throw new StaticError(arrayLast(ref.tokens), 'changing type of value')
+        throw new CompileError(arrayLast(ref.tokens), 'changing type of value')
       }
       option.detachValue();
       option.copyValue(payload);
@@ -634,7 +673,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       // inject source fields into record for proper lexical binding
       let source = ref.target!.value;
       if (!(source instanceof Record)) {
-        throw new StaticError(this, 'extend requires a record');
+        throw new CompileError(this, 'extend requires a record');
       }
       for (let field of arrayReverse(source.fields)) {
         // copy in context of record
@@ -662,7 +701,6 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   }
 
 /* --------------------------------- update --------------------------------- */
-
 
   /** Determines if a contained item is writable in the context of an update on
    * self. An item will be writable if it is an input field, and its containers
@@ -715,9 +753,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       deltaField.io = 'input'
     }
     let deltaField = this.delta.deltaField;
-    if (deltaField.value) {
-      deltaField.detachValue();
-    }
+    deltaField.detachValueIf();
     if (from) {
       deltaField.setFrom(from);
     }
@@ -753,38 +789,46 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     const target = ref.target;
     assert(target);
     const context = this.workspace.down(ref.path.ids.slice(0, ref.context));
+    // replace needs to be within context
+    assert(target !== context);
     context.eval();
 
     // Set ^delta on target to changed value
-    const payload = this.getMaybe('^payload');
-    if (payload) {
-      this.setConditional(payload.conditional);
-      if (payload.rejected) this.rejected = true;
-      assert(payload.value);
-    }
+    const payload = this.get('^payload');
+    assert(payload.value);
+    this.setConditional(payload.conditional);
+    if (payload.rejected) this.rejected = true;
 
-    // replace needs to be within context
-    assert(target !== context);
-    assert(payload);
     // replace target value with payload value
     if (!target.value!.updatableFrom(payload.value!)) {
-      throw new StaticError(arrayLast(ref.tokens), 'changing type of value')
+      // type error
+      this.editError = 'type';
+      // pass through context unchanged
+      this.detachValueIf();
+      this.copyValue(context);
+      return;
     }
+
     target.setDelta(payload);
+    this.propagateError(payload);
 
     // propagate updates within context
     let groundedWrites =
       (this.container instanceof Call)
         // don't propagate function argument assignments
         ? [target]
-        : context.feedback(...context.writeSelection(target));
+        : this.feedback(context, ...context.writeSelection(target));
 
 
     // replace grounded deltas in result copied from context
-    if (this.value) {
-      this.detachValue();
-    }
+    this.detachValueIf();
     this.copyValue(context);
+
+    if (this.editError) {
+      // leave value unchanged on error
+      return;
+    }
+
     for (let write of groundedWrites) {
       if (write.io === 'register') {
         // register updates are left in the ^delta of input, to be accessed
@@ -796,14 +840,13 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       this.updateValue(context, target, assertDefined(write.deltaField));
     }
 
-
     if (this.formulaType === 'updateInput') {
       // initialize call body to recalc arg defaults from input value,
       // preserving primary input value
       // FIXME: maybe compile this into an explicit initialize operation?
       // But don't want to init primary input.
       cast(this.value, Code).statements.slice(1).forEach(statement =>
-        statement.initialize())
+        statement.uneval())
     }
 
   }
@@ -813,6 +856,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   private updateValue(context: Item, target: Item, delta: Item) {
     target.detachValue();
     target.copyValue(delta);
+    // clear error on target
+    target.editError = undefined;
 
     // translate references from inside value to context
     // Note this wouldn't be necessary if we only copied over input values
@@ -872,11 +917,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
               }
               if (!this.contains(backingItem)) {
                 // write leaving feedback context
-                throw new StaticError(write, 'write outside context of update')
+                throw new CompileError(write, 'write outside context of update')
               }
               let target = backingItem.down(write.path.ids.slice(selectionField.path.length));
               if (from && from.comesBefore(backingItem)) {
-                throw new StaticError(write, 'write to link goes forwards');
+                throw new CompileError(write, 'write to link goes forwards');
               }
               target.setDelta(write.deltaField);
               return [target];
@@ -896,15 +941,15 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       // FIXME: could stage update - home table update would scan for internal
       // staged changes.
       // Still need table context to propagate uniqueness changes
-      throw new StaticError(write, 'writing secondary link outside home table');
+      throw new CompileError(write, 'writing secondary link outside home table');
     }
     const backing = link.backing;
     if (!this.contains(backing.containingItem)) {
       // write leaving feedback context
-      throw new StaticError(write, 'write outside context of update')
+      throw new CompileError(write, 'write outside context of update')
     }
     if (from && from.comesBefore(backing.containingItem)) {
-      throw new StaticError(write, 'write to link goes forwards');
+      throw new CompileError(write, 'write to link goes forwards');
     }
 
     if (this.analyzing) {
@@ -948,11 +993,13 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return writes;
   }
 
-  /** Feedback propagates writes in reverse tree order until
-   * all grounded at inputs. Receiving item is the bounding context of update
+  /** Feedback propagates writes in reverse tree order until all grounded at
+   * inputs. Propagates errors to this.editError
+   *
+   * @param context bounding context of update
    * @param writes initial written fields with value in their ^delta
    * @returns array of grounded writes */
-  feedback(...writes: Item[] ): Item[] {
+  feedback(context: Item, ...writes: Item[] ): Item[] {
 
     // stack of pending writes, sorted in tree order
     let pendingWrites = writes.slice();
@@ -963,33 +1010,33 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     /** function to record a write through a reference in pendingdeltas */
     const writeRef = (ref: Reference, value: Item) => {
       let target = ref.target!;
-      if (!this.contains(target)) {
+      if (!context.contains(target)) {
         // write leaving feedback context
 
-        if (this.container instanceof Loop
-          && this.container.template === this
+        if (context.container instanceof Loop
+          && context.container.template === context
         ) {
           // called from analysis of for-all to check for escaping writes
-          if (cast(this.value, Do).items[0].getMaybe('^reference')?.value
+          if (cast(context.value, Do).items[0].getMaybe('^reference')?.value
             === ref) {
             // the write to the source of the for-all block is ignored
             assert(this.analyzing);
             return;
           }
-          throw new StaticError(arrayLast(ref.tokens),
+          throw new CompileError(arrayLast(ref.tokens),
             'external write from for-all')
         }
 
         // TODO: passivation or lenses
-        throw new StaticError(arrayLast(ref.tokens),
+        throw new CompileError(arrayLast(ref.tokens),
           'write outside context of update')
       }
-      if (!this.writeSink(target)) {
-        throw new StaticError(arrayLast(ref.tokens), 'not updatable')
+      if (!context.writeSink(target)) {
+        throw new CompileError(arrayLast(ref.tokens), 'not updatable')
       }
       target.setDelta(value);
       // forward write through selections
-      this.writeSelection(target, ref.containingItem).forEach(writePending);
+      context.writeSelection(target, ref.containingItem).forEach(writePending);
     }
 
     /** function to record a write in pendingWrites */
@@ -1000,7 +1047,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         let pending = pendingWrites[i];
         if (pending === write) {
           // conflicting write at same location
-          throw new StaticError(write, 'write conflict');
+          throw new CompileError(write, 'write conflict');
         }
         if (pending.comesBeforeOrContains(write)) break;
         continue
@@ -1020,7 +1067,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             //clause.resolve();
             clause.setDelta(delta);
             // do rest of feedback for just this clause
-            let grounds = this.feedback(...[...pendingWrites, clause]);
+            let grounds = this.feedback(context, ...[...pendingWrites, clause]);
             // merge resultant grounded writes together
             grounds.forEach(grounded => {
               if (groundedWrites.includes(grounded)) return;
@@ -1039,7 +1086,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           // set result different
           resultDelta.uncopy();
           // check for feedback leaving for-all block
-          code.containingItem.feedback(code.result!)
+          this.feedback(code.containingItem, code.result!)
         }
         writePending(code.result!);
         return
@@ -1050,7 +1097,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       let onUpdate = cast(arrayLast(code.statements).value, OnUpdate);
 
       // set input delta of on-update block
-      onUpdate.initialize();
+      onUpdate.uneval();
       let input = onUpdate.statements[0];
       assert(input.io === 'input')
       if (input.value) {
@@ -1061,14 +1108,22 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       input.setFrom(delta);
       // evaluate on-update and queue up writes
       onUpdate.eval();
+
+      if (onUpdate.editError) {
+        // skip if error in update block
+        this.propagateError(onUpdate);
+        return;
+      }
+
       // Execute all internal write statements
       // this will traverse all try clauses during analysis
       for (let statement of onUpdate.writeStatements()) {
         const ref = cast(statement.get('^target').value, Reference);
         if (analyzeForAll && !code.containingItem.contains(ref.target!)) {
-          throw new StaticError(arrayLast(ref.tokens),
+          throw new CompileError(arrayLast(ref.tokens),
             'external write from for-all')
         }
+        assert(!statement.editError);
         writeRef(ref, statement);
       }
     }
@@ -1083,7 +1138,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       if (this.analyzing) {
         // in analysis, error if writing copy, which is static no-op
         if (delta.value!.isCopyOf(write.value!)) {
-          throw new StaticError(write, 'writing same value');
+          throw new CompileError(write, 'writing same value');
         }
         // otherwise treat as different
       } else {
@@ -1092,10 +1147,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       }
 
       // lift deltas to containing write sink
-      let writeSink = this.writeSink(write);
+      let writeSink = context.writeSink(write);
       if (!writeSink) {
         // unwritable location
-        throw new StaticError(write, 'not updatable');
+        throw new CompileError(write, 'not updatable');
       }
       if (writeSink !== write) {
         // writes within sink are lifted into its ^delta
@@ -1107,7 +1162,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             sinkDelta = assertDefined(writeSink.deltaField);
             if (sinkDelta.value!.source !== writeSink.value) {
               // conflict with non-lifted delta
-              throw new StaticError(write, 'write conflict');
+              throw new CompileError(write, 'write conflict');
             }
             break;
           }
@@ -1116,7 +1171,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           }
           if (prior.contains(write)) {
             // conflict with containing write
-            throw new StaticError(write, 'write conflict');
+            throw new CompileError(write, 'write conflict');
           }
         }
         if (!sinkDelta) {
@@ -1157,13 +1212,13 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
               continue;
             }
           }
-          throw new StaticError(write, 'not updatable');
+          throw new CompileError(write, 'not updatable');
         } else {
           // ground out input write
           // check for conflicting content writes
           groundedWrites.forEach(grounded => {
             if (write.contains(grounded)) {
-              throw new StaticError(write, 'write conflict');
+              throw new CompileError(write, 'write conflict');
             }
           })
           groundedWrites.push(write);
@@ -1182,7 +1237,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             code = cast(arrayLast(call.statements).value, Do);
             if (!code.result) {
               // during analysis eval short-circuits on possibly recursive funcs
-              throw new StaticError(write, 'called function not updatable')
+              throw new CompileError(write, 'called function not updatable')
             }
           } else {
             code = cast(write.get('^code').value, Code);
@@ -1222,7 +1277,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           // pass through remaining changes to context
           const updateContext = this.workspace.down(
             targetRef.path.ids.slice(0, targetRef.context));
-          assert(this.writeSink(updateContext) === updateContext);
+          assert(context.writeSink(updateContext) === updateContext);
           const contextDelta = updateContext.setDelta(delta);
           // mask changes to target region by copying current value
           const contextTarget = contextDelta.down(targetPath);
@@ -1297,7 +1352,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             case 'such-that': {
               // overwrite changes into source
               if (!source.tracked) {
-                throw new StaticError(write,
+                throw new CompileError(write,
                   'such-that not updatable for untracked array');
               }
               // first set delta to copy of original source value
@@ -1359,7 +1414,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
             case 'for-all': {
               if (!source.tracked) {
-                throw new StaticError(write,
+                throw new CompileError(write,
                   'for-all not updatable for untracked array');
               }
               // first set delta of source to copy of its original value
@@ -1433,7 +1488,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
                   // link for-all iteration to source ghost
                   let iteration = loop.createGhost(id);
                   // copied from Loop.eval()
-                  iteration.initialize();
+                  iteration.uneval();
                   let iterInput = iteration.value!.items[0];
                   assert(iterInput.formulaType === 'reference');
                   let iterRef = cast(iterInput.get('^reference').value, Reference);
@@ -1470,7 +1525,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
 
         default:
-          throw new StaticError(write, 'not updatable');
+          throw new CompileError(write, 'not updatable');
       }
       continue;
     }
@@ -1532,7 +1587,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         if (item.value instanceof Reference
           && !literal.contains(item.value.target!)
         ) {
-          throw new StaticError(item, 'reference escaping literal value');
+          throw new CompileError(item, 'reference escaping literal value');
         }
       }
 
@@ -1561,9 +1616,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       case '::insert': {
         const append = this.formulaType === '::append';
         if (append && !(target.value instanceof Record)) {
-          throw new StaticError(target, 'can only append to record')
+          throw new CompileError(target, 'can only append to record')
         } else if (!append && !(target.container instanceof Record)) {
-          throw new StaticError(target, 'can only insert into record')
+          throw new CompileError(target, 'can only insert into record')
         }
         // ^source is Record containing field to append/insert
         const source = cast(this.get('^source').value, Record).fields[0];
@@ -1596,9 +1651,118 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         break;
       }
 
+      case '::convert': {
+        // optional ^source is literal or reference
+        const to = this.get('^source');
+        literalCheck(to);
+        const toType = assertDefined(to.value);
+        if (!(toType instanceof Base || toType instanceof Text)) {
+          throw new CompileError(to, 'can only convert to base types and text');
+        }
+        if (!(toType instanceof Nil)
+          && !(target.value instanceof Base || target.value instanceof Text)
+        ) {
+          throw new CompileError(to, 'can only convert from base types and text')
+        }
+
+        // function to perform edit
+        function editor(target: Item) {
+          let fromVal = assertDefined(target.value);
+          target.detachValue();
+          target.editError = undefined;
+          if (toType instanceof Reference) trap();
+          if (toType instanceof Nil) {
+            // anything can be converted to Nil
+            target.setValue(new Nil);
+            return;
+          }
+          if (fromVal instanceof Nil) {
+            // Nil gets converted to value of to type
+            target.copyValue(to);
+            return;
+          }
+
+          // convert to text
+          if (toType instanceof Text) {
+            if (fromVal instanceof Text) {
+              // noop
+              target.setValue(fromVal);
+              return;
+            }
+
+            let text = new Text;
+            target.setValue(text);
+            if (fromVal instanceof _Number) {
+              // number to text
+              if (fromVal.isBlank()) {
+                // NaN converts to value of toType
+                // FIXME - should it be blank value?
+                text.value = toType.value
+              } else {
+                // use standard JS numnber to string conversion
+                text.value = fromVal.value.toString();
+              }
+              return;
+            }
+
+            if (fromVal instanceof Character) {
+              text.value = fromVal.value;
+              return;
+            }
+
+            // unrecognized from type
+            trap();
+          }
+
+          // convert to number
+          if (toType instanceof _Number) {
+            if (fromVal instanceof _Number) {
+              // noop
+              target.setValue(fromVal);
+              return;
+            }
+            let num = new _Number;
+            target.setValue(num);
+
+            if (fromVal instanceof Character) {
+              num.value = fromVal.value.charCodeAt(0);
+              return;
+            }
+            if (fromVal instanceof Text) {
+              // convert text to number, which may fail
+              let text = fromVal.value.trim();
+              if (text) {
+                num.value = Number(text);
+                if (Number.isNaN(num.value)) {
+                  // conversion error
+                  target.editError = 'conversion';
+                }
+              } else {
+                // convert empty/whitespace text to NaN
+                num.value = Number.NaN;
+              }
+              return;
+            }
+
+            // unrecognized type
+            trap();
+          }
+
+          // unrecognized conversion type
+          trap();
+        }
+
+        iterateEdit(this, targetPath, editor)
+        break;
+      }
+
+
       default:
         trap();
     }
+
+    // analyze results of edit
+    this.workspace.analyze(this);
   }
 
 
@@ -1650,10 +1814,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return this.contains(other) || this.comesBefore(other);
   }
 
-  /** initialize all values */
-  initialize() {
+  /** unevaluate */
+  uneval() {
     this.resolve();
-    if (this.metadata) this.metadata.initialize();
+    if (this.metadata) this.metadata.uneval();
     if (this.delta) {
       this.delta.containingItem = undefined as any;
       this.delta = undefined;
@@ -1667,13 +1831,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         // break source connection
         this.value!.source = undefined;
       }
-      this.value!.initialize();
+      this.value!.uneval();
       return;
     }
     // recalc value
-    if (this.value) {
-      this.detachValue();
-    }
+    this.detachValueIf();
   }
 
   /** detach value, so a new one can be set */
@@ -1682,6 +1844,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     this.value.containingItem = undefined as any;
     this.value = undefined;
     this.evaluated = false;
+  }
+
+  /** detach value if defined */
+  detachValueIf() {
+    if (this.value) this.detachValue();
   }
 
   /** whether item has been detached */
@@ -1744,13 +1911,13 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   // }
 
   /** source of value through copying */
-  // FIXME prob should be a Path, translated through copies
-  source?: this;
+  // Currently only Value.source is used
+  // source?: this;
 
   /** original source of this item via copying. That is, its definition */
-  get origin(): this {
-    return this.source ? this.source.origin : this;
-  }
+  // get origin(): this {
+  //   return this.source ? this.source.origin : this;
+  // }
 
   /** make copy, bottom up, translating paths contextually */
   copy(srcPath: Path, dstPath: Path): this {
@@ -1766,7 +1933,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     to.usesPrevious = this.usesPrevious;
 
     // record copy
-    to.source = this;
+    // to.source = this;
 
     if (this.deferral) {
       // defer copying a deferred item
@@ -1806,6 +1973,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       assert(this.value.containingItem === this);
       to.value = this.value.copy(srcPath, dstPath);
       to.value.containingItem = to;
+      // copy edit error on underived value
+      // MAYBE: if copying across versions, copy don't link error
+      to.propagateError(this);
     }
 
     return to;
@@ -1864,10 +2034,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   dump() { return this.value ? this.value.dump() : {'': 'undefined'}}
 }
 
-/** FIXME: reify into state so unaffected items can operate */
-export class StaticError extends Error {
+/** FIXME: if could be result of an edit, reify into Item.editError so workspace
+ * stays live */
+export class CompileError extends Error {
   constructor(token: Token | Item | undefined, description: string) {
-    super(description + ': ' + StaticError.context(token));
+    super(description + ': ' + CompileError.context(token));
   }
   private static context(token?: Token | Item): string {
     if (token instanceof Item) {

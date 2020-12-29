@@ -1,4 +1,4 @@
-import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement, builtinValue, FieldID, Record, Field, Do, cast, Reference, Crash, _Number, StaticError, assertDefined, arrayLast, arrayEquals, Token } from "./exports";
+import { Container, ID, assert, Item, Character, isNumber, isString, Path, another, Value, trap, builtins, Statement, builtinValue, FieldID, Record, Field, Do, cast, Reference, Crash, _Number, CompileError, assertDefined, arrayLast, arrayEquals, Token } from "./exports";
 
 /** A _Array contains a variable-sized sequence of items of a fixed type. The
  * items are called entries and have numeric IDs, which are ordinal numbers in
@@ -140,10 +140,11 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
   // array is blank when it is empty
   isBlank() { return this.items.length === 0 }
 
-  initialize() {
-    this.template.initialize();
-    this.serial = 0;
-    this.items = [];
+  uneval() {
+    this.template.uneval();
+    // previously was initializing arrays
+    // this.serial = 0;
+    // this.items = [];
   }
 
   copy(srcPath: Path, dstPath: Path): this {
@@ -290,7 +291,7 @@ export class Text extends _Array<Character> {
 
   eval() { }
 
-  initialize() { }
+  uneval() { }
 
   copy(srcPath: Path, dstPath: Path): this {
     // just copy string value
@@ -346,7 +347,7 @@ export class Loop extends _Array<Do> {
       let accum = templateBlock.items[1];
       let result = templateBlock.result!;
       if (!accum.value!.updatableFrom(result.value!)) {
-        throw new StaticError(accum.value!.token, 'result must be same type as accumulator')
+        throw new CompileError(accum.value!.token, 'result must be same type as accumulator')
       }
     }
 
@@ -359,7 +360,7 @@ export class Loop extends _Array<Do> {
       iteration.formulaType = 'none';
       // copy code block into iteration
       iteration.setFrom(templateBlock);
-      iteration.initialize();
+      iteration.uneval();
       // set iteration source reference to source entry
       let iterInput = iteration.value!.items[0];
       assert(iterInput.formulaType === 'reference');
@@ -394,7 +395,7 @@ export class Loop extends _Array<Do> {
       case 'find?':
       case 'find!': {
         if (!templateBlock.conditional) {
-          throw new StaticError(templateBlock.token, 'block must be conditional');
+          throw new CompileError(templateBlock.token, 'block must be conditional');
         }
         let index = 0;
         if (!this.analyzing) {
@@ -431,7 +432,7 @@ export class Loop extends _Array<Do> {
       // map an array through a function
       case 'for-all': {
         if (templateBlock.conditional) {
-          throw new StaticError(templateBlock.token,
+          throw new CompileError(templateBlock.token,
             'block cannot be conditional');
         }
 
@@ -474,7 +475,7 @@ export class Loop extends _Array<Do> {
       case 'such-that': {
 
         if (!templateBlock.conditional) {
-          throw new StaticError(templateBlock.token,
+          throw new CompileError(templateBlock.token,
             'block must be conditional');
         }
 
@@ -510,7 +511,7 @@ export class Loop extends _Array<Do> {
       case 'selecting': {
 
         if (!templateBlock.conditional) {
-          throw new StaticError(templateBlock.token,
+          throw new CompileError(templateBlock.token,
             'block must be conditional');
         }
 
@@ -518,7 +519,7 @@ export class Loop extends _Array<Do> {
         // get source selection from input array, which is selection.backing
         let selection = this.input.containingItem.container;
         if (!(selection instanceof Selection)) {
-          throw new StaticError(statement,
+          throw new CompileError(statement,
             'selecting block requires a selection');
         }
         statement.setFrom(selection);
@@ -546,7 +547,7 @@ export class Loop extends _Array<Do> {
 
         const all = this.loopType.startsWith('all');
         if (!templateBlock.conditional) {
-          throw new StaticError(templateBlock.token, 'block must be conditional');
+          throw new CompileError(templateBlock.token, 'block must be conditional');
         }
         // reject if any/no iteration succeeded
         if (this.items.find(iteration => {
@@ -568,7 +569,7 @@ export class Loop extends _Array<Do> {
 
       case 'accumulate': {
         if (templateBlock.conditional) {
-          throw new StaticError(templateBlock.token, 'block cannot be conditional');
+          throw new CompileError(templateBlock.token, 'block cannot be conditional');
         }
         if (this.items.length) {
           // return last result
@@ -655,7 +656,7 @@ export class Selection extends Reference {
     // bind array reference
     super.eval();
     if (this.conditional) {
-      throw new StaticError(this.containingItem,
+      throw new CompileError(this.containingItem,
         'selection reference can not be conditional')
     }
     this.postEval();
@@ -666,11 +667,11 @@ export class Selection extends Reference {
     let array = this.target!.value!;
     if (this.analyzing) {
       if (!(array instanceof _Array)) {
-        throw new StaticError(this.containingItem,
+        throw new CompileError(this.containingItem,
           'selection requires an array reference')
       }
       if (!array.tracked) {
-        throw new StaticError(this.containingItem,
+        throw new CompileError(this.containingItem,
           'selection requires a tracked array')
       }
     }
@@ -694,7 +695,7 @@ export class Selection extends Reference {
         this.path.lub(this.containingPath).ids.length
       ).forEach(id => {
         if (typeof id === 'number') {
-          throw new StaticError(this.containingItem, 'selection in nested table not yet supported')
+          throw new CompileError(this.containingItem, 'selection in nested table not yet supported')
         }
       })
     }
@@ -787,11 +788,12 @@ export class Selection extends Reference {
     return field;
   }
 
-  initialize() {
-    super.initialize();
-    this.selected = [];
-    this.fields = [];
-  }
+  // previously was initializing selections
+  // uneval() {
+  //   super.uneval();
+  //   this.selected = [];
+  //   this.fields = [];
+  // }
 
   copy(srcPath: Path, dstPath: Path): this {
     let to = super.copy(srcPath, dstPath);
@@ -860,7 +862,7 @@ export class Link extends Selection {
         || !(thisArray instanceof _Array)
         || !thisArray.tracked
       ) {
-        throw new StaticError(this.containingItem,
+        throw new CompileError(this.containingItem,
           'link must be a field of a tracked table')
       }
       let thisFieldID = cast(this.containingItem.id, FieldID);
@@ -871,13 +873,13 @@ export class Link extends Selection {
         || !oppositeArray.tracked
         || !(oppositeArray.template.value instanceof Record)
       ) {
-        throw new StaticError(this.containingItem,
+        throw new CompileError(this.containingItem,
           'link requires a tracked table')
       }
       let oppositeField =
         oppositeArray.template.getMaybe(this.oppositeFieldName.text);
       if (!oppositeField) {
-        throw new StaticError(this.oppositeFieldName,
+        throw new CompileError(this.oppositeFieldName,
           'Opposite link not defined')
       }
       this.oppositeFieldID = oppositeField.id as FieldID;
@@ -888,7 +890,7 @@ export class Link extends Selection {
         || oppositeLink.backing !== thisArray
         || oppositeLink.oppositeFieldID !== thisFieldID
       ) {
-        throw new StaticError(this.oppositeFieldName,
+        throw new CompileError(this.oppositeFieldName,
           'Opposite link does not match')
       }
       // first link in tree is primary

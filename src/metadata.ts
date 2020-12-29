@@ -1,4 +1,4 @@
-import { Block, FieldID, Item, Value, Dictionary, assert, assertDefined, Field, Reference, cast, Text, Choice, StaticError, ID, OptionReference, Path } from "./exports";
+import { Block, FieldID, Item, Value, Dictionary, assert, assertDefined, Field, Reference, cast, Text, Choice, CompileError, ID, OptionReference, Path } from "./exports";
 
 /** Metadata on an Item, containing fields with MetafieldID, and whose names all
  *start with '^' */
@@ -9,7 +9,8 @@ export class Metadata extends Block<Metafield> {
     return this.containingItem.up;
   }
 
-  /** sets a metadata field, which must not already exist. Value can be undefined. */
+  /** sets a metadata field, which must not already exist. Value must be
+   * detached or undefined. */
   set(name: string, value?: Value): Metafield {
     let id = assertDefined(MetaID.ids[name]);
     assert(!this.getMaybe(id));

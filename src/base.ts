@@ -6,7 +6,7 @@ export abstract class Base extends Value {
   // base values already evaluated by default
   eval() { }
 
-  initialize() { }
+  uneval() { }
 
   dump() { }
 

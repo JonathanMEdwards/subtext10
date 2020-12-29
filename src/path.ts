@@ -1,4 +1,4 @@
-import { MetaID, VersionID, assert, FieldID, Base, another, Token, Item, trap, StaticError, Block, Value, arrayEquals, arrayLast } from "./exports";
+import { MetaID, VersionID, assert, FieldID, Base, another, Token, Item, trap, CompileError, Block, Value, arrayEquals, arrayLast } from "./exports";
 
 /**
  * ID of an item. Immutable and interned, so can use ===
@@ -101,4 +101,7 @@ export class Path {
 
   // dump path as dotted string
   dump() { return this.ids.join('.'); }
+
+  // dump path within version as a dotted string
+  dumpInVersion() { return this.ids.slice(1).join('.'); }
 }

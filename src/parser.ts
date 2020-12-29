@@ -335,7 +335,7 @@ export class Parser {
     }
     if (literal) {
       if (
-        field.inputLike
+        (field.io === 'input' || field.io === 'register')
         && literal instanceof Base
         && !(literal instanceof Nil)
         && !(literal instanceof Anything)
@@ -344,7 +344,7 @@ export class Parser {
         field.formulaType = 'literal';
         field.setMeta('^literal', literal);
       } else {
-        // non-base inputs and literal outputs stored directly in value of field
+        // data and non-base inputs and literal outputs stored directly in value of field
         field.formulaType = 'none';
         field.setValue(literal);
       }
@@ -601,8 +601,8 @@ export class Parser {
 
   /** requires an edit command */
   requireEdit(field: Field) {
-    if (this.matchToken('::replace')) {
-      field.formulaType = '::replace';
+    if (this.matchToken('::replace', '::convert')) {
+      field.formulaType = this.prevToken.text as any;
       // parse ^source
       let source = this.parseLiteral() || this.parseReference();
       if (!source || (source instanceof Reference && !source.dependent)) {

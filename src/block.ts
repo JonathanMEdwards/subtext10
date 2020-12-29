@@ -1,4 +1,4 @@
-import { assert, Container, ID, Item, isNumber, Token, Path, Dictionary, Value, trap, StaticError, Link, Reference } from "./exports";
+import { assert, Container, ID, Item, isNumber, Token, Path, Dictionary, Value, trap, CompileError, Link, Reference } from "./exports";
 
 /** A Block is a record-like container with a fixed set of items called fields.
  * Each field can have a different type. Each Field has a globally unique
@@ -49,7 +49,7 @@ export class Block<F extends Field = Field> extends Container<F> {
       field.eval();
       if (this.analyzing) {
         if (field.inputLike && field.conditional) {
-          throw new StaticError(field, 'input fields must be unconditional')
+          throw new CompileError(field, 'input fields must be unconditional')
         }
 
         // verify conditional naming
@@ -57,7 +57,7 @@ export class Block<F extends Field = Field> extends Container<F> {
           field.id.name && field.id.token
           && field.id.token.text.endsWith('?') !== !!field.conditional
         ) {
-          throw new StaticError(
+          throw new CompileError(
             field,
             field.conditional
               ? 'conditional field name must have suffix ?'
@@ -74,18 +74,13 @@ export class Block<F extends Field = Field> extends Container<F> {
               && item.value.path // possible in recursive choice
               && field.path.metadataContains(item.value.path)
             ) {
-              throw new StaticError(item, 'input field value referencing its own formula')
+              throw new CompileError(item, 'input field value referencing its own formula')
             }
           }
 
         }
       }
     })
-  }
-
-  /** initialize all values */
-  initialize() {
-    this.fields.forEach(field => field.initialize());
   }
 
   copy(srcPath: Path, dstPath: Path): this {

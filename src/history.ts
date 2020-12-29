@@ -29,6 +29,24 @@ export class Version extends Field<VersionID, Head> {
   previous(): Item | undefined {
     return undefined;
   }
+
+  /** array of items with edit errors */
+  get editErrors(): Item[] {
+    let errors: Item[] = [];
+    for (let item of this.visit()) {
+      if (item.editError) {
+        errors.push(item);
+      }
+    }
+    return errors;
+  }
+
+  /** Array of edit error messages */
+  get editErrorMessages(): string[] {
+    return (this.editErrors
+      .map(item => item.path.dumpInVersion() + ': ' + item.originalEditError)
+    )
+  }
 }
 
 /** space-unique ID of a Version */

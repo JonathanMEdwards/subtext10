@@ -38,8 +38,8 @@ export abstract class Value {
   /** evaluate contents */
   abstract eval(): void;
 
-  /** initialize all values */
-  abstract initialize(): void;
+  /** unevaluate */
+  abstract uneval(): void;
 
   /** source of value through copying */
   source?: this;
@@ -47,6 +47,13 @@ export abstract class Value {
   /** original source of this value via copying. That is, its definition */
   get origin(): this {
     return this.source ? this.source.origin : this;
+  }
+
+  /** edit error stored in containing Item */
+  get editError() { return this.containingItem.editError }
+  /** propagate error to containing item */
+  propagateError(from: Item | Value) {
+    this.containingItem.propagateError(from);
   }
 
   /** make copy, bottom up, translating paths contextually */

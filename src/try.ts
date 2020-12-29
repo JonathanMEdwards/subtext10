@@ -1,4 +1,4 @@
-import { Do, StaticError, arrayLast, Crash, Field, Code, assert, cast, Choice, assertDefined, trap, Item, Reference, Statement, arrayRemove } from "./exports";
+import { Do, CompileError, arrayLast, Crash, Field, Code, assert, cast, Choice, assertDefined, trap, Item, Reference, Statement, arrayRemove } from "./exports";
 
 /** a try block is the basic control structure of Subtext. It contains a sequnce
  * of do-blocks called clauses. The clauses are executed in order until one does
@@ -36,7 +36,7 @@ export class Try extends Code {
               || clause !== arrayLast(this.fields)
             )
           ) {
-            throw new StaticError(clause,
+            throw new CompileError(clause,
               'clause must be conditional if not last'
             )
           }
@@ -46,13 +46,21 @@ export class Try extends Code {
             this.result = first;
             // uncopy first clause result to break value provenance
             (cast(first.get('^code').value, Code).result!).uncopy();
-          } else if (
-            // check type compatible with first clause
-            !first.value!.updatableFrom(clause.value!)
-          ) {
-            throw new StaticError(clause, 'clauses must have same type result')
-          } else if (this.getMaybe('^export') && !clause.getMaybe('^export')) {
-            throw new StaticError(clause, 'all clauses must export')
+          } else {
+            // not first clause
+            if (!first.value!.updatableFrom(clause.value!)) {
+              // type incompatible with first clause
+              //result')
+              // assert type error on the clause itself
+              let code = clause.get('^code');
+              // note overriding eval errors in clause
+              code.editError = 'type';
+              assert(!code.isDerived); // to be sure error sticks
+              clause.propagateError(code);
+            }
+            if (this.getMaybe('^export') && !clause.getMaybe('^export')) {
+              throw new CompileError(clause, 'all clauses must export')
+            }
           }
         }
         if (clause === first) {
@@ -80,7 +88,7 @@ export class Try extends Code {
           let option = new Field;
           // option adopts name of clause
           if (clause.id.name === undefined) {
-            throw new StaticError(clause, 'exporting clause must be named')
+            throw new CompileError(clause, 'exporting clause must be named')
           }
           option.id = clause.id;
           choice.add(option);
@@ -92,7 +100,7 @@ export class Try extends Code {
             clause.resolve();
             let clauseExport = cast(clause.get('^code').value, Code).export;
             if (!clauseExport) {
-              throw new StaticError(clause, 'all clauses must export')
+              throw new CompileError(clause, 'all clauses must export')
             }
             // export to option value
             this.fieldImport(option, clauseExport);
@@ -110,12 +118,17 @@ export class Try extends Code {
       if (!clause.rejected) {
         // stop on success when not analyzing
         this.result = clause;
+        this.propagateError(clause);
+        if (clause.get('^code').editError === 'type') {
+          // Set result to first clause to get correct type
+          this.result = this.fields[0];
+        }
         // set export choice
         this.export = this.containingItem.getMaybe('^export');
         if (this.export) {
           let choice = cast(this.export.value, Choice);
           let option = choice.setChoice(this.fields.indexOf(clause))
-          option.detachValue();
+          option.detachValueIf();
           option.copyValue(assertDefined(clause.getMaybe('^export')));
         }
         break;

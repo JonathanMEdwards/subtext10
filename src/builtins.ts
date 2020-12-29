@@ -1,4 +1,4 @@
-import { Item, cast, Do, assert, _Number, Character, Text, Dictionary, Value, Statement, arrayLast, Base, assertDefined, Nil, _Array, StaticError, Metafield, Choice, Anything} from "./exports"
+import { Item, cast, Do, assert, _Number, Character, Text, Dictionary, Value, Statement, arrayLast, Base, assertDefined, Nil, _Array, CompileError, Metafield, Choice, Anything} from "./exports"
 
 // extract input values. Converts a _Number to number
 function inputs(statement: Statement): builtinValue[] {
@@ -36,7 +36,7 @@ export function updateBuiltin(statement: Statement, change: Item): Metafield {
   let name = cast(statement.get('^builtin').value, Text).value;
   let update = builtinUpdates[name];
   if (!update) {
-    throw new StaticError(statement, `Builtin %{name} not updatable`)
+    throw new CompileError(statement, `Builtin %{name} not updatable`)
   }
 
   // write to ^delta of first input parameter
@@ -166,7 +166,7 @@ builtins['flip'] = (s: Statement, a: Value) => {
   s.setFrom(a);
   if (a instanceof Anything) return;
   if (!(a instanceof Choice) || a.fields.length !== 2) {
-    throw new StaticError(a.token, 'Flip requires a binary choice' )
+    throw new CompileError(a.token, 'Flip requires a binary choice' )
   }
   let choice = cast(s.value, Choice);
   choice.setChoice(choice.choiceIndex? 0 : 1)

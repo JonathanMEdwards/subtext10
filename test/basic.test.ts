@@ -1,31 +1,4 @@
-import { Workspace} from "../src/exports";
-
-/** @module
- *
- * Basic tests
- */
-
-// constants for dump of boolean choices
-export const no = { no: null }
-export const yes = { yes: null }
-export const off = { off: null }
-export const on = { on: null }
-
-/** Compile a workspace from source */
-export function compile(source: string) {
-  return Workspace.compile(source);
-}
-
-/** Compile and dump at a location to plain JS object */
-export function expectDump(source: string, at = '') {
-  return expect(compile(source).dumpAt(at));
-}
-
-/** Test compiler exceptions */
-export function expectCompiling(source: string) {
-  return expect(() => compile(source));
-}
-
+import { expectCompiling, expectDump, expectErrors } from "./exports"
 test('literal outputs', () => {
   expectDump("a = 0, b = 'foo', c = nil, d = record{x = 0, y: 1}")
     .toEqual({ a: 0, b: 'foo', c: null, d: { x: 0, y: 1 } });
@@ -125,8 +98,8 @@ test('update', () => {
     });
   expectCompiling("a = record{x = 0, y : 0}, b = .x := 1")
     .toThrow('not updatable');
-  expectCompiling("a = record{x: 0, y : 0}, b = .x := 'foo'")
-    .toThrow('changing type');
+  expectErrors("a = record{x: 0, y : 0}, b = .x := 'foo'")
+    .toContain('b: type');
 });
 
 test('update reference translation', () => {
@@ -145,18 +118,18 @@ test('update reference translation', () => {
 test('call', () => {
   expectDump("f = do{x: 0}, a = 1, b = f()")
     .toEqual({ f: 0, a: 1, b: 1 });
-  expectCompiling("f = 0, a = 1, b = f()")
-    .toThrow('Can only call a do-block');
-  expectCompiling("f = do{x = 0}, a = 1, b = f()")
-    .toThrow('function input not defined');
-  expectCompiling("f = do{x: ''}, a = 1, b = f()")
-    .toThrow('changing type');
+  expectErrors("f = do{x: ''}, a = 1, b = f()")
+    .toContain('b: type');
   expectDump("f = do{x: 0; y: x}, a = 1, b = f(2)")
     .toEqual({ f: 0, a: 1, b: 2 });
   expectDump("f = do{x: 0; y: x}, a = 1, b = f 2")
     .toEqual({ f: 0, a: 1, b: 2 });
   expectDump("f = do{x: 0; y: x}, a = 1, b = f(.y := 2)")
     .toEqual({ f: 0, a: 1, b: 2 });
+  expectCompiling("f = 0, a = 1, b = f()")
+    .toThrow('Can only call a do-block');
+  expectCompiling("f = do{x = 0}, a = 1, b = f()")
+    .toThrow('function input not defined');
   expectCompiling("f = do{x: 0; y: x}, a = 1, b = f(.z := 2)")
     .toThrow('Undefined name');
   expectCompiling("f = do{x: 0; y: x}, a = 1, b = f(.y := 2, 2)")
@@ -181,10 +154,12 @@ test('arithmetic', () => {
     .toEqual({ a: 3 });
   expectDump("a = 1 +(2)")
     .toEqual({ a: 3 });
-  expectCompiling("a = '' + 0")
-    .toThrow('changing type');
-  expectCompiling("a = 1 + ''")
-    .toThrow('changing type');
+  expectErrors("a = '' + 0")
+    .toContain('a: type');
+  expectErrors("a = 1 + ''")
+    .toContain('a: type');
+  expectErrors("a = 1 + ''; b = a")
+    .toContain('b: type');
   expectDump("a = 1 + 2 * 3")
     .toEqual({ a: 9 });
   expectDump("a = 1 + (2 * 3)")
@@ -265,8 +240,12 @@ test('try', () => {
     .toThrow('clause must be conditional if not last')
   expectCompiling("a? = try {0} else reject")
     .toThrow('clause must be conditional if not last')
-  expectCompiling("a = try {0 >? 1} else {'foo'}")
-    .toThrow('clauses must have same type result')
+  expectErrors("a = try {0 >? 1} else {'foo'}")
+    .toContain('a: type')
+  expectErrors("a = try {0 <? 1} else {'foo'}")
+    .not.toContain('a: type')
+  expectErrors("a = try {0 <? 1} else {'foo'}")
+    .toContain('a.^code.10.^code: type')
   expectDump("a = 0 try {>? 1} else {+ 2}")
     .toEqual({ a: 2 })
 })
@@ -324,8 +303,8 @@ test('dynamic input defaults', () => {
 test('generics', () => {
   expectDump("a? = 1 =? 2")
     .toEqual({a: false});
-  expectCompiling("a? = 1 =? ''")
-    .toThrow('changing type of value');
+  expectErrors("a? = 1 =? ''")
+    .toContain('a: type');
   expectDump(`
   a = record{x: 0, y: ''}
   b = a
@@ -346,12 +325,12 @@ test('generics', () => {
       b: { x: 1, y: '' },
       c: false
     });
-  expectCompiling(`
+  expectErrors(`
   a = record{x: 0, y: ''}
   b = record{x: 0, y: ''}
   c? = a =? b
   `)
-    .toThrow('changing type of value')
+    .toContain('c: type')
 });
 
 test('choices', () => {

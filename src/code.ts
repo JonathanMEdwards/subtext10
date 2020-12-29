@@ -1,4 +1,4 @@
-import { Block, Field, assert, StaticError, Guard, Path, cast, Reference, Token, assertDefined, another, arrayLast, Crash, trap, arrayReverse, Value, Record, Item } from "./exports";
+import { Block, Field, assert, CompileError, Guard, Path, cast, Reference, Token, assertDefined, another, arrayLast, Crash, trap, arrayReverse, Value, Record, Item } from "./exports";
 
 /** A Code block is evaluated to produce a result value. The fields of the block
  * are called statements */
@@ -46,18 +46,24 @@ export class Code extends Block<Statement> {
       break;
     }
     if (!this.result) {
-      throw new StaticError(this.containingItem, 'code block has no result')
+      throw new CompileError(this.containingItem, 'code block has no result')
     }
 
     // evaluate statements until rejection
+    let onUpdate = this.onUpdateBlock?.containingItem;
     for (let statement of this.statements) {
       statement.eval();
+
+      // first statement error propagates to block
+      if (statement !== onUpdate) this.propagateError(statement);
+
       if (statement.conditional) {
         if (statement.inputLike) {
-          throw new StaticError(statement, 'input fields cannot be conditional')
+          throw new CompileError(statement, 'input fields cannot be conditional')
         }
         this.conditional = true;
       }
+
       // FIXME do ? naming check in Item.eval()?
       if (statement.rejected) {
         this.rejected = true
@@ -101,7 +107,7 @@ export class Code extends Block<Statement> {
       this.export = meta;
       exports.forEach(ex => {
         if (ex.id.name === undefined) {
-          throw new StaticError(ex, 'anonymous export statement must be unique')
+          throw new CompileError(ex, 'anonymous export statement must be unique')
         }
         const field = new Field;
         record.add(field);
@@ -114,7 +120,7 @@ export class Code extends Block<Statement> {
 
 
   /** define a field as a possibly recursive export */
-  // FIXME: recursieve exports have turned out klugey. Redesign
+  // FIXME: recursive exports have turned out klugey. Redesign
   fieldImport(field: Field, ex: Item) {
     // detect recursive exports
     const exportType = ex.getMaybe('^exportType');
@@ -125,7 +131,7 @@ export class Code extends Block<Statement> {
     ) {
       let originBase = exportOrigin.container.containingItem;
       if (originBase.containsOrEquals(this.containingItem) !== !!exportType) {
-        throw new StaticError(ex, 'recursive export must define reference');
+        throw new CompileError(ex, 'recursive export must define reference');
       }
     }
 
@@ -144,7 +150,7 @@ export class Code extends Block<Statement> {
           let target = assertDefined(ref.target);
           if (!target.value!.updatableFrom(ex.value!)
           ) {
-            throw new StaticError(ref.tokens[0], 'changing type of value')
+            throw new CompileError(ref.tokens[0], 'changing type of value')
           }
         })
       }
@@ -169,10 +175,10 @@ export class Code extends Block<Statement> {
 
 
   /** initialize all values */
-  initialize() {
+  uneval() {
     this.result = undefined;
     this.rejected = false;
-    super.initialize();
+    super.uneval();
   }
 
   copy(srcPath: Path, dstPath: Path): this {
@@ -245,6 +251,8 @@ export class Call extends Code {
    * recursion. Only the inputs of the function are instantiated to analyze
    * arguments. The result is taken from the result of the definition.
   */
+  // Note edit errors in arguments are strictly passed to result.
+  // Perhaps want to lazily pass through errors
   eval() {
     if (!this.analyzing) {
       // execute argument assignments
@@ -254,6 +262,7 @@ export class Call extends Code {
         let body = cast(arrayLast(this.statements).value, Code);
         body.eval();
         this.result = body.result;
+        if (body.result) this.propagateError(body.result);
         this.export = body.export;
         this.rejected = body.rejected;
         if (body.rejected && this.asserted) {
@@ -311,6 +320,7 @@ export class Call extends Code {
 
     // use result of definition
     this.result = assertDefined(def.result);
+    this.propagateError(def.result!);
     this.export = def.export;
   }
 
@@ -321,7 +331,6 @@ export class Call extends Code {
 /** update reaction blocks */
 export class OnUpdate extends Code {
 
-  // note only called from containing eval during analysis
   eval() {
 
     super.eval();
@@ -333,11 +342,11 @@ export class OnUpdate extends Code {
       !(container instanceof Code)
       || arrayLast(container.statements).value !== this
     ) {
-      throw new StaticError(this.containingItem,
+      throw new CompileError(this.containingItem,
         'on-update must be last statement of code block')
     }
     if (this.conditional) {
-      throw new StaticError(this.containingItem,
+      throw new CompileError(this.containingItem,
         'on-update cannot be conditional')
     }
     // generated input doesn't need to be used

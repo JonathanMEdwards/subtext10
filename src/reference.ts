@@ -1,4 +1,4 @@
-import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, StaticError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice, _Array, FieldID, Selection } from "./exports";
+import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, CompileError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice, _Array, FieldID, Selection } from "./exports";
 
 /** Guard on an ID in a reference */
 export type Guard = '?' | '!' | undefined;
@@ -167,7 +167,7 @@ export class Reference extends Value {
       assert(call.id.toString() === '^call');
       target = this.previous(call, this.tokens[0]);
       if (target.evaluated === undefined) {
-        throw new StaticError(this.tokens[0], 'Circular reference')
+        throw new CompileError(this.tokens[0], 'Circular reference')
       }
       this.path = target.path;
       this.context = this.path.length;
@@ -211,7 +211,7 @@ export class Reference extends Value {
       }
       if (!target) {
         // hit top without binding
-        throw new StaticError(this.tokens[0], 'Undefined name')
+        throw new CompileError(this.tokens[0], 'Undefined name')
       }
     }
 
@@ -236,7 +236,7 @@ export class Reference extends Value {
 
         // don't evaluate base item on path into metadata
         if (tokenGuards[i - 1] !== undefined) {
-          throw new StaticError(
+          throw new CompileError(
             this.tokens[i - 1],
             'No guard allowed before ^'
           );
@@ -256,7 +256,7 @@ export class Reference extends Value {
         // dereferences formula body in a call
         let call = target.getMaybe('^code');
         if (!call || !(call.value instanceof Do)) {
-          throw new StaticError(token, 'Can only call a do-block');
+          throw new CompileError(token, 'Can only call a do-block');
         }
 
         // erase guard from base field. Call.guard will check it
@@ -291,7 +291,7 @@ export class Reference extends Value {
             : undefined
         )
         if (target?.io !== 'input') {
-          throw new StaticError(token, 'function input not defined')
+          throw new CompileError(token, 'function input not defined')
         }
       } else {
 
@@ -305,7 +305,7 @@ export class Reference extends Value {
             // template of backing array of selection
             target = target.value.backing.template
           } else {
-            throw new StaticError(token,
+            throw new CompileError(token,
               '[] only defined on array and selection')
           }
         } else {
@@ -314,16 +314,16 @@ export class Reference extends Value {
         }
         if (!target) {
           // undefined name
-          throw new StaticError(token, 'Undefined name')
+          throw new CompileError(token, 'Undefined name')
         }
         this.evalIfNeeded(target);
         if (!target.value && this.analyzing) {
           // cyclic dependency
           let lastToken = arrayLast(this.tokens);
           if (lastToken.type === 'call') {
-            throw new StaticError(lastToken, 'Recursive call outside secondary try clause')
+            throw new CompileError(lastToken, 'Recursive call outside secondary try clause')
           }
-          throw new StaticError(lastToken, 'Circular reference')
+          throw new CompileError(lastToken, 'Circular reference')
         }
 
         // check conditional access
@@ -340,7 +340,7 @@ export class Reference extends Value {
           guard = '!';
         }
         if (!!guard !== conditional) {
-          throw new StaticError(
+          throw new CompileError(
             token,
             guard
               ? `invalid reference suffix ${guard}`
@@ -362,7 +362,7 @@ export class Reference extends Value {
     if (target.evaluated === undefined && !(this instanceof Selection)) {
       // cyclic dependency
       // Allowed for Selections, which only copy the target lazily
-      throw new StaticError(arrayLast(this.tokens), 'Circular reference')
+      throw new CompileError(arrayLast(this.tokens), 'Circular reference')
     }
 
     // establish Path
@@ -403,7 +403,7 @@ export class Reference extends Value {
   private previous(from: Item, token: Token): Item {
     let item = from.previous();
     if (!item) {
-      throw new StaticError(token, 'No previous value');
+      throw new CompileError(token, 'No previous value');
     }
     if (
       item.conditional
@@ -411,7 +411,7 @@ export class Reference extends Value {
       && !(item.container instanceof Choice)
     ) {
       // in data block, prev value can't be conditional
-      throw new StaticError(
+      throw new CompileError(
         token,
         'Previous value is conditional: use explicit guarded reference'
       )
@@ -419,7 +419,7 @@ export class Reference extends Value {
     return item;
   }
 
-  initialize() {
+  uneval() {
     this.rejected = false;
     this.target = undefined
   }
@@ -508,11 +508,11 @@ export class OptionReference extends Reference {
       // bind optionID
       let choice = this.target!;
       if (!(choice.value instanceof Choice)) {
-        throw new StaticError(this.optionToken, 'expecting choice');
+        throw new CompileError(this.optionToken, 'expecting choice');
       }
       let option = choice.getMaybe(this.optionToken.text);
       if (!option) {
-        throw new StaticError(this.optionToken, 'no such option');
+        throw new CompileError(this.optionToken, 'no such option');
       }
       this.optionID = cast(option.id, FieldID);
     }
