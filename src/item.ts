@@ -406,8 +406,15 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           let ref = cast(this.get('^reference').value, Reference);
           this.setConditional(ref.conditional);
           this.rejected = ref.rejected;
-          this.copyValue(ref.target);
-          this.propagateError(ref.target!);
+          this.propagateError(ref.containingItem); // ref error
+          if (ref.target) {
+            this.propagateError(ref.target); // error on target
+            this.copyValue(ref.target);
+          } else {
+            // set Nil value for dangling reference
+            assert(ref.containingItem.originalEditError === 'reference');
+            this.setValue(new Nil);
+          }
           break;
 
         case 'code':
@@ -1549,6 +1556,12 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     );
     // copy input to result value, to be edited as needed
     this.copyValue(input);
+    // erase edit errors for re-analysis, but keep conversion errors
+    for (let item of this.value!.visit()) {
+      if (item.originalEditError !== 'conversion') {
+        item.editError = undefined;
+      }
+    }
     const targetPath = targetRef.path.ids.slice(targetRef.context);
     // get target within result
     const target = this.down(targetPath)
@@ -1659,11 +1672,6 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         if (!(toType instanceof Base || toType instanceof Text)) {
           throw new CompileError(to, 'can only convert to base types and text');
         }
-        if (!(toType instanceof Nil)
-          && !(target.value instanceof Base || target.value instanceof Text)
-        ) {
-          throw new CompileError(to, 'can only convert from base types and text')
-        }
 
         // function to perform edit
         function editor(target: Item) {
@@ -1690,14 +1698,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
               return;
             }
 
+            // default to value of toType
             let text = new Text;
             target.setValue(text);
+            text.value = toType.value
+
             if (fromVal instanceof _Number) {
               // number to text
               if (fromVal.isBlank()) {
                 // NaN converts to value of toType
                 // FIXME - should it be blank value?
-                text.value = toType.value
               } else {
                 // use standard JS numnber to string conversion
                 text.value = fromVal.value.toString();
@@ -1710,8 +1720,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
               return;
             }
 
-            // unrecognized from type
-            trap();
+            // other types convert to toType value
+            return;
           }
 
           // convert to number
@@ -1744,8 +1754,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
               return;
             }
 
-            // unrecognized type
-            trap();
+            // other types convert to toType value
+            num.value = toType.value;
+            return;
           }
 
           // unrecognized conversion type

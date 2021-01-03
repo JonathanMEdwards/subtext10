@@ -39,7 +39,7 @@ export class Reference extends Value {
   guards!: Guard[];
 
   /** pointer to target item of reference (not a copy). Derived during eval, not
-   * copied */
+   * copied. undefined on reference editError */
   target?: Item;
 
   /** whether reference is conditional within path */
@@ -53,7 +53,7 @@ export class Reference extends Value {
 
   /** Evaluate reference */
   eval() {
-    if (this.target || this.rejected) {
+    if (this.target || this.rejected || this.editError === 'reference') {
       // already evaluated
       return;
     }
@@ -70,16 +70,25 @@ export class Reference extends Value {
 
     // dereference
     let target: Item = from.workspace;
-    this.path.ids.forEach((id, i) => {
+    for (let i = 0; i < this.path.ids.length; i++) {
+      let id = this.path.ids[i];
       // follow paths past rejection during analysis
-      if (this.rejected && !this.analyzing) return;
+      if (this.rejected && !this.analyzing) continue;
 
-      target = target.get(id);
+      let down = target.getMaybe(id);
+      if (!down) {
+        // dereference error - can only occur during editing
+        this.containingItem.editError = 'reference';
+        assert(!this.containingItem.isDerived);
+        this.target = undefined;
+        break;
+      }
+      target = down;
 
       let next = this.path.ids[i + 1];
       if ( next instanceof MetaID && next !== MetaID.ids['^export']) {
         // metadata is not inside base item, so skip evaluating it
-        return;
+        continue;
       }
 
       // mark code statements used
@@ -107,7 +116,7 @@ export class Reference extends Value {
           }
         }
       }
-    })
+    }
 
     // evaluate final target deeply
     // Not needed on Selections, which lazily access their target contents
@@ -119,7 +128,8 @@ export class Reference extends Value {
   }
 
   /** evaluate item if needed to dereference, to avoid eager deep eval */
-  private evalIfNeeded(item: Item) {
+  evalIfNeeded(item: Item) {
+    if (item.editError === 'reference') return;
     if (!item.value && !item.rejected) {
       item.eval();
     }

@@ -66,6 +66,7 @@ test('conversion error', () => {
   `);
   w.createAt('as')
   w.editAt('a', `::convert 0`)
+  expect(w.editErrorMessages).toContain('a: conversion');
   w.editAt('as.0', `::convert 0`);
   expect(w.dump()).toEqual({ a: NaN, as: [NaN] });
   expect(w.editErrorMessages).toContain('a: conversion');
@@ -86,6 +87,15 @@ test('conversion type error', () => {
   let w = compile(`a:: 0, b = a + 1`);
   w.editAt('a', `::convert ''`)
   expect(w.editErrorMessages).toContain('b: type');
-  expect(w.dump()).toEqual({ a: '0', b: 1 });
+  w.editAt('a', `::convert 0`)
+  expect(w.editErrorMessages).toEqual([]);
+  expect(w.dump()).toEqual({ a: 0, b: 1 });
+});
+
+test('reference error', () => {
+  let w = compile(`a:: record{x: 0}, b = a.x`);
+  w.editAt('a', `::convert 0`)
+  expect(w.editErrorMessages).toContain('b: reference');
+  expect(w.dump()).toEqual({ a: 0, b: null });
 });
 
