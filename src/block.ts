@@ -1,4 +1,4 @@
-import { assert, Container, ID, Item, isNumber, Token, Path, Dictionary, Value, trap, CompileError, Link, Reference } from "./exports";
+import { assert, Container, ID, Item, isNumber, Token, Path, Dictionary, Value, trap, CompileError, Link, Reference, Nil } from "./exports";
 
 /** A Block is a record-like container with a fixed set of items called fields.
  * Each field can have a different type. Each Field has a globally unique
@@ -109,8 +109,8 @@ export class Block<F extends Field = Field> extends Container<F> {
   dump() {
     let obj: Dictionary<unknown> = {};
     this.fields.forEach((field, i) => {
-      // skip includes
-      if (field.formulaType === 'include') return;
+      // skip includes and deletes
+      if (field.deleted || field.formulaType === 'include') return;
       // rejected fields are dumped as false
       obj[field.name ?? i + 1] = field.rejected ? false : field.dump();
     })
@@ -122,6 +122,27 @@ export class Block<F extends Field = Field> extends Container<F> {
 export class Field<I extends FieldID = FieldID, V extends Value = Value> extends Item<I, V> {
 
   get name() { return this.id.name }
+
+  /** Field deleted. Value is Nil. Left as a tombstone to preserve order of
+   * ::insert edits */
+  deleted?: boolean;
+
+  /** delete field */
+  delete() {
+    this.deleted = true;
+    // set value to Nil
+    this.detachValueIf();
+    this.setValue(new Nil);
+    this.formulaType = 'none';
+    // delete metadata
+    this.metadata = undefined;
+  }
+
+  copy(srcPath: Path, dstPath: Path): this {
+    let to = super.copy(srcPath, dstPath);
+    to.deleted = this.deleted;
+    return to;
+  }
 }
 
 /** space-unique ID of a Field. Immutable and interned */

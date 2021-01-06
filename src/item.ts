@@ -256,7 +256,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
   formulaType: (
     'none' | 'literal' | 'reference' | 'code' | 'update' | 'updateInput'
     | 'write' | 'choose' | 'call' | 'include' | 'builtin' | 'loop' | 'extend'
-    | '::replace' | '::insert' | '::append' | '::convert'
+    | '::replace' | '::insert' | '::append' | '::convert' | '::delete'
   ) = 'none';
 
   /** IO mode of item. Inputs are mutable state and function parameters. Outputs
@@ -493,6 +493,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         case '::insert':
         case '::append':
         case '::convert':
+        case '::delete':
           // edits
           this.edit();
           break;
@@ -1661,6 +1662,15 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         }
 
         iterateEdit(this, targetPath, editor)
+        break;
+      }
+
+      case '::delete': {
+        if (!(target instanceof Field)) {
+          throw new CompileError(target, 'can only delete a field')
+        }
+
+        iterateEdit(this, targetPath, (item) => (item as Field).delete())
         break;
       }
 

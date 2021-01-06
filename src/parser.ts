@@ -469,7 +469,7 @@ export class Parser {
       if (this.cursorToken.text.startsWith('::')) {
         // edit operation
         if (!(field instanceof Version)) {
-          throw this.setError(`edits only allowed in a test block`,
+          throw this.setError(`edits only allowed on versions`,
             this.cursorToken);
         }
         if (!ref.dependent) {
@@ -601,8 +601,13 @@ export class Parser {
 
   /** requires an edit command */
   requireEdit(field: Field) {
+    field.formulaType = this.cursorToken.text as any;
+
+    if (this.matchToken('::delete')) {
+      return;
+    }
+
     if (this.matchToken('::replace', '::convert')) {
-      field.formulaType = this.prevToken.text as any;
       // parse ^source
       let source = this.parseLiteral() || this.parseReference();
       if (!source || (source instanceof Reference && !source.dependent)) {
@@ -611,8 +616,8 @@ export class Parser {
       field.setMeta('^source', source);
       return;
     }
+
     if (this.matchToken('::insert', '::append')) {
-      field.formulaType = this.prevToken.text as any;
       this.requireToken('{');
       let name = this.requireToken('name');
       // encode new field in a record

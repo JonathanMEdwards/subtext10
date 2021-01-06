@@ -99,3 +99,10 @@ test('reference error', () => {
   expect(w.dump()).toEqual({ a: 0, b: null });
 });
 
+test('delete', () => {
+  let w = compile(`a:: 0, b = a + 1`);
+  w.editAt('a', `::delete`)
+  expect(w.editErrorMessages).toContain('b: reference');
+  expect(w.dump()).toEqual({ b: 1 });
+});
+

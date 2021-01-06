@@ -1,4 +1,4 @@
-import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, CompileError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice, _Array, FieldID, Selection } from "./exports";
+import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, CompileError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice, _Array, FieldID, Selection, Field } from "./exports";
 
 /** Guard on an ID in a reference */
 export type Guard = '?' | '!' | undefined;
@@ -76,15 +76,15 @@ export class Reference extends Value {
       if (this.rejected && !this.analyzing) continue;
 
       let down = target.getMaybe(id);
-      if (!down) {
+      if (!down || (down instanceof Field && down.deleted)) {
         // dereference error - can only occur during editing
         this.containingItem.editError = 'reference';
         assert(!this.containingItem.isDerived);
         this.target = undefined;
-        break;
+        return;
       }
-      target = down;
 
+      target = down;
       let next = this.path.ids[i + 1];
       if ( next instanceof MetaID && next !== MetaID.ids['^export']) {
         // metadata is not inside base item, so skip evaluating it
