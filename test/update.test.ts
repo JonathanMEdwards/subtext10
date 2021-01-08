@@ -138,7 +138,7 @@ test('internal reverse formula', () => {
 
 test('write type check', () => {
   expectErrors("c: 0, f =|> c on-update{write 'foo' -> c}")
-    .toContain('f.^code.5.6: type');
+    .toContain('f.^code.6.7: type');
 });
 
 test('write order check', () => {

@@ -245,7 +245,7 @@ test('try', () => {
   expectErrors("a = try {0 <? 1} else {'foo'}")
     .not.toContain('a: type')
   expectErrors("a = try {0 <? 1} else {'foo'}")
-    .toContain('a.^code.10.^code: type')
+    .toContain('a.^code.11.^code: type')
   expectDump("a = 0 try {>? 1} else {+ 2}")
     .toEqual({ a: 2 })
 })

@@ -106,3 +106,23 @@ test('delete', () => {
   expect(w.dump()).toEqual({ b: 1 });
 });
 
+test('move', () => {
+  let w = compile(`a:: '', b:: 1, c = b + 1`);
+  w.editAt('a', `::move .b`)
+  expect(w.dump()).toEqual({ a: 1, c: 2 });
+});
+
+test('move-insert', () => {
+  let w = compile(`a:: '', b:: 1, c = b + 1`);
+  w.editAt('a', `::move-insert .b`)
+  expect(w.dump()).toEqual({ b: 1, a: '', c: 2 });
+});
+
+test('array move', () => {
+  let w = compile(`a:: table{x:: '', y:: 0, z = y + 1}`);
+  w.createAt('a');
+  w.writeAt('a.1.y', 1);
+  w.editAt('a.0.x', `::move .a[].y`)
+  expect(w.dump()).toEqual({ a: [{x: 1, z: 2}] });
+});
+

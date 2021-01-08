@@ -1,4 +1,4 @@
-import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions, Code, Statement, CompileError, Try, Call, Do, With, assert, Value, Reference, Choice, assertDefined, OptionReference, Container, Field, _Array, Entry  } from "./exports";
+import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions, Code, Statement, CompileError, Try, Call, Do, With, assert, Value, Reference, Choice, assertDefined, OptionReference, Container, Field, _Array, Entry, isNumber  } from "./exports";
 
 /** A subtext workspace */
 export class Workspace extends Item<never, History> {
@@ -22,11 +22,9 @@ export class Workspace extends Item<never, History> {
     return id;
   }
 
-  /** serial numbers assigned to Versions */
-  private versionSerial = 0;
-
+  // FIXME: FieldIDs maybe allocated within versionIDs
   private newVersionID(name: string): FieldID {
-    let serial = ++this.versionSerial
+    let serial = ++this.fieldSerial
     let id = new VersionID(serial);
     id.name = name;
     return id;
@@ -135,11 +133,17 @@ export class Workspace extends Item<never, History> {
 
     // check for unused code statements and validate do/with blocks
     for (let item of version.visit()) {
+      // ignore array entries (possible after edits)
+      if (item.path.ids.slice(version.path.length).find(
+        id => isNumber(id) && id !== 0)
+      ) { continue; }
+
       if (item instanceof Statement &&
         !item.used
         && (item.dataflow === undefined || item.dataflow === 'let')
         && !(item.container instanceof Try)
-        && !(item.container instanceof Call)) {
+        && !(item.container instanceof Call)
+      ) {
         throw new CompileError(item, 'unused value');
       }
       if (item.value instanceof Do && item.usesPrevious) {

@@ -640,6 +640,23 @@ export class Parser {
       return;
     }
 
+    if (this.matchToken('::move', '::move-insert', '::move-append')) {
+      // parse ^source reference
+      let source = this.parseReference();
+      if (!source || !source.dependent) {
+        throw this.setError(`expecting dot-path`, this.cursorToken)
+      }
+      field.setMeta('^source', source);
+
+      if (field.formulaType == '::move-insert' || field.formulaType === '::move-append') {
+        // allocate FieldID
+        let id = this.space.newFieldID();
+        // assume this is sequentially after the id of the statement
+        assert(id.serial === field.id.serial + 1);
+      }
+      return;
+    }
+
     trap();
   }
 

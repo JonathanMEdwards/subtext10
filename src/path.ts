@@ -29,6 +29,7 @@ export class Path {
 
   /** lift path upwards */
   up(n: number): Path {
+    if (n === 0) return this;
     return new Path(this.ids.slice(0, -n));
   }
 

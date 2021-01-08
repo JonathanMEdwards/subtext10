@@ -25,11 +25,6 @@ export class Version extends Field<VersionID, Head> {
   // versions are all outputs
   isInput = false;
 
-  // No previous value of Head
-  previous(): Item | undefined {
-    return undefined;
-  }
-
   /** array of items with edit errors */
   get editErrors(): Item[] {
     let errors: Item[] = [];

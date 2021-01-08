@@ -1,4 +1,4 @@
-import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, Selection, Metafield, _Number, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer, arrayReverse, _Array, arrayRemove, Entry, Record, Link, FieldID, Version, Block, Nil, Base, Character} from "./exports";
+import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, Selection, Metafield, _Number, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer, arrayReverse, _Array, arrayRemove, Entry, Record, Link, FieldID, Version, Block, Nil, Base, Character, arrayReplace, Head, isNumber} from "./exports";
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -107,7 +107,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     let ids = (
       path instanceof Path
         ? path.ids
-        : typeof path === 'string'
+        : isString(path)
           ? path.split('.')
           : path
     )
@@ -257,6 +257,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     'none' | 'literal' | 'reference' | 'code' | 'update' | 'updateInput'
     | 'write' | 'choose' | 'call' | 'include' | 'builtin' | 'loop' | 'extend'
     | '::replace' | '::insert' | '::append' | '::convert' | '::delete'
+    | '::move' | '::move-insert' | '::move-append'
   ) = 'none';
 
   /** IO mode of item. Inputs are mutable state and function parameters. Outputs
@@ -494,6 +495,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         case '::append':
         case '::convert':
         case '::delete':
+        case '::move':
+        case '::move-insert':
+        case '::move-append':
+
           // edits
           this.edit();
           break;
@@ -615,7 +620,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // should only be used during analysis to bind references
     // because if previous value is in outer container, copies of this item need
     // to capture the reference
-    assert(this.analyzing || this.inHistoryFormula);
+    assert(this.analyzing || this instanceof Version || this.inHistoryFormula);
     this.usesPrevious = true;
     let container = this.container;
     let itemIndex = container.items.indexOf(this);
@@ -637,7 +642,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       if (prev.formulaType === 'include') continue;
       return prev;
     }
-    // skip to container
+    // skip to container unless going out of Version
+    if (container instanceof Head) return undefined;
     return container.containingItem.previous();
   }
 
@@ -1555,8 +1561,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     const input = this.workspace.down(
       targetRef.path.ids.slice(0, targetRef.context)
     );
+
     // copy input to result value, to be edited as needed
     this.copyValue(input);
+    const versionPathLength = this.path.length;
+
     // erase edit errors for re-analysis, but keep conversion errors
     for (let item of this.value!.visit()) {
       if (item.originalEditError !== 'conversion') {
@@ -1577,15 +1586,17 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       editor: (item: Item) => void
     ) {
       // detect if target is inside an array entry or template
-      let index = path.findIndex(id => typeof id === 'number');
+      let index = path.findIndex(isNumber);
       if (index >= 0) {
         // recurse on array template and items
-        // MAYBE: require edit to be specified on template?
-        // assert(path[index] === 0);
+        // MAYBE: lift edit in entry to template
+        assert(path[index] === 0);
         let array = context.down(path.slice(0, index)).value;
         assert(array instanceof _Array);
         let arrayPath = path.slice(index + 1);
+        // recurse on rest of path into template
         iterateEdit(array.template, arrayPath, editor);
+        // edit array entries too
         array.items.forEach(item => iterateEdit(item, arrayPath, editor));
         return;
       }
@@ -1594,8 +1605,42 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
       editor(target);
     }
 
-    /** Disallow references outside literal value*/
-    // TODO: could literalize references
+    /** copy from source to target. If target is inside an array entry, will
+     * copy from its template instead. Includes source metadata. Does not change
+     * target id or io. Returns actual source of copy */
+    // theoretically this could be integrated into iterateEdit
+    function templateCopy(target: Item, source: Item): Item {
+      let templatePath = source.path;
+      let entryPath = target.path;
+      // find lowest array entry containing target
+      let ids = target.path.ids.slice(versionPathLength).reverse();
+      let arrayIndex = ids.findIndex(id => isNumber(id) && id > 0);
+      if (arrayIndex >= 0) {
+        // copy from template, which should already have been copied from source
+        let templateIds = target.path.ids.slice();
+        assert(templateIds[templateIds.length - 1 - arrayIndex] > 0);
+        templateIds[templateIds.length - 1 - arrayIndex] = 0;
+        source = target.workspace.down(templateIds);
+        templatePath = source.path.up(arrayIndex); // path to template
+        assert(arrayLast(templatePath.ids) === 0);
+        entryPath = target.path.up(arrayIndex); // path to entry
+        assert(arrayLast(entryPath.ids) > 0);
+      }
+      // create copy of source and metadata
+      let temp = source.copy(templatePath, entryPath);
+      // substitute into target
+      target.metadata = temp.metadata;
+      if (target.metadata) target.metadata.containingItem = target;
+      target.formulaType = temp.formulaType;
+      target.detachValueIf();
+      target.value = temp.value;
+      if (target.value) target.value.containingItem = target;
+
+      return source;
+    }
+
+    /** Disallow references outside literal value */
+    // TODO: could convert references to literal values
     function literalCheck(literal: Item) {
       for (let item of literal.visit()) {
         if (item.value instanceof Reference
@@ -1610,28 +1655,46 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     switch (this.formulaType) {
 
       case '::replace': {
-        // optional ^source is literal or reference
+        // ^source is literal or reference
         const source = this.get('^source');
+        // FIXME: don't want copy of reference to source
+        if (source.value instanceof Reference) trap();
         literalCheck(source);
         // function to perform edit
         function editor(target: Item) {
-          if (source.value instanceof Reference) trap();
-          // replace target with a literal value
-          target.detachValue();
-          target.copyValue(source);
-          // FIXME set copy source to template
+          templateCopy(target, source);
         }
 
         iterateEdit(this, targetPath, editor)
         break;
       }
 
-      case '::append':
-      case '::insert': {
-        const append = this.formulaType === '::append';
-        if (append && !(target.value instanceof Record)) {
+      case '::append': {
+        if (!(target.value instanceof Record)) {
           throw new CompileError(target, 'can only append to record')
-        } else if (!append && !(target.container instanceof Record)) {
+        }
+        // ^source is Record containing field to append/insert
+        const source = cast(this.get('^source').value, Record).fields[0];
+        assert(source);
+        literalCheck(source);
+
+        // function to perform edit
+        function editor(target: Item) {
+          let newField = new Field;
+          cast(target.value, Record).add(newField);
+          newField.id = source.id;
+          newField.io = source.io;
+          // FIXME: don't want copy of reference to source
+          if (source.value instanceof Reference) trap();
+          templateCopy(newField, source);
+        }
+
+        iterateEdit(this, targetPath, editor)
+        break;
+      }
+
+      case '::insert': {
+          if (!(target.container instanceof Record)) {
           throw new CompileError(target, 'can only insert into record')
         }
         // ^source is Record containing field to append/insert
@@ -1642,23 +1705,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         // function to perform edit
         function editor(target: Item) {
           let newField = new Field;
-          if (append) {
-            // append to record
-            cast(target.value, Record).add(newField);
-          } else {
-            // insert before field
-            let record = target.container as Record;
-            newField.container = record;
-            let i = record.fields.indexOf(target as Field);
-            assert(i >= 0);
-            record.fields.splice(i, 0, newField);
-          }
           newField.id = source.id;
           newField.io = source.io;
-          newField.formulaType = source.formulaType;
+          let record = target.container as Record;
+          newField.container = record;
+          let i = record.fields.indexOf(target as Field);
+          assert(i >= 0);
+          record.fields.splice(i, 0, newField);
+          // FIXME: don't want copy of reference to source
           if (source.value instanceof Reference) trap();
-          newField.copyValue(source);
-          // FIXME set copy source to template
+          templateCopy(newField, source);
         }
 
         iterateEdit(this, targetPath, editor)
@@ -1674,8 +1730,143 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         break;
       }
 
+      case '::move':
+      case '::move-append':
+      case '::move-insert': {
+        // ^source is reference
+        const sourceRef = cast(this.get('^source').value, Reference);
+        if (!sourceRef.target) {
+          throw new CompileError(undefined, 'invalid reference')
+        }
+        if (!(sourceRef.target instanceof Field)) {
+          throw new CompileError(undefined, 'can only move a field')
+        }
+
+        // get source inside result
+        assert(sourceRef.dependent);
+        const x = this.down(sourceRef.path.ids.slice(sourceRef.context));
+        assert(x instanceof Field);
+        const source = x;
+
+        // Check that source and target in same template
+        const lubLength = target.path.lub(source.path).length;
+        if (target.path.ids.slice(lubLength).find(isNumber)
+          || source.path.ids.slice(lubLength).find(isNumber)
+        ) {
+          // TODO: allow movement through arrays
+          trap();
+        }
+        // path from LUB to source
+        const sourceSuffix = source.path.ids.slice(lubLength);
+
+        let movedPath = target.path;
+        let editor: (target: Item) => void;
+
+        /** perform move edit iterated over array entries by iteratedEdit */
+        function templateMove(to: Item, from: Item) {
+          // copy from template or source
+          let templateSource = templateCopy(to, from);
+
+          if (templateSource === source) {
+            // primary move
+
+            // delete source
+            source.delete();
+
+            // Add ^moved reference from source to target
+            let moved = new Reference;
+            moved.path = movedPath;
+            // absolute reference in context of version
+            moved.context = versionPathLength;
+            moved.guards = target.path.ids.map(() => undefined);
+            // Fake token array
+            moved.tokens = target.path.ids.slice(moved.context).map(id => {
+              let name = id.toString();
+              return new Token('name', 0, name.length, name);
+            })
+            source.setMeta('^moved', moved);
+          } else {
+            // move within array entry
+
+            // get copy of source in same entry
+            let entrySource = source.workspace.down(
+              [...to.path.ids.slice(0, lubLength), ...sourceSuffix]);
+            assert(entrySource instanceof Field);
+
+            // copy value from entry source
+            to.detachValueIf();
+            if (entrySource.value) {
+              to.copyValue(entrySource);
+            }
+
+            // delete source
+            entrySource.delete();
+
+            // overwrite entry source from template source
+            templateCopy(entrySource, source);
+            let moved = assertDefined(entrySource.get('^moved'));
+            moved.eval();
+            assert(cast(moved.value, Reference).target === to);
+          }
+        }
+
+        if (this.formulaType === '::move') {
+          // function to replace target
+          editor = (target: Item) => {
+            templateMove(target, source);
+            target.io = source.io;
+          }
+        } else {
+          // new ID for insert/append follows that of this statement itself
+          const newID = new FieldID(this.id.serial + 1);
+          // use name of source
+          newID.name = source.id.name;
+          if (this.formulaType === '::move-append') {
+            // append to record
+
+            if (!(target.value instanceof Record)) {
+              throw new CompileError(target, 'can only append to record')
+            }
+            movedPath = movedPath.down(newID);
+
+            editor = (target: Item) => {
+              let newField = new Field;
+              newField.id = newID;
+              newField.io = source.io;
+              cast(target.value, Record).add(newField);
+              templateMove(newField, source);
+            }
+          } else {
+            // insert before field
+
+            assert(this.formulaType === '::move-insert');
+            if (!(target.container instanceof Record)) {
+              throw new CompileError(target, 'can only insert into record')
+            }
+            movedPath = movedPath.up(1).down(newID);
+
+            editor = (target: Item) => {
+              let newField = new Field;
+              newField.id = newID;
+              newField.io = source.io;
+              let record = target.container as Record;
+              newField.container = record;
+              let i = record.fields.indexOf(target as Field);
+              assert(i >= 0);
+              record.fields.splice(i, 0, newField);
+              templateMove(newField, source);
+            }
+          }
+        }
+
+        // iterate edits over arrays
+        iterateEdit(this, targetPath, editor);
+        break;
+      }
+
+
       case '::convert': {
-        // optional ^source is literal or reference
+        // ^source is literal or reference
         const to = this.get('^source');
         literalCheck(to);
         const toType = assertDefined(to.value);
@@ -1902,11 +2093,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    * Asserts argument defined */
   setFrom(from?: number | string | Value | Item) {
     assert(from !== undefined);
-    if (typeof from === 'number') {
+    if (isNumber(from)) {
       let value = new _Number;
       value.value = from
       this.setValue(value);
-    } else if (typeof from === 'string') {
+    } else if (isString(from)) {
       let value = new Text;
       value.value = from;
       this.setValue(value);

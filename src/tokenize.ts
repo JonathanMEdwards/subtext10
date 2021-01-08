@@ -16,6 +16,7 @@ export type TokenType = (
   | 'for-all' | 'such-that' | 'all?' | 'all!' | 'none?' | 'none!' | 'accumulate'
   | 'extend' | 'selection' | 'any' | 'selecting' | 'link' | 'via' | 'register'
   | '::replace' | '::insert' | '::append' | '::convert' | '::delete'
+  | '::move' | '::move-insert' | '::move-append'
 )
 
 export class Token {
@@ -187,6 +188,9 @@ export function tokenize(source: string): Token[] {
     if (match('::append')) return '::append';
     if (match('::convert')) return '::convert';
     if (match('::delete')) return '::delete';
+    if (match('::move-insert')) return '::move-insert';
+    if (match('::move-append')) return '::move-append';
+    if (match('::move')) return '::move';
 
     // punctuation
     if (match('.')) return '.';

@@ -133,7 +133,8 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
   eval(): void {
     // eval template
     this.template.eval();
-    // eval items
+    // eval items except when analyzing
+    if (this.analyzing) return;
     this.items.forEach(item => item.eval());
   }
 

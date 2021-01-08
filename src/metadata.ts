@@ -102,5 +102,6 @@ export class MetaID extends FieldID {
     '^delta',         // Pending change in DeltaContainer
     '^extend',        // record extension
     '^any',           // generic selection
+    '^moved',         // reference to move destination
   ]);
 }
