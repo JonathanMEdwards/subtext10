@@ -84,9 +84,8 @@ export class Workspace extends Item<never, History> {
   }
 
   /** analyze a version. Sets Item.editError for errors that can occur during
-   * editing. Throws exceptions on errors that only occur in compiling. Moving
-   * flag set to remove ^moved annotations */
-  analyze(version: Version, moving = false) {
+   * editing. Throws exceptions on errors that only occur in compiling. */
+  analyze(version: Version) {
     const head = assertDefined(version.value);
 
     // set global analyzing flag and evaluate to do analysis
@@ -134,12 +133,6 @@ export class Workspace extends Item<never, History> {
 
     // check for unused code statements and validate do/with blocks
     for (let item of version.visit()) {
-
-      if (moving) {
-        // delete ^moved annotations
-        item.removeMeta('^moved');
-      }
-
       // ignore array entries (possible after edits)
       // FIXME: not sure why array entries trigger unusued value error
       if (item.path.ids.slice(version.path.length).find(

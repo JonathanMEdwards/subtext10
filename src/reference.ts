@@ -79,37 +79,26 @@ export class Reference extends Value {
 
       let down = target.getMaybe(id);
       let moved = down?.getMaybe('^moved')
-      if (moved && !moved.path.extendedBy(basePath)) {
-        // forward moved reference, except from contained references
+      if (moved) {
+        // forward moved reference
         assert(this.analyzing);
         let ref = cast(moved.value, Reference)
         let targetPath = ref.target!.path;
-        // whether path is moving downward
-        if (down!.path.extendedBy(targetPath)) {
-          // moving inside
-          assert(targetPath.length === down!.path.length + 1);
-          let downPath = this.path.ids.slice();
-          downPath.splice(i + 1, 0, arrayLast(targetPath.ids));
-          this.path = new Path(downPath);
-          this.guards.splice(i + 1, 0, undefined);
-          // continue path scan downward
+        if (this.dependent) {
+          // dependent reference requires that target be within context
+          trap();
         } else {
-          if (this.dependent) {
-            // dependent reference requires that target be within context
-            trap();
-          } else {
-            // structural reference
-            this.path = targetPath;
-            // context is LUB with our location
-            let lub = basePath.lub(targetPath);
-            this.context = lub.length;
-            this.guards = targetPath.ids.map(() => undefined);
-            // FIXME guard path down from LUB to new location?
-          }
-          // eval moved reference
-          this.eval();
-          return;
+          // structural reference
+          this.path = targetPath;
+          // context is LUB with our location
+          let lub = basePath.lub(targetPath);
+          this.context = lub.length;
+          this.guards = targetPath.ids.map(() => undefined);
+          // FIXME guard path down from LUB to new location?
         }
+        // eval moved reference
+        this.eval();
+        return;
       }
 
       if (down instanceof Field && down.deleted) {

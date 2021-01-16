@@ -127,11 +127,11 @@ test('array move', () => {
 });
 
 test('make record', () => {
-  let w = compile(`a:: 0, x = a + 1, as:: array{0}`);
+  let w = compile(`a:: 0, as:: array{0}`);
   w.createAt('as')
   w.editAt('a', `::make-record`)
   w.editAt('as.0', `::make-record`)
   w.writeAt('a.value', 1)
-  expect(w.dump()).toEqual({ a: { value: 1 }, x: 2, as: [{value: 0}]});
+  expect(w.dump()).toEqual({ a: { value: 1 }, as: [{value: 0}]});
 });
 

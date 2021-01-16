@@ -1576,10 +1576,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
     // copy input to result value, to be edited as needed
     this.copyValue(input);
+    const head = cast(this.value, Head);
     const versionPathLength = this.path.length;
 
     // erase edit errors for re-analysis, but keep conversion errors
-    for (let item of this.value!.visit()) {
+    for (let item of head.visit()) {
       if (item.originalEditError !== 'conversion') {
         item.editError = undefined;
       }
@@ -1590,6 +1591,12 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     assert(target);
     // FIXME: only editing data fields for now
     assert(target.io === 'data');
+
+    /** editor function to iterate */
+    let editor: (item: Item) => void;
+
+    /** post-edit cleanup function */
+    let cleanup = () => { return; };
 
     /** Iterate edit over nested arrays */
     function iterateEdit(
@@ -1673,14 +1680,10 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         if (source.value instanceof Reference) trap();
         literalCheck(source);
         // function to perform edit
-        function editor(target: Item) {
+        editor = (target: Item) => {
           templateCopy(target, source);
         }
-
-        iterateEdit(this, targetPath, editor)
-        // analyze results of edit
-        this.workspace.analyze(this);
-        return;
+        break;
       }
 
       case '::append': {
@@ -1693,7 +1696,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         literalCheck(source);
 
         // function to perform edit
-        function editor(target: Item) {
+        editor = (target: Item) => {
           let newField = new Field;
           cast(target.value, Record).add(newField);
           newField.id = source.id;
@@ -1702,11 +1705,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           if (source.value instanceof Reference) trap();
           templateCopy(newField, source);
         }
-
-        iterateEdit(this, targetPath, editor)
-        // analyze results of edit
-        this.workspace.analyze(this);
-        return;
+        break;
       }
 
       case '::insert': {
@@ -1719,7 +1718,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         literalCheck(source);
 
         // function to perform edit
-        function editor(target: Item) {
+        editor = (target: Item) => {
           let newField = new Field;
           newField.id = source.id;
           newField.io = source.io;
@@ -1732,11 +1731,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           if (source.value instanceof Reference) trap();
           templateCopy(newField, source);
         }
-
-        iterateEdit(this, targetPath, editor)
-        // analyze results of edit
-        this.workspace.analyze(this);
-        return;
+        break;
       }
 
       case '::delete': {
@@ -1744,10 +1739,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           throw new CompileError(target, 'can only delete a field')
         }
 
-        iterateEdit(this, targetPath, (item) => (item as Field).delete())
-        // analyze results of edit
-        this.workspace.analyze(this);
-        return;
+        editor = (item) => (item as Field).delete();
+        break;
       }
 
       case '::move':
@@ -1780,7 +1773,6 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         const sourceSuffix = source.path.ids.slice(lubLength);
 
         let movedPath = target.path;
-        let editor: (target: Item) => void;
 
         /** perform move edit iterated over array entries by iteratedEdit */
         function templateMove(to: Item, from: Item) {
@@ -1879,11 +1871,14 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           }
         }
 
-        // iterate edits over arrays
-        iterateEdit(this, targetPath, editor);
-        // analyze results of edit
-        this.workspace.analyze(this, true);
-        return;
+        // delete ^moved annotations after analysis
+        cleanup = () => {
+          for (let item of head.visit()) {
+            item.removeMeta('^moved');
+          }
+        }
+
+        break;
       }
 
 
@@ -1904,7 +1899,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         // edit function
         // FIXME: doesn't copy from template in array entry. Would need a way to
         // extract current value without source links then overlay onto copy.
-        const editor = (target: Item) => {
+        editor = (target: Item) => {
           const movedPath = target.path.down(newID);
           // make copy of target
           let copy = target.copy(target.path, movedPath);
@@ -1951,26 +1946,8 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           target.conditional = false;
           target.usesPrevious = false;
           target.editError = undefined;
-
-          // Add forwarding ^moved reference
-          let moved = new Reference;
-          moved.path = movedPath;
-          // absolute reference in context of version
-          moved.context = versionPathLength;
-          moved.guards = movedPath.ids.map(() => undefined);
-          // Fake token array
-          moved.tokens = movedPath.ids.slice(moved.context).map(id => {
-            let name = id.toString();
-            return new Token('name', 0, name.length, name);
-          })
-          target.setMeta('^moved', moved);
         }
-
-        // iterate edits over arrays
-        iterateEdit(this, targetPath, editor);
-        // analyze results of edit
-        this.workspace.analyze(this, true);
-        return;
+        break;
       }
 
 
@@ -1984,7 +1961,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         }
 
         // function to perform edit
-        function editor(target: Item) {
+        editor = (target: Item) => {
           let fromVal = assertDefined(target.value);
           target.detachValue();
           target.editError = undefined;
@@ -2073,16 +2050,20 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           trap();
         }
 
-        iterateEdit(this, targetPath, editor);
-        // analyze results of edit
-        this.workspace.analyze(this);
-        return;
+        break;
       }
 
 
       default:
         trap();
     }
+
+    // iterate edit into arrays
+    iterateEdit(this, targetPath, editor)
+    // analyze results of edit
+    this.workspace.analyze(this);
+    // perform cleanups
+    cleanup();
   }
 
 
