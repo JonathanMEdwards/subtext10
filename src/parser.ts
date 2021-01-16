@@ -664,7 +664,11 @@ export class Parser {
       assert(id.serial === field.id.serial + 1);
       return;
     }
-    
+
+    if (this.matchToken('::make-array')) {
+      return;
+    }
+
     trap();
   }
 

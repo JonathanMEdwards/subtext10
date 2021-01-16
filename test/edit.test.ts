@@ -122,8 +122,10 @@ test('array move', () => {
   let w = compile(`a:: table{x:: '', y:: 0, z = y + 1}`);
   w.createAt('a');
   w.writeAt('a.1.y', 1);
+  w.createAt('a');
+  w.writeAt('a.2.y', 2);
   w.editAt('a.0.x', `::move .a[].y`)
-  expect(w.dump()).toEqual({ a: [{x: 1, z: 2}] });
+  expect(w.dump()).toEqual({ a: [{ x: 1, z: 2 }, {x: 2, z: 3}] });
 });
 
 test('make record', () => {
@@ -131,7 +133,18 @@ test('make record', () => {
   w.createAt('as')
   w.editAt('a', `::make-record`)
   w.editAt('as.0', `::make-record`)
-  w.writeAt('a.value', 1)
-  expect(w.dump()).toEqual({ a: { value: 1 }, as: [{value: 0}]});
+  expect(w.dump()).toEqual({ a: { value:0 }, as: [{value: 0}]});
+});
+
+test('make array', () => {
+  let w = compile(`a:: 0, as:: array{0}`);
+  w.createAt('as')
+  w.createAt('as')
+  w.writeAt('as.2', 1);
+  w.editAt('a', `::make-array`)
+  w.editAt('as.0', `::make-array`)
+  expect(w.dump()).toEqual({ a: [0], as: [[0], [1]] });
+  w.createAt('as.2');
+  expect(w.dump()).toEqual({ a: [0], as: [[0], [1, 0]] });
 });
 

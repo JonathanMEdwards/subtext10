@@ -28,6 +28,23 @@ export class _Array<V extends Value = Value> extends Container<Entry<V>> {
     return template;
   }
 
+  /** create an entry */
+  createEntry(): Entry<V> {
+    let entry = new Entry<V>();
+    // add to end
+    this.add(entry);
+    entry.io = 'input';
+    entry.formulaType = 'none';
+    if (this.tracked) {
+      // assign new serial number
+      entry.id = ++this.serial;
+    } else {
+      // assign ordinal number
+      entry.id = this.items.length;
+    }
+    return entry;
+  }
+
   /** ghost items. Only used when updating a tracked array through a for-all.
    * Contains entries with ids greater than the serial #. These are created in
    * response to creations in the result of a for-all on the array. A
@@ -974,18 +991,7 @@ builtins['&'] = (s: Statement, array: _Array, value: builtinValue) => {
     return;
   }
 
-  let entry = new Entry;
-  // add to end
-  copy.add(entry);
-  entry.io = 'input';
-  entry.formulaType = 'none';
-  if (array.tracked) {
-    // assign new serial number
-    entry.id = ++copy.serial;
-  } else {
-    // assign ordinal number
-    entry.id = copy.items.length;
-  }
+  let entry = copy.createEntry();
   entry.setFrom(value);
   // export index
   s.exportFrom(entry.container.items.indexOf(entry) + 1);

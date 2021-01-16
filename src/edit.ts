@@ -65,6 +65,7 @@ export function edit(version: Version) {
   /** copy from source to target. If target is inside an array entry, will
    * copy from its template instead. Includes source metadata. Does not change
    * target id or io. Returns actual source of copy */
+  // FIXME is copying from template needed? create operation doesn't do that!
   // theoretically this could be integrated into iterateEdit
   function templateCopy(target: Item, source: Item): Item {
     let templatePath = source.path;
@@ -323,6 +324,7 @@ export function edit(version: Version) {
     case '::make-record':
     case '::make-array': {
       const record = version.formulaType === '::make-record';
+      const source = target;
 
       let newID: RealID;
       if (record) {
@@ -337,6 +339,7 @@ export function edit(version: Version) {
       // edit function
       // FIXME: doesn't copy from template in array entry. Would need a way to
       // extract current value without source links then overlay onto copy.
+      // But note actual create operations don't copy from template either!
       editor = (target: Item) => {
         const movedPath = target.path.down(newID);
         // make copy of target
@@ -345,13 +348,17 @@ export function edit(version: Version) {
         if (record) {
           // convert to Field
           item = new Field;
+          item.io = copy.io;
+          item.formulaType = copy.formulaType;
         } else {
           // convert to template
           item = new Entry;
+          // FIXME what if item is wrong mode for a template?
+          assert(target.dataLike && target.formulaType === 'none');
+          item.io = 'data';
+          item.formulaType = 'none';
         }
         item.id = newID;
-        item.io = copy.io;
-        item.formulaType = copy.formulaType;
         item.conditional = copy.conditional;
         item.editError = copy.editError;
 
@@ -373,8 +380,15 @@ export function edit(version: Version) {
           array.template = item as Entry;
           item.container = array;
           target.setValue(array);
-          // FIXME create entry
-          // FIXME what if template wrong mode?
+          // Create single entry
+          let entry = array.createEntry();
+          entry.copyValue(item);
+          if (target !== source) {
+            // set template value from original source location so make multiple
+            // template instances have same value
+            item.detachValue();
+            item.copyValue((source.value as _Array).template);
+          }
         }
 
         // reformulate target as data
