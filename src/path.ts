@@ -1,4 +1,4 @@
-import { MetaID, VersionID, assert, FieldID, Base, another, Token, Item, trap, CompileError, Block, Value, arrayEquals, arrayLast } from "./exports";
+import { MetaID, VersionID, assert, FieldID } from "./exports";
 
 /**
  * ID of an item. Immutable and interned, so can use ===
@@ -48,7 +48,7 @@ export class Path {
       && this.ids.every((id, i) => id === other.ids[i])
     )
   }
-  
+
   /** Whether other path is within but not equal to this path */
   contains(other: Path): boolean {
     return (

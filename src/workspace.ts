@@ -1,4 +1,4 @@
-import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, trap, builtinDefinitions, Code, Statement, CompileError, Try, Call, Do, With, assert, Value, Reference, Choice, assertDefined, OptionReference, Container, Field, _Array, Entry, isNumber  } from "./exports";
+import { Head, History, Item, Path, Parser, Version, VersionID, FieldID, Token, Statement, CompileError, Try, Call, Do, With, Reference, assertDefined, Container, _Array, isNumber  } from "./exports";
 
 /** A subtext workspace */
 export class Workspace extends Item<never, History> {

@@ -1,4 +1,4 @@
-import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, CompileError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice, _Array, FieldID, Selection, Field, assertDefined } from "./exports";
+import { arrayEquals, Token, Path, Item, assert, MetaID, trap, Block, CompileError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice, _Array, FieldID, Selection, Field } from "./exports";
 
 /** Guard on an ID in a reference */
 export type Guard = '?' | '!' | undefined;

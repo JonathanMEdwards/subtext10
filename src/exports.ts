@@ -30,6 +30,7 @@ export * from "./builtins";
 import { builtinDefinitions } from "./builtins";
 import { arrayBuiltinDefinitions } from "./array";
 export * from "./array";
+export { edit } from "./edit";
 
 /** builtin workspace to be included into other workspaces */
 export const builtinWorkspace = Workspace.compile(
