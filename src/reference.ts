@@ -1,4 +1,4 @@
-import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, CompileError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice, _Array, FieldID, Selection, Field } from "./exports";
+import { arrayEquals, Base, Token, Path, Item, assert, MetaID, trap, Block, CompileError, ID, arrayLast, another, Value, cast, Call, Do, Code, Crash, Statement, Choice, _Array, FieldID, Selection, Field, assertDefined } from "./exports";
 
 /** Guard on an ID in a reference */
 export type Guard = '?' | '!' | undefined;
@@ -70,6 +70,7 @@ export class Reference extends Value {
     }
 
     // dereference
+    const basePath = this.containingPath;
     let target: Item = from.workspace;
     for (let i = 0; i < this.path.ids.length; i++) {
       let id = this.path.ids[i];
@@ -77,23 +78,45 @@ export class Reference extends Value {
       if (this.rejected && !this.analyzing) continue;
 
       let down = target.getMaybe(id);
-      if (down instanceof Field && down.deleted) {
-        let moved = down.getMaybe('^moved')
-        if (moved) {
-          // forward moved reference
-          // FIXME: permanently forward the reference during analysis so
-          // user can see and edit it
-          // For dependent reference, requires that target be within context
-          // For structural references, will need to calc new LUB for context?
-          // assert(this.analyzing);
-          let ref = cast(moved.value, Reference);
-          assert(ref.target);
-          down = ref.target;
+      let moved = down?.getMaybe('^moved')
+      if (moved && !moved.path.extendedBy(basePath)) {
+        // forward moved reference, except from contained references
+        assert(this.analyzing);
+        let ref = cast(moved.value, Reference)
+        let targetPath = ref.target!.path;
+        // whether path is moving downward
+        if (down!.path.extendedBy(targetPath)) {
+          // moving inside
+          assert(targetPath.length === down!.path.length + 1);
+          let downPath = this.path.ids.slice();
+          downPath.splice(i + 1, 0, arrayLast(targetPath.ids));
+          this.path = new Path(downPath);
+          this.guards.splice(i + 1, 0, undefined);
+          // continue path scan downward
         } else {
-          // unmoved deleted target is error
-          down = undefined;
+          if (this.dependent) {
+            // dependent reference requires that target be within context
+            trap();
+          } else {
+            // structural reference
+            this.path = targetPath;
+            // context is LUB with our location
+            let lub = basePath.lub(targetPath);
+            this.context = lub.length;
+            this.guards = targetPath.ids.map(() => undefined);
+            // FIXME guard path down from LUB to new location?
+          }
+          // eval moved reference
+          this.eval();
+          return;
         }
       }
+
+      if (down instanceof Field && down.deleted) {
+        // unmoved deleted target is error
+        down = undefined;
+      }
+
       if (!down) {
         // dereference error - can only occur during editing
         this.containingItem.editError = 'reference';

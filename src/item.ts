@@ -186,6 +186,14 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     return this.metadata.set(name, value);
   }
 
+  /** remove metadata */
+  removeMeta(name: string) {
+    let meta = this.getMaybe(name) as Metafield;
+    if (meta) {
+      arrayRemove(this.metadata!.items, meta);
+      meta.container = undefined as any;
+    }
+  }
   /** create or replace metadata with copy of value of item. Can also supply a
    * value or string or number */
   replaceMeta(name: string, value: Item | Value | string | number): Metafield {
@@ -258,6 +266,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     | 'write' | 'choose' | 'call' | 'include' | 'builtin' | 'loop' | 'extend'
     | '::replace' | '::insert' | '::append' | '::convert' | '::delete'
     | '::move' | '::move-insert' | '::move-append'
+    | '::make-record' | '::make-array' | '::make-sole'
   ) = 'none';
 
   /** IO mode of item. Inputs are mutable state and function parameters. Outputs
@@ -498,6 +507,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         case '::move':
         case '::move-insert':
         case '::move-append':
+        case '::make-record':
+        case '::make-array':
+        case '::make-sole':
 
           // edits
           this.edit();
@@ -1666,7 +1678,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         }
 
         iterateEdit(this, targetPath, editor)
-        break;
+        // analyze results of edit
+        this.workspace.analyze(this);
+        return;
       }
 
       case '::append': {
@@ -1690,7 +1704,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         }
 
         iterateEdit(this, targetPath, editor)
-        break;
+        // analyze results of edit
+        this.workspace.analyze(this);
+        return;
       }
 
       case '::insert': {
@@ -1718,7 +1734,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         }
 
         iterateEdit(this, targetPath, editor)
-        break;
+        // analyze results of edit
+        this.workspace.analyze(this);
+        return;
       }
 
       case '::delete': {
@@ -1727,7 +1745,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         }
 
         iterateEdit(this, targetPath, (item) => (item as Field).delete())
-        break;
+        // analyze results of edit
+        this.workspace.analyze(this);
+        return;
       }
 
       case '::move':
@@ -1817,7 +1837,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
             target.io = source.io;
           }
         } else {
-          // new ID for insert/append follows that of this statement itself
+          // new ID allocated in parser follows that of this statement itself
           const newID = new FieldID(this.id.serial + 1);
           // use name of source
           newID.name = source.id.name;
@@ -1861,7 +1881,96 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
 
         // iterate edits over arrays
         iterateEdit(this, targetPath, editor);
-        break;
+        // analyze results of edit
+        this.workspace.analyze(this, true);
+        return;
+      }
+
+
+      case '::make-record':
+      case '::make-array': {
+        const record = this.formulaType === '::make-record';
+
+        let newID: RealID;
+        if (record) {
+          // new ID allocated in parser follows that of this statement itself
+          newID = new FieldID(this.id.serial + 1);
+          // FIXME: take name from a string argument? Or dup container name?
+          newID.name = 'value';
+        } else {
+          newID = 0;
+        }
+
+        // edit function
+        // FIXME: doesn't copy from template in array entry. Would need a way to
+        // extract current value without source links then overlay onto copy.
+        const editor = (target: Item) => {
+          const movedPath = target.path.down(newID);
+          // make copy of target
+          let copy = target.copy(target.path, movedPath);
+          let item: Item;
+          if (record) {
+            // convert to Field
+            item = new Field;
+          } else {
+            // convert to template
+            item = new Entry;
+          }
+          item.id = newID;
+          item.io = copy.io;
+          item.formulaType = copy.formulaType;
+          item.conditional = copy.conditional;
+          item.editError = copy.editError;
+
+          item.metadata = copy.metadata;
+          if (item.metadata) item.metadata.containingItem = item;
+          item.value = copy.value;
+          if (item.value) item.value.containingItem = item;
+
+          // replace target with wrapped value
+          target.detachValueIf();
+          if (record) {
+            // wrap in record
+            let rec = new Record;
+            rec.add(item as Field);
+            target.setValue(rec);
+          } else {
+            // wrap in array
+            let array = new _Array;
+            array.template = item as Entry;
+            item.container = array;
+            target.setValue(array);
+            // FIXME create entry
+            // FIXME what if template wrong mode?
+          }
+
+          // reformulate target as data
+          target.metadata = undefined;
+          target.io = 'data';
+          target.formulaType = 'none';
+          target.conditional = false;
+          target.usesPrevious = false;
+          target.editError = undefined;
+
+          // Add forwarding ^moved reference
+          let moved = new Reference;
+          moved.path = movedPath;
+          // absolute reference in context of version
+          moved.context = versionPathLength;
+          moved.guards = movedPath.ids.map(() => undefined);
+          // Fake token array
+          moved.tokens = movedPath.ids.slice(moved.context).map(id => {
+            let name = id.toString();
+            return new Token('name', 0, name.length, name);
+          })
+          target.setMeta('^moved', moved);
+        }
+
+        // iterate edits over arrays
+        iterateEdit(this, targetPath, editor);
+        // analyze results of edit
+        this.workspace.analyze(this, true);
+        return;
       }
 
 
@@ -1964,17 +2073,16 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
           trap();
         }
 
-        iterateEdit(this, targetPath, editor)
-        break;
+        iterateEdit(this, targetPath, editor);
+        // analyze results of edit
+        this.workspace.analyze(this);
+        return;
       }
 
 
       default:
         trap();
     }
-
-    // analyze results of edit
-    this.workspace.analyze(this);
   }
 
 

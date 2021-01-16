@@ -657,6 +657,14 @@ export class Parser {
       return;
     }
 
+    if (this.matchToken('::make-record')) {
+      // allocate FieldID
+      let id = this.space.newFieldID();
+      // assume this is sequentially after the id of the statement
+      assert(id.serial === field.id.serial + 1);
+      return;
+    }
+    
     trap();
   }
 

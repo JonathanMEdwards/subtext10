@@ -40,6 +40,15 @@ export class Path {
       && this.ids.every((id, i) => id === other.ids[i]));
   }
 
+  /** whether other path equals or extends this path. Considers metadata to
+   * extend the base data */
+  extendedBy(other: Path): boolean {
+    return (
+      this.length <= other.length
+      && this.ids.every((id, i) => id === other.ids[i])
+    )
+  }
+  
   /** Whether other path is within but not equal to this path */
   contains(other: Path): boolean {
     return (
