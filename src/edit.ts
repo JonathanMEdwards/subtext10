@@ -404,9 +404,56 @@ export function edit(version: Version) {
 
 
     case '::unwrap': {
-      trap();
 
+      // Replace a record with its only field
+      // Replace an array with its only entry
+      // Conversion error otherwise
 
+      editor = (target: Item) => {
+        let items: Item[];
+        let value = target.value;
+        if (value instanceof Record) {
+          items = value.fields.filter(field => !field.deleted);
+        } else if (value instanceof _Array) {
+          items = value.items;
+        } else {
+          // invalid type
+          trap();
+        }
+        if (items.length !== 1) {
+          // conversion error if not exactly one item
+          target.editError = 'conversion';
+        }
+        let item = items[0];
+        if (!item) {
+          if (value instanceof _Array) {
+            // empty array - convert to template value
+            item = value.template;
+          } else {
+            // no record fields - convert to Nil
+            target.detachValueIf();
+            target.setValue(new Nil);
+            target.metadata = undefined;
+            target.formulaType = 'none';
+            return;
+          }
+        }
+        // make copy of item and patch into target
+        // carries metadata with it
+        let copy = item.copy(item.path, target.path);
+        target.detachValueIf();
+        if (copy.value) {
+          target.value = copy.value;
+          target.value.containingItem = target;
+        }
+        target.metadata = copy.metadata;
+        if (target.metadata) {
+          target.metadata.containingItem = target;
+        }
+        target.io = copy.io;
+        target.formulaType = copy.formulaType;
+        return;
+      }
       break;
     }
 

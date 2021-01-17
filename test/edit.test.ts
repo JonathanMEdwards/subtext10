@@ -136,6 +136,14 @@ test('wrap record', () => {
   expect(w.dump()).toEqual({ a: { value:0 }, as: [{value: 0}]});
 });
 
+test('unwrap record', () => {
+  let w = compile(`a:: record{x:: 0}, as:: table{x:: 0}`);
+  w.createAt('as')
+  w.editAt('a', `::unwrap`)
+  w.editAt('as.0', `::unwrap`)
+  expect(w.dump()).toEqual({ a:0, as: [0]});
+});
+
 test('wrap array', () => {
   let w = compile(`a:: 0, as:: array{0}`);
   w.createAt('as')
@@ -146,5 +154,24 @@ test('wrap array', () => {
   expect(w.dump()).toEqual({ a: [0], as: [[0], [1]] });
   w.createAt('as.2');
   expect(w.dump()).toEqual({ a: [0], as: [[0], [1, 0]] });
+});
+
+test('unwrap array', () => {
+  let w = compile(`a:: array{0}, as:: array{array{0}}`);
+  w.createAt('a')
+  w.createAt('as')
+  w.createAt('as.1')
+  w.editAt('a', `::unwrap`)
+  w.editAt('as.0', `::unwrap`)
+  expect(w.dump()).toEqual({ a: 0, as: [0] });
+});
+
+test('unwrap empty array', () => {
+  let w = compile(`a:: array{0}, as:: array{array{0}}`);
+  w.editAt('a', `::unwrap`)
+  w.editAt('as.0', `::unwrap`)
+  expect(w.dump()).toEqual({ a: 0, as: [] });
+  expect(w.editErrorMessages).toContain('a: conversion');
+  expect(w.editErrorMessages).toContain('as.0: conversion');
 });
 
