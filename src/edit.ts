@@ -34,7 +34,7 @@ export function edit(version: Version) {
   let editor: (item: Item) => void;
 
   /** post-edit cleanup function */
-  let cleanup = () => { return; };
+  // let cleanup = () => { return; };
 
   /** Iterate edit over nested arrays */
   function iterateEdit(
@@ -66,7 +66,7 @@ export function edit(version: Version) {
    * copy from its template instead. Includes source metadata. Does not change
    * target id or io. Returns actual source of copy */
   // FIXME is copying from template needed? create operation doesn't do that!
-  // theoretically this could be integrated into iterateEdit
+  // TODO theoretically this could be integrated into iterateEdit
   function templateCopy(target: Item, source: Item): Item {
     let templatePath = source.path;
     let entryPath = target.path;
@@ -310,20 +310,20 @@ export function edit(version: Version) {
         }
       }
 
-      // delete ^moved annotations after analysis
-      cleanup = () => {
-        for (let item of head.visit()) {
-          item.removeMeta('^moved');
-        }
-      }
+      // Maybe: delete ^moved annotations after analysis
+      // cleanup = () => {
+      //   for (let item of head.visit()) {
+      //     item.removeMeta('^moved');
+      //   }
+      // }
 
       break;
     }
 
 
-    case '::make-record':
-    case '::make-array': {
-      const record = version.formulaType === '::make-record';
+    case '::wrap-record':
+    case '::wrap-array': {
+      const record = version.formulaType === '::wrap-record';
       const source = target;
 
       let newID: RealID;
@@ -399,6 +399,14 @@ export function edit(version: Version) {
         target.usesPrevious = false;
         target.editError = undefined;
       }
+      break;
+    }
+
+
+    case '::unwrap': {
+      trap();
+
+
       break;
     }
 
@@ -512,8 +520,10 @@ export function edit(version: Version) {
 
   // iterate edit into arrays
   iterateEdit(version, targetPath, editor)
-  // analyze results of edit
+
+  // analyze results of edit, performing reference forwarding
   version.workspace.analyze(version);
+
   // perform cleanups
-  cleanup();
+  // cleanup();
 }

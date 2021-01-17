@@ -128,21 +128,21 @@ test('array move', () => {
   expect(w.dump()).toEqual({ a: [{ x: 1, z: 2 }, {x: 2, z: 3}] });
 });
 
-test('make record', () => {
+test('wrap record', () => {
   let w = compile(`a:: 0, as:: array{0}`);
   w.createAt('as')
-  w.editAt('a', `::make-record`)
-  w.editAt('as.0', `::make-record`)
+  w.editAt('a', `::wrap-record`)
+  w.editAt('as.0', `::wrap-record`)
   expect(w.dump()).toEqual({ a: { value:0 }, as: [{value: 0}]});
 });
 
-test('make array', () => {
+test('wrap array', () => {
   let w = compile(`a:: 0, as:: array{0}`);
   w.createAt('as')
   w.createAt('as')
   w.writeAt('as.2', 1);
-  w.editAt('a', `::make-array`)
-  w.editAt('as.0', `::make-array`)
+  w.editAt('a', `::wrap-array`)
+  w.editAt('as.0', `::wrap-array`)
   expect(w.dump()).toEqual({ a: [0], as: [[0], [1]] });
   w.createAt('as.2');
   expect(w.dump()).toEqual({ a: [0], as: [[0], [1, 0]] });

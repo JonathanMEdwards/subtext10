@@ -657,7 +657,7 @@ export class Parser {
       return;
     }
 
-    if (this.matchToken('::make-record')) {
+    if (this.matchToken('::wrap-record')) {
       // allocate FieldID
       let id = this.space.newFieldID();
       // assume this is sequentially after the id of the statement
@@ -665,7 +665,7 @@ export class Parser {
       return;
     }
 
-    if (this.matchToken('::make-array')) {
+    if (this.matchToken('::wrap-array', '::unwrap')) {
       return;
     }
 

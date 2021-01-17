@@ -267,7 +267,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     | 'write' | 'choose' | 'call' | 'include' | 'builtin' | 'loop' | 'extend'
     | '::replace' | '::insert' | '::append' | '::convert' | '::delete'
     | '::move' | '::move-insert' | '::move-append'
-    | '::make-record' | '::make-array' | '::make-sole'
+    | '::wrap-record' | '::wrap-array' | '::unwrap'
   ) = 'none';
 
   /** IO mode of item. Inputs are mutable state and function parameters. Outputs
@@ -508,9 +508,9 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         case '::move':
         case '::move-insert':
         case '::move-append':
-        case '::make-record':
-        case '::make-array':
-        case '::make-sole':
+        case '::wrap-record':
+        case '::wrap-array':
+        case '::unwrap':
 
           // edits
           edit(cast(this, Version));
