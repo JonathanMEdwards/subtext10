@@ -649,6 +649,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
     // previous item in container, skipping certain statements
     while (itemIndex) {
       let prev = container.items[--itemIndex]
+      if (prev instanceof Field && prev.deleted) continue;
       if (prev instanceof Statement && prev.dataflow) continue;
       // also skip includes
       if (prev.formulaType === 'include') continue;

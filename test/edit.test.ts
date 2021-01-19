@@ -112,6 +112,26 @@ test('move', () => {
   expect(w.dump()).toEqual({ a: 1, c: 2 });
 });
 
+test('move record', () => {
+  let w = compile(`a:: '', b:: record{x:: 1}, c = b.x + 1`);
+  w.editAt('a', `::move .b`)
+  expect(w.dump()).toEqual({ a: { x: 1 }, c: 2 });
+});
+
+test('move dependent ref', () => {
+  let w = compile(`a:: '', b:: record{x:: 1}, c = .x + 1`);
+  expect(w.dump()).toEqual({ a: '', b: { x: 1 }, c: 2 });
+  w.editAt('a', `::move .b`)
+  expect(w.dump()).toEqual({ a: { x: 1 }, c: 2 });
+});
+
+test('move within dependent ref', () => {
+  let w = compile(`a:: record{x:: '', y:: 1}, c = .y + 1`);
+  expect(w.dump()).toEqual({ a: { x: '', y: 1 }, c: 2 });
+  w.editAt('a.x', `::move .a.y`)
+  expect(w.dump()).toEqual({ a: { x: 1 }, c: 2 });
+});
+
 test('move-insert', () => {
   let w = compile(`a:: '', b:: 1, c = b + 1`);
   w.editAt('a', `::move-insert .b`)

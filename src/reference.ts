@@ -83,19 +83,34 @@ export class Reference extends Value {
         // forward moved reference
         assert(this.analyzing);
         let ref = cast(moved.value, Reference)
-        let targetPath = ref.target!.path;
+        let movedPath = ref.target!.path;
         if (this.dependent) {
-          // dependent reference requires that target be within context
-          trap();
+          if (i >= this.context) {
+            // move within context requires that target remain within context
+            let context = new Path(this.path.ids.slice(0, this.context));
+            if (!context.containsOrEquals(movedPath)) {
+              // dangling reference error
+              this.containingItem.editError = 'reference';
+              return;
+            }
+          } else {
+            // adjust size of moved context
+            this.context = this.context - i - 1 + movedPath.length;
+          }
         } else {
           // structural reference
-          this.path = targetPath;
-          // context is LUB with our location
-          let lub = basePath.lub(targetPath);
-          this.context = lub.length;
-          this.guards = targetPath.ids.map(() => undefined);
-          // FIXME guard path down from LUB to new location?
+          // context is LUB of reference location with target
+          this.context = movedPath.lub(basePath).length;
         }
+
+        // move path
+        this.path = new Path(
+          [...movedPath.ids, ...this.path.ids.slice(i + 1)]);
+        this.guards =
+          [...movedPath.ids.map(() => undefined),
+          ...this.guards.slice(i + 1)];
+        // FIXME guard path down from LUB to moved location?
+
         // eval moved reference
         this.eval();
         return;
