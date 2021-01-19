@@ -114,10 +114,12 @@ export function edit(version: Version) {
 
     case '::replace': {
       // ^source is literal or reference
-      const source = version.get('^source');
-      // FIXME: don't want copy of reference to source
-      if (source.value instanceof Reference) trap();
-      literalCheck(source);
+      let source = version.get('^source');
+      if (source.value instanceof Reference) {
+        source = assertDefined(source.value.target);
+      } else {
+        literalCheck(source);
+      }
       // function to perform edit
       editor = (target: Item) => {
         templateCopy(target, source);
@@ -130,19 +132,23 @@ export function edit(version: Version) {
         throw new CompileError(target, 'can only append to record')
       }
       // ^source is Record containing field to append/insert
-      const source = cast(version.get('^source').value, Record).fields[0];
-      assert(source);
-      literalCheck(source);
+      const sourceField = cast(version.get('^source').value, Record).fields[0];
+      assert(sourceField);
+      let valueItem: Item = sourceField;
+      if (valueItem.value instanceof Reference) {
+        // use target of reference
+        valueItem = assertDefined(valueItem.value.target);
+      } else {
+        literalCheck(valueItem);
+      }
 
       // function to perform edit
       editor = (target: Item) => {
         let newField = new Field;
         cast(target.value, Record).add(newField);
-        newField.id = source.id;
-        newField.io = source.io;
-        // FIXME: don't want copy of reference to source
-        if (source.value instanceof Reference) trap();
-        templateCopy(newField, source);
+        newField.id = sourceField.id;
+        newField.io = sourceField.io;
+        templateCopy(newField, valueItem);
       }
       break;
     }
@@ -152,23 +158,27 @@ export function edit(version: Version) {
         throw new CompileError(target, 'can only insert into record')
       }
       // ^source is Record containing field to append/insert
-      const source = cast(version.get('^source').value, Record).fields[0];
-      assert(source);
-      literalCheck(source);
+      const sourceField = cast(version.get('^source').value, Record).fields[0];
+      assert(sourceField);
+      let valueItem: Item = sourceField;
+      if (valueItem.value instanceof Reference) {
+        // use target of reference
+        valueItem = assertDefined(valueItem.value.target);
+      } else {
+        literalCheck(valueItem);
+      }
 
       // function to perform edit
       editor = (target: Item) => {
         let newField = new Field;
-        newField.id = source.id;
-        newField.io = source.io;
+        newField.id = sourceField.id;
+        newField.io = sourceField.io;
         let record = target.container as Record;
         newField.container = record;
         let i = record.fields.indexOf(target as Field);
         assert(i >= 0);
         record.fields.splice(i, 0, newField);
-        // FIXME: don't want copy of reference to source
-        if (source.value instanceof Reference) trap();
-        templateCopy(newField, source);
+        templateCopy(newField, valueItem);
       }
       break;
     }

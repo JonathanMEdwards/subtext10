@@ -13,6 +13,15 @@ test('replace', () => {
   expect(w.dump()).toEqual({ a: '', as: [''] });
 });
 
+test('replace by reference', () => {
+  let w = compile(`
+  a:: ''
+  one = 1
+  `);
+  w.editAt('a', `::replace .one`)
+  expect(w.dump()).toEqual({ a: 1, one: 1 });
+});
+
 test('append', () => {
   let w = compile(`
   a:: record{x:: 0}
