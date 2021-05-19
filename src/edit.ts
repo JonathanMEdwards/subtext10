@@ -57,14 +57,15 @@ export function edit(version: Version) {
       array.items.forEach(item => iterateEdit(item, arrayPath, editor));
       return;
     }
-    // editor target
+    // edit target
     const target = context.down(path)
     editor(target);
   }
 
-  /** copy from source to target. If target is inside an array entry, will
-   * copy from its template instead. Includes source metadata. Does not change
-   * target id or io. Returns actual source of copy */
+  /** copy from source to target. If target is inside an array entry, will copy
+   * from its template instead, which should already have been copied from
+   * source. Includes source metadata. Does not change target id or io. Returns
+   * actual source of copy */
   // FIXME is copying from template needed? create operation doesn't do that!
   // TODO theoretically this could be integrated into iterateEdit
   function templateCopy(target: Item, source: Item): Item {

@@ -257,8 +257,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    * ***********************************************************************
    * Edit operations start with :: and have a dependent reference in ^target
    *
-   * ::replace,
-   * literal or relative reference in ^source
+   * ::replace has literal or relative reference in ^source
    *
    *
    *  */
