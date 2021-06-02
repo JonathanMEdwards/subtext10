@@ -1,6 +1,15 @@
 import { compile } from './exports';
 const NaN = Number.NaN;
 
+test('nochange', () => {
+  let w = compile(`
+  a:: 0
+  as:: array{0}
+  `);
+  w.editAt('', `::nochange`)
+  expect(w.dump()).toEqual({ a: 0, as: [] });
+});
+
 test('replace', () => {
   let w = compile(`
   a:: 0

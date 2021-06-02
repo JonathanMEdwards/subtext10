@@ -603,7 +603,7 @@ export class Parser {
   requireEdit(field: Field) {
     field.formulaType = this.cursorToken.text as any;
 
-    if (this.matchToken('::delete')) {
+    if (this.matchToken('::delete', '::nochange')) {
       return;
     }
 

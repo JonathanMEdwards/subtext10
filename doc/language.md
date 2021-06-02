@@ -436,7 +436,7 @@ x do {
 
 Only output items can be conditional, not input items, which would introduce problematic _null_ values. See _Blank values_ for further discussion of alternative techniques.
 
-When a function rejects, what happens depends on the kind of block it is inside. Inside a `do` block (and other function blocks to be introduced later), rejection halts further execution, and causes the whole function block to reject. What happens next depends on the kind of block containing that block — if it is also a `do` block then the rejection continues to propagates into the containing block. This proceeds until the rejection reaches one of several kinds of block that handle rejections, for example the `try` block.  Rejection is like _exception catching_ in conventional languages, except that it is the single kind of exception supported, and it carries no extra information visible to the function.
+When a function rejects, what happens depends on the kind of block it is inside. Inside a `do` block (and other function blocks to be introduced later), rejection halts further execution, and causes the whole function block to reject. What happens next depends on the kind of block containing that block — if it is also a `do` block then the rejection continues to propagates into the containing block. This proceeds until the rejection reaches one of several kinds of block that handle rejections, for example the `try` block.  Rejection is like \_exception catching\_ in conventional languages, except that it is the single kind of exception supported, and it carries no extra information visible to the function.
 
 A `try` block is a function that can respond to a rejection by doing something else — it fills the role of the ubiquitous _IF_ statement in conventional languages. Here is an example:
 ```Txt
@@ -1044,7 +1044,7 @@ button =|> off on-update{
   write a[j] <- 0
 }
 ```
-this is an error because there is no guarantee that `i` and `j` are different. Even if we changed it to `i = 1, j = 2` the language isn’t _currently_smart enough to know they are different. One solution would be to sequence the updates as in:
+this is an error because there is no guarantee that `i` and `j` are different. Even if we changed it to `i = 1, j = 2` the language isn’t \_currently\_smart enough to know they are different. One solution would be to sequence the updates as in:
 `write a <- with{[i] := 1, [j] := 2}`
 which will overwrite the value of `[i]` if `i` = `j`.
 
@@ -1828,11 +1828,16 @@ Op :=
 	| 'include' Name
 	| 'builtin' Name
     | '&' Block						// &(with{})
+	| RelPath UnaryEdit
 	| RelPath BinaryEdit (Value | RelPath)
 	| RelPath FieldCreate '{'  Name '::' (Value | RelPath) '}'
 
+UnaryEdit :=
+	| '::delete' | '::nochange' 
+	| '::wrap-record' | '::wrap-array' | '::unwrap'
 BinaryEdit :=
-	| '::replace'
+	| '::replace' | '::convert' 
+	| '::move' | '::move-insert' | '::move-append'
 FieldCreate := 
 	| '::insert' | '::append'
 		

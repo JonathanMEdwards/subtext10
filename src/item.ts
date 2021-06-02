@@ -1,5 +1,14 @@
 import { Workspace, ID, Path, Container, Value, RealID, Metadata, MetaID, isString, another, Field, Reference, trap, assert, Code, Token, cast, arrayLast, Call, Text, evalBuiltin, Try, assertDefined, builtinWorkspace, Statement, Choice, Selection, Metafield, _Number, Loop, OptionReference, OnUpdate, updateBuiltin, Do, DeltaContainer, arrayReverse, _Array, arrayRemove, Entry, Record, Link, FieldID, Version, Nil, Head, isNumber, edit} from "./exports";
 
+/** Type of formula defining an item */
+export type FormulaType =
+  'none' | 'literal' | 'reference' | 'code' | 'update' | 'updateInput'
+  | 'write' | 'choose' | 'call' | 'include' | 'builtin' | 'loop' | 'extend'
+  | '::replace' | '::insert' | '::append' | '::convert' | '::delete'
+  | '::move' | '::move-insert' | '::move-append'
+  | '::wrap-record' | '::wrap-array' | '::unwrap' | '::nochange'
+
+
 /**
  * An Item contains a Value. A Value may be a Container of other items. Values
  * that do not contain Items are Base values. This forms a tree, where Values
@@ -256,18 +265,11 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
    *
    * ***********************************************************************
    * Edit operations start with :: and have a dependent reference in ^target
-   *
    * ::replace has literal or relative reference in ^source
    *
    *
    *  */
-  formulaType: (
-    'none' | 'literal' | 'reference' | 'code' | 'update' | 'updateInput'
-    | 'write' | 'choose' | 'call' | 'include' | 'builtin' | 'loop' | 'extend'
-    | '::replace' | '::insert' | '::append' | '::convert' | '::delete'
-    | '::move' | '::move-insert' | '::move-append'
-    | '::wrap-record' | '::wrap-array' | '::unwrap'
-  ) = 'none';
+  formulaType: FormulaType = 'none';
 
   /** IO mode of item. Inputs are mutable state and function parameters. Outputs
    * are read-only formulas. Interfaces are updatable formulas. Registers are
@@ -510,6 +512,7 @@ export abstract class Item<I extends RealID = RealID, V extends Value = Value> {
         case '::wrap-record':
         case '::wrap-array':
         case '::unwrap':
+        case '::nochange':
 
           // edits
           edit(cast(this, Version));

@@ -1,4 +1,5 @@
-import { ID, RealID, Field, Reference, trap, assert, Token, cast, arrayLast, Text, assertDefined, _Number, _Array, Entry, Record, FieldID, Version, Nil, Base, Character, Head, isNumber, CompileError, Item } from "./exports";
+import { Value } from "classnames";
+import { ID, RealID, Field, Reference, trap, assert, Token, cast, arrayLast, Text, assertDefined, _Number, _Array, Entry, Record, FieldID, Version, Nil, Base, Character, Head, isNumber, CompileError, Item, Path, FormulaType } from "./exports";
 
 /** evaluate edit operations */
 export function edit(version: Version) {
@@ -112,6 +113,12 @@ export function edit(version: Version) {
   }
 
   switch (version.formulaType) {
+
+    case '::nochange': {
+      // no changes
+      editor = () => { }
+      break;
+    }
 
     case '::replace': {
       // ^source is literal or reference
@@ -584,4 +591,64 @@ export function edit(version: Version) {
 
   // perform cleanups
   // cleanup();
+}
+
+/*
+--------------------------------------------------------------------------------
+      edit transformation
+*/
+
+/** Abstract edit description. Pulled out of a Version, with the target relative
+ * reference converted to a Path */
+type Edit = {
+  /** path at which to apply edit */
+  target: Path,
+  /** type of edit */
+  type: FormulaType,
+  /** source of some edits, either a literal base value or a path */
+  source?: Base | Path
+}
+
+/** pull an edit through another one, where they both apply to the same base
+ * state. Produces 2 new edits such that this diagram commutes:
+ *
+ *      branch
+ * o------------->o
+ * |              |
+ * |delta         |newDelta
+ * |              |
+ * v              v
+ * o------------->o
+ *    newBranch
+ *
+ * */
+export function pullEdit(delta: Edit, branch: Edit):
+  { newDelta: Edit, newBranch: Edit } {
+
+  // nochange propagates
+  if (delta.type === '::nochange' || branch.type === '::nochange') {
+    return { newDelta: delta, newBranch: branch };
+  }
+
+  // equal edits cancel out into nochange
+  if (
+    delta.target.equals(branch.target)
+    && delta.type === branch.type
+    && (
+      (delta.source === undefined && branch.source === undefined)
+      || (
+        delta.source instanceof Path
+        && branch.source instanceof Path
+        && delta.source.equals(branch.source))
+      || (
+        delta.source instanceof Base
+        && delta.source.equals(branch.source))
+    ))
+  {
+    let nochange: Edit = { target: delta.target, type: '::nochange' };
+    return { newDelta: nochange, newBranch: nochange };
+  }
+
+
+  trap();
 }

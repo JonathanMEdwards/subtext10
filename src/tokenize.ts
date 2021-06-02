@@ -17,7 +17,7 @@ export type TokenType = (
   | 'extend' | 'selection' | 'any' | 'selecting' | 'link' | 'via' | 'register'
   | '::replace' | '::insert' | '::append' | '::convert' | '::delete'
   | '::move' | '::move-insert' | '::move-append'
-  | '::wrap-record' | '::wrap-array' | '::unwrap'
+  | '::wrap-record' | '::wrap-array' | '::unwrap' | '::nochange'
 )
 
 export class Token {
@@ -184,6 +184,7 @@ export function tokenize(source: string): Token[] {
     if (match('###')) return '###';
 
     // edit operations
+    if (match('::nochange')) return '::nochange';
     if (match('::replace')) return '::replace';
     if (match('::insert')) return '::insert';
     if (match('::append')) return '::append';
