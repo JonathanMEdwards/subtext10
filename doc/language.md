@@ -30,7 +30,11 @@ This section summarizes the notable programming language features of Subtext.
 * All inputs and sources of randomness are recorded in the workspace history to make it autonomous and reproducible.
 * Subtext is both a PL and a DB: data is either persistent and transactional, or deterministically computed from such persistent data.
 * What a user can do by direct manipulation of data and what code can do when executed are similar. The recorded history of user interactions and external inputs is in fact a program that can replay that history, or be used as raw material for Programming by Demonstration.  Conversely, a program can be understood as a script that a user could follow to perform the same operations. The language syntax and semantics have been designed to make these connections as direct as possible. For example, the syntax for replacing a value at a path within a tree, which looks like an assignment statement, is used to record user edits in the history.
-* All code is strict, pure, and referentially transparent. Therefore programs are _functions_.
+* Functional and imperative semantics are combined in a novel way, via
+  bidirectional functions. In the forward direction function are are strict,
+  pure, and referentially transparent. But the backward direction offers a
+  highly restricted form of imperative programming which has nice safety and
+  composition properties. See (_Feedback_).
 * Function execution is materialized as data, completely visible to the programmer using the same UI as for data. Materialized execution takes the LISP idea that _syntax is data_ and applies it to semantics: _execution is data_. Straight-line code is a record, loops are lists, and conditionals are discriminated unions. Calling is inlining.
 * Materialized execution has an unconventional semantics: rather than seeing functions as _reducing to results_, they are seen as _expanding to traces_.
 * One IF to rule them all: there is a single mechanism of conditionality: partial functions which either return a result or reject their input. Inspired by SNOBOL, this single mechanism provides conventional control structures, backtracking logic, pattern matching, assertions, and data invariants.
@@ -221,7 +225,7 @@ The value of the last item, 3, becomes the result of the call.
 > There is another abbreviation for defining functions. For example,
 > ```
 > increment2 = 0 + 1
-> 
+>
 > ```
 > can be called like the prior example. Note this is equivalent to:
 > ```
@@ -573,7 +577,7 @@ This is pronounced “a-literal equals expr choosing literal of one”. The `#` 
 a-literal = expr #literal()
 ```
 
-Note that `#` always initializes the chosen option to its originally defined value, even if it was already chosen and had a different value. Likewise, the optional expression to the right of the option will be given a source value that is that initially defined value of the option. Thus for example `#literal(+ 1)` will always result in 1. 
+Note that `#` always initializes the chosen option to its originally defined value, even if it was already chosen and had a different value. Likewise, the optional expression to the right of the option will be given a source value that is that initially defined value of the option. Thus for example `#literal(+ 1)` will always result in 1.
 
 The fact that `#` expects a choice value means that the type of the choice can be inferred from the context. For example when a function argument is a choice:`background-color(#red())` will choose the initial value of the `red` option of a choice argument. This avoids the need in many languages to redundantly say something like `backgroundColor(Color.red)`.
 
@@ -914,12 +918,12 @@ Programs can change selections with the `select?` and `deselect?` functions, whi
 selection{customers} selecting{.age >? 21}
 ```
 
-Selections define several fields. 
+Selections define several fields.
 
-1. The `.selections` field contains an array of the selected items from the backing array, as in `prime-customers.selections`. 
-2. The `.at?` field is useful for single selections like `top-customer`, as it returns the single selected item, and rejects if there is not exactly one selected item. 
-3. The `.indexes` field is a sorted array of the indexes of the selected items in the backing array. 
-4. The `.backing` field is a copy of the backing array, so `prime-customers.backing` will be a copy of `customers`. 
+1. The `.selections` field contains an array of the selected items from the backing array, as in `prime-customers.selections`.
+2. The `.at?` field is useful for single selections like `top-customer`, as it returns the single selected item, and rejects if there is not exactly one selected item.
+3. The `.indexes` field is a sorted array of the indexes of the selected items in the backing array.
+4. The `.backing` field is a copy of the backing array, so `prime-customers.backing` will be a copy of `customers`.
 5. Note that `.selections`, `.at?` and `backing` are updatable (see _Updating selections_)
 
 Selections are only for tracked arrays, so they can track the selected items through changes to the backing array. Modifying, inserting, or reordering items will not change which items are selected. Deleting an item from an array will remove it from all selections, but not affect the selections of other items.
@@ -936,7 +940,7 @@ orders: tracked table{customer: selection{customers}, item: ''}
 ```
 
 Often when there are relationships between tables we want to see them from both sides: not just the customer of an order, but also all the orders of a customer. Relational databases offer us queries to answer that question. Instead Subtext lets you define selections on both sides that mirror each other, called _links_. For example:
- 
+
 ```
 customers: tracked table{
   name: ''
@@ -1188,7 +1192,7 @@ To handle this sort of problem, Subtext provides another kind of input field: a 
 hidden-password: hidden 'foo'
 password-view = do {
   reveal: register no
-  record {  
+  record {
     password = try {
       check reveal.yes?
       hidden-password
@@ -1209,7 +1213,7 @@ passwords: tracked array{''}
 view = passwords for-all {
   password:[]
   reveal: register no
-  record {  
+  record {
     password = try {
       check reveal.yes?
       password
@@ -1221,15 +1225,15 @@ view = passwords for-all {
 }
 ```
 
-In this example `view` becomes a table containing a row for each password, with a field conditionally revealing the password, and a field containing a button that reveals it. The revealment state of each password is remembered in the `reveal` registers, which live inside the `for-all` iterations. 
+In this example `view` becomes a table containing a row for each password, with a field conditionally revealing the password, and a field containing a button that reveals it. The revealment state of each password is remembered in the `reveal` registers, which live inside the `for-all` iterations.
 
-What happens if we delete a password? Registers remember the state they were in when the code last executed. But this code is being repeatedly executed by the `for-all`. Because `passwords` is a tracked array, the iterations of the `for-all` are correspondingly tracked. So each register will remember its state from the previous iteration with the same tracking ID. Thus deleting passwords will not affect the reveal state registered for the other passwords. Likewise reordering passwords will not mix up the reveal states. 
+What happens if we delete a password? Registers remember the state they were in when the code last executed. But this code is being repeatedly executed by the `for-all`. Because `passwords` is a tracked array, the iterations of the `for-all` are correspondingly tracked. So each register will remember its state from the previous iteration with the same tracking ID. Thus deleting passwords will not affect the reveal state registered for the other passwords. Likewise reordering passwords will not mix up the reveal states.
 
 Similarly, creating a new password will not affect the registered reveal states for the other passwords. The `reveal` register for the new password will be initialized to `no` because it had not executed before.
 
 > If `passwords` was untracked then the registers would be remembered based on the order of the passwords, so deleting would shift the later states down. We might want to outlaw untracked registers unless we find some use for them.
 
-> Use text truncation example instead 
+> Use text truncation example instead
 
 
 
@@ -1488,7 +1492,7 @@ The recursive call `continue?()` has a question mark because the repeat block ca
 > Maybe the `continue` call should default secondary inputs to their value in the current iteration, not the original definition. That would more closely emulate mutable loop variables, and allow uses like `continue(count := + 1)`.
 
 > Maybe `continue` should do an early exit to guarantee tail position and simplify conditional logic.
-> 
+>
 > When repeats are nested it may be useful to have continue specify a name of the block as in `continue foo-loop()`.
 
 > Perhaps a `visit` block that can be multiply-recursive, and collects the exports in order of execution, concatenating them as in a “flat map”. Combined with skipping of conditional exports, this allows arbitrary search algorithms to be easily written.
@@ -1541,7 +1545,7 @@ The `replace-selection` replaces the selected part of the left-hand input with t
 
 ## Blank values
 
-_Null values_ are a perennial controversy in PL and DB design. The idea is to add a special value Null to all types of values in order to represent a “missing” or “unknown” value. Unfortunately Null adds complexity and more ways for code to break, or more language features to avoid breaking. FP languages avoid Null values by using Option wrappers (like Subtext choices), but at the cost of continually wrapping and unwrapping values.  NULL in SQL is a widely acknowledged disaster. We want to avoid this whole mess if possible. 
+_Null values_ are a perennial controversy in PL and DB design. The idea is to add a special value Null to all types of values in order to represent a “missing” or “unknown” value. Unfortunately Null adds complexity and more ways for code to break, or more language features to avoid breaking. FP languages avoid Null values by using Option wrappers (like Subtext choices), but at the cost of continually wrapping and unwrapping values.  NULL in SQL is a widely acknowledged disaster. We want to avoid this whole mess if possible.
 
 Subtext designates a _blank_ value for each type. These are naturally visualized in the UI with blank fields or empty arrays. Here are all the blank values:
 
@@ -1833,14 +1837,14 @@ Op :=
 	| RelPath FieldCreate '{'  Name '::' (Value | RelPath) '}'
 
 UnaryEdit :=
-	| '::delete' | '::nochange' 
+	| '::delete' | '::nochange'
 	| '::wrap-record' | '::wrap-array' | '::unwrap'
 BinaryEdit :=
-	| '::replace' | '::convert' 
+	| '::replace' | '::convert'
 	| '::move' | '::move-insert' | '::move-append'
-FieldCreate := 
+FieldCreate :=
 	| '::insert' | '::append'
-		
+
 Arguments :=
 	| Value
 	| '(' Formula ')'
