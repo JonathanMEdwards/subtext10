@@ -9,8 +9,9 @@ Problem](https://alarmingdevelopment.org/?p=1465). I started writing a paper but
 had to conclude that these results are essentially incommunicable. No one is
 willing to invest the effort in understanding such wildly alien stuff unless
 they first see clear proof of its benefits, which would require a massive
-further investment in R&D. There is no viable path forward from here. I hope to
-revive some of these ideas in future work.
+buildout. I hope to revive some of these ideas in future work that is more
+approachable.
 
-Here is the highly incomplete [documentation](doc/language.md). I don't advise
+Here is the highly incomplete [documentation](doc/language.md). The most
+theoretically interesting bit is [Feedback](doc/language.md#feedback). I don't advise
 trying to read or run the code.
