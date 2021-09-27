@@ -10,6 +10,7 @@ Subtext tries to be simple, transparent, and informal:
 1. Simple — easy to learn and easy to use.
 2. Transparent — the history of user interaction and program execution are visible in complete detail.
 3. Informal — doesn’t require abstraction, premeditation, or mathematical/computational thinking.
+   
 Subtext rejects:
 1. Low level, high performance, or large scale software — being extreme in any dimension.
 2. Requiring knowledge of existing software technology and practices beyond using a browser.
